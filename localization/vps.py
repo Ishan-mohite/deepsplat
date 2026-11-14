@@ -1,0 +1,61 @@
+"""Visual positioning: image -> 6-DoF pose in the map's (splat's) coordinate frame.
+
+Implementations:
+* `hloc_vps.HlocVPS` (README: NetVLAD retrieval + SuperPoint/LightGlue + PnP on the splat's
+  training images). Needs the optional VPS dependencies (localization/requirements-vps.txt).
+* tests inject a fake through `set_vps`.
+A hosted VPS (e.g. MultiSet) would implement the same two methods.
+"""
+
+from dataclasses import dataclass
+from typing import Protocol
+
+import numpy as np
+
+from .cameras import Frame
+
+
+@dataclass
+class VpsResult:
+    c2w: np.ndarray        # camera->world in the map frame, OpenCV axes
+    num_inliers: int
+    confidence: float      # 0..1
+
+
+class VPS(Protocol):
+    name: str
+
+    def has_index(self, map_id: str) -> bool: ...
+
+    def build_index(self, map_id: str, views_dir) -> dict: ...
+
+    def localize(self, map_id: str, frames: list[Frame]) -> list[VpsResult | None]: ...
+
+
+_override: VPS | None = None
+_default: VPS | None = None
+
+
+def set_vps(vps: VPS | None) -> None:
+    global _override
+    _override = vps
+
+
+def configure(kind: str, index_root) -> None:
+    """Called by the backend at startup (VPS setting)."""
+    global _default
+    if kind in ("", "none"):
+        _default = None
+    elif kind == "hloc":
+        from .hloc_vps import HlocVPS
+        _default = HlocVPS(index_root)
+    else:
+        raise ValueError(f"unknown VPS {kind!r}")
+
+
+def get_vps() -> VPS | None:
+    return _override if _override is not None else _default
+
+
+def confidence_from_inliers(num_inliers: int, full: int = 150) -> float:
+    return round(min(1.0, num_inliers / full), 3)

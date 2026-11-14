@@ -1,208 +1,164 @@
-# Damage Detection Backend
+# DeepSplat backend
 
-FastAPI backend: receives a photo + short video from the app, detects building damage with
-SAM 3 (Roboflow serverless), hands the video to the Gaussian-splat team when damage is found,
-and projects the 2D damage masks into the returned splat as 3D annotations for the frontend.
+Implements the "Inspect & log damage" pipeline from the project README, for the iOS capture app
+(`docs/PLAN.md` on `mobile-recorder-app`), robots / glasses and the digital-twin viewer.
 
 ```
-App ── POST /captures (photo + video + metadata)
-          │
-          ▼  background
-     SAM 3 detection ──► no damage → status "no_damage"
-          │ damage
-          ▼
-     ReconstructionJob "pending" ──► splat team: claim → train → POST result (.ply + photo pose)
-                                                                    │
-                                                                    ▼ background
-                                         mask → 3D projection → damages_3d → status "completed"
-Frontend ── GET /captures, GET /captures/{id}
+capture ─► quality gate ─► detect (SAM 3) ─► localize in the splat ─► lift to 3D ─► match issues ─► store
+                                             │
+                                             ├─ client already localized (robot / glasses): camera_to_map
+                                             ├─ VPS on 4–6 video frames, carried to the photo via ARKit poses
+                                             └─ VPS on the photo itself
 ```
 
-## Run
+| Folder | Content (README structure) |
+|---|---|
+| `backend/` | FastAPI app, database models, storage, pipeline orchestration |
+| `inspection/` | damage classes, SAM 3 detector, lifting onto the splat, severity, issue matching, quality gate |
+| `localization/` | camera conventions of the app, frame selection, frame-pose alignment, VPS interface, hloc VPS |
+| `tools/` | SAM 3 evaluation scripts (test set from Wikimedia Commons, prompt / threshold tuning) |
+| `tests/` | unit + end-to-end tests (fake detector, fake VPS, synthetic splat), ~2 s |
+
+## Run locally
 
 ```bash
-cp .env.example .env          # set ROBOFLOW_API_KEY (or DETECTOR=fake for offline work)
-uv run uvicorn app.main:app --reload
-# interactive API docs: http://localhost:8000/docs
-uv run pytest                 # tests use the fake detector, no API calls
+uv sync
+cp backend/.env.example .env           # set ROBOFLOW_API_KEY, or DETECTOR=fake
+uv run uvicorn backend.main:app --reload
+# API docs: http://localhost:8000/docs
+uv run pytest
 ```
 
-Docker (also runs as-is on Google Cloud Run, which sets `$PORT`):
+## Map = trained Gaussian splat
 
-```bash
-docker build -t damage-backend . && docker run -p 8000:8000 --env-file .env damage-backend
-```
+`POST /maps` (multipart):
 
-## Capture status
+| field | |
+|---|---|
+| `splat` | trained, **metric** 3DGS `.ply` (what the viewer loads) |
+| `name`, `map_id` | `map_id` is what the app sends, e.g. `office-floor-3` |
+| `views` | optional zip of the training images + poses (`transforms.json` from nerfstudio, or a COLMAP text model). Needed for the VPS. |
+| `metadata` | optional JSON `{"up_axis": "z", "views_to_map": 4x4, "context": {...}}`. `views_to_map` if the view poses are not in the splat's frame (e.g. nerfstudio dataparser normalization). |
 
-`received → detecting → no_damage` or
-`received → detecting → damage_detected → reconstructing → localizing → completed`;
-`failed` at any step (see `error`). Without a video, a damaged capture stays at `damage_detected`.
+In the background the backend extracts the opaque gaussian centers (opacity ≥ 0.2) for lifting
+and, with `VPS=hloc`, builds the VPS index from the views (`vps_status`). Rebuild: `POST /maps/{id}/index`.
 
-## For the app
+## Inputs
 
-`POST /captures` as `multipart/form-data`:
+### iOS app (docs/PLAN.md section 10)
 
-| field      | required | content |
-|------------|----------|---------|
-| `image`    | yes      | JPEG / PNG / HEIC photo of the damage (EXIF rotation is applied) |
-| `video`    | no       | short video of the surroundings (needed for 3D) |
-| `metadata` | no       | JSON string, see below |
-| `arkit_frames` | no   | JSON file with per-frame ARKit poses of the video (passed through to the splat team) |
+1. `POST /v1/captures` `{capture_id, map_id, size_bytes, created_unix}` → `{upload_url, expires_at}` (GCS V4 signed URL; locally a backend URL)
+2. `PUT upload_url` with the zip (`capture.json`, `frames/*.jpg`, `photo.jpg`, `imu/*`)
+3. `POST /v1/captures/{id}/complete` → `202 {"status": "processing"}`
+4. `GET /v1/captures/{id}` → `{status: uploaded | processing | done | failed, detail}`
+
+The backend applies section 13 itself: raw sensor-orientation images are rotated upright, intrinsics
+and ARKit poses converted (`localization/cameras.py`, tested against the plan's check). It keeps
+4–6 frames (tracking normal, ≥ 0.5 s apart, spread over the capture) for localization.
+
+### `POST /inspect` (one image; robots, glasses, tests)
+
+Multipart `image` + `metadata`:
 
 ```json
 {
-  "source_type": "phone",
-  "device_model": "iPhone 15 Pro",
-  "device_os": "iOS 19.1",
-  "app_version": "0.3.0",
-  "captured_at": "2026-11-14T15:30:00Z",
-  "location": {"latitude": 46.379, "longitude": 7.627, "altitude_m": 1411, "accuracy_m": 5, "heading_deg": 270},
-  "context": {"building": "Haus A", "floor": "2", "room": "Bad", "notes": "..."},
-  "arkit": {
-    "matrix": [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]],
-    "fx": 1450.2, "fy": 1450.2, "cx": 960.1, "cy": 719.8,
-    "width": 1920, "height": 1440,
-    "timestamp": 12345.678, "tracking_state": "normal"
-  }
+  "map_id": "office-floor-3",
+  "intrinsics": {"fx": 1400, "fy": 1400, "cx": 960, "cy": 720, "width": 1920, "height": 1440},
+  "interface_orientation": "landscape",
+  "camera_to_map": [16 numbers or 4x4],        // if the device is already localized
+  "camera_to_world": [16 numbers or 4x4],      // device tracking pose (optional)
+  "pose_convention": "arkit",                  // or "opencv"
+  "source": {"kind": "robot", "device_id": "patrol-02"},
+  "timestamp": "2026-11-14T16:42:10Z"
 }
 ```
 
-**ARKit photo pose** (`arkit`, strongly recommended): take everything from the *same* `ARFrame` as the photo.
+Synchronous; returns the processed capture with its observations.
 
-* `matrix` = `frame.camera.transform` (camera→world) as **4 rows**. simd matrices are column-major,
-  so row *i* = `[t.columns.0[i], t.columns.1[i], t.columns.2[i], t.columns.3[i]]`.
-* `fx = intrinsics.columns.0.x`, `fy = intrinsics.columns.1.y`, `cx = intrinsics.columns.2.x`,
-  `cy = intrinsics.columns.2.y`; `width/height = camera.imageResolution`.
-* Send the photo **unrotated** (landscape sensor orientation, e.g. `frame.capturedImage` as JPEG,
-  no EXIF rotation). The intrinsics refer to that orientation; a portrait JPEG is rejected with 422.
+### `POST /localize`
 
-**`arkit_frames`** suggested format (stored as-is, the splat team defines what they need):
-`{"frames": [{"t": <seconds since video start>, "timestamp": <ARFrame.timestamp>, "matrix": [[4 rows]],
-"fx": ..., "fy": ..., "cx": ..., "cy": ..., "width": ..., "height": ...}, ...]}`
+`image` + `{map_id, intrinsics, interface_orientation}` → `{camera_pose: {t, q}, camera_to_map, confidence, num_inliers}`. 503 without a VPS index.
 
-Response `202` with the capture (status `received`). Poll `GET /captures/{id}` (detection takes ~2–4 s).
+## Outputs for the viewer
 
-## For the frontend
+* `GET /maps/{id}` → `splat_url` and stats
+* `GET /maps/{id}/issues?type=&severity=high,critical&status=&source=robot&as_of=<date>` → issue pins with photo timelines (`as_of` = time slider)
+* `GET /issues/{issue_id}` → the record from README step 6:
 
-* `GET /captures?has_damage=true&damage_class=mold&status=completed&limit=100` – list for maps / tables
-* `GET /captures/{id}` – everything about one capture:
-  * `image`, `video` – URLs + size, duration, fps, resolution
-  * `location`, `context`, `device_*`, `captured_at`
-  * `detection` – summary: `has_damage`, `classes`, `max_confidence`, `model`, `latency_s`, `overlay_url` (photo with masks drawn)
-  * `detections[]` – per damage: `damage_class`, `label` (German), `confidence`, `bbox`, `polygons` (pixel coords of `image`), `area_ratio`, `covers_full_frame`
-  * `splat` – per-capture reconstruction job: `status`, `splat_url` (.ply), `camera` (pose of the photo in the splat), `scene_info`
-  * `scene_id`, `registration` – building scan + alignment ARKit → scan (`ok`, `method`, `fitness`, `rmse`, `ambiguous`, `matrix`, `photo_camera_scene`)
-  * `damages_3d[]` – per localized damage, **in splat world coordinates**: `centroid`, `bbox_min`/`bbox_max`, `normal` (points towards the camera), `area_est` (approx. area, m² for ARKit scenes, ignores surface tilt), `n_points`, `indices_url` (JSON list of splat vertex indices inside the damage → highlight those gaussians)
-  * `image.camera` – ARKit pose of the photo (e.g. to show the photo frustum in the 3D view)
-* `GET /meta/damage-classes` – classes, German labels, prompts, thresholds (legend / filters)
-* `GET /scenes/{id}` – building scan: `preview_url` (3 cm .ply for the viewer), bounds, stats
-* `GET /scenes/{id}/damages` – all damages localized in one building scan, with photo URLs
+```json
+{
+  "issue_id": "ISS-0001", "status": "worsening", "type": "crack", "label": "Crack", "severity": "critical",
+  "object": null, "position_m": [0.0, 0.0, 3.0], "normal": [0, 0, -1], "size": 1.8,
+  "repair_suggested": false,
+  "observations": [{
+    "obs_id": "OBS-0002", "timestamp": "...", "source": {"kind": "robot", "device_id": "patrol-02"},
+    "camera_pose": {"t": [0, 0, 0], "q": [0, 0, 0, 1]}, "pose_confidence": 1.0,
+    "image_url": "...", "mask_url": "...", "overlay_url": "...",
+    "length_m": 1.8, "area_m2": 0.43, "detector_confidence": 0.9, "change": "worsening",
+    "review": "unreviewed", "reviewed_by": null,
+    "points_url": "... [[x,y,z], ...] on the surface", "gaussians_url": "... gaussian indices in the splat"
+  }]
+}
+```
 
-Scale: if the splat is trained in the ARKit world frame, all 3D values are in **meters**
-(`scene.scene_info.units`). Otherwise units are arbitrary.
+* `GET /maps/{id}/report.csv` → inspection report
+* `GET /captures/{id}` → everything about one capture (quality, localization, detections, frames)
 
-## For the splat team
+Conventions: map coordinates in meters (splat frame); `camera_pose.q` = camera→map rotation as
+`[x, y, z, w]` with OpenCV camera axes for the upright image; matrices row-major.
 
-Pull model – your worker needs no inbound connection:
+## Human review
 
-1. `GET /reconstruction-jobs?status=pending` → jobs with `video_url`, `image_url`, `image_width/height`,
-   `photo_camera` (ARKit pose of the photo) and `arkit_frames_url` (ARKit poses of the video frames)
-2. `POST /reconstruction-jobs/{id}/claim` `{"worker_id": "gpu-1"}` (409 if taken)
-3. Train the splat. Two options:
-   * **Recommended – ARKit frame:** use the ARKit poses from `arkit_frames_url` as camera poses
-     (no COLMAP, metric scale) and keep the splat in the ARKit world frame. Then omit `camera`
-     in step 4 – the backend uses `photo_camera`.
-   * **Own frame (COLMAP etc.):** include the damage photo (`image_url`) as an extra SfM image
-     and send its pose as `camera` in step 4.
-4. `POST /reconstruction-jobs/{id}/result` (multipart):
-   * `splat`: 3DGS `.ply` (vertex `x, y, z`; `opacity` logit is used to skip transparent floaters)
-   * `camera` (optional if trained in the ARKit frame): pose + intrinsics of the damage photo, one of:
-     ```json
-     {"convention": "colmap",     "qvec": [qw, qx, qy, qz], "tvec": [tx, ty, tz], "fx": 0, "fy": 0, "cx": 0, "cy": 0, "width": 0, "height": 0}
-     {"convention": "w2c_opencv", "matrix": [[4x4 world->camera]], "fx": ..., "width": ..., "height": ...}
-     {"convention": "c2w_opengl", "matrix": [[4x4 camera->world, nerfstudio transforms.json]], "fx": ..., ...}
-     {"convention": "arkit",      "matrix": [[4x4 ARKit camera.transform as rows]], "fx": ..., ...}
-     ```
-     `width/height` are those of the image the pose belongs to (may differ from the upload; masks are rescaled).
-     The pose and the .ply **must be in the same coordinate frame** (watch out for nerfstudio's
-     `dataparser_transforms.json` normalization when exporting).
-   * `scene_info` (optional JSON): `coordinate_frame` ("arkit" / "colmap"), `units` ("m"), software, training time, …
-5. On error: `POST /reconstruction-jobs/{id}/fail` `{"error": "..."}`
+* `PATCH /issues/{issue_id}` `{status: "repaired"}`, `{severity: "high"}` (manual), `{object_id, object_label}`
+* `PATCH /observations/{obs_id}` `{review: "confirmed" | "rejected", reviewed_by}`; an issue whose
+  observations are all rejected is closed as `rejected`. Reviews are the training data for the detector.
 
-Optional push: set `SPLAT_WEBHOOK_URL` and the job JSON is POSTed there when a job is created.
+## How the steps are implemented
 
-## Building scan (pre-scanned map)
+| README step | Implementation |
+|---|---|
+| 2 Quality gate | sharpness (Laplacian variance) + brightness → flag (`REJECT_LOW_QUALITY_IMAGES` to reject); pose confidence below `MIN_POSE_CONFIDENCE` → `needs_review`, nothing logged |
+| 2 Localize | `localization/`: client pose, or VPS on frames + ARKit (`T = C_map · C_device⁻¹`, robust consensus, outlier frames dropped), or VPS on the photo |
+| 3 Detect | SAM 3 via Roboflow, one request with all prompts of the enabled classes, per-class thresholds, cross-class dedupe |
+| 3 Severity | base by type + size steps (cracks: 0.5 / 1.5 m, areas: 0.1 / 0.5 m²) + structural object label |
+| 4 Lift | opaque gaussian centers projected into the photo with a coarse z-buffer; points inside the mask → centroid (median), normal, area (m²), length (main axis, m) |
+| 5 Match | same type within 15 cm (and same object if known) → observation; > 20 % growth → `worsening`; open issue visible in a confident view without a finding → `repair_suggested` (human confirms) |
+| 6 Store | issues + observations, masks, overlays, 3D points and gaussian indices |
 
-The LiDAR-scanner point cloud is the reference map. Damages are placed directly in it (meters),
-no per-capture splat needed.
+Damage classes (`inspection/classes.py`): crack, corrosion, leak/stain and coating damage are enabled
+(prompts checked on real photos). Dent, exposed wiring and obstruction/spill have untested prompts and
+are disabled; "missing part" cannot be found with a text prompt.
 
-1. `POST /scenes` (multipart: `cloud` .ply, `name`, `metadata` `{"up_axis": "z"}`) → downsampled in the background (`processing` → `ready`)
-2. Captures send `scene_id` (+ optional `scene_hint` `{"center": [x,y,z], "radius": 2.5}`, `arkit_session_id`) in `metadata`
-3. Alignment ARKit world → scan, in this order:
-   * manual (`POST /captures/{id}/registration` with `matrix` or ≥ 3 `pairs` of `{arkit, scene}` points)
-   * reuse from an earlier capture of the same `arkit_session_id`
-   * automatic from an ARKit LiDAR point cloud (`geometry` upload): FPFH global registration +
-     yaw/position sweep around `scene_hint`, ICP refinement, ambiguity check
-4. Masks are projected into the scan → `damages_3d` with `frame: "scene"`
+## External VPS (e.g. MultiSet)
 
-If the alignment is uncertain the capture goes to `needs_alignment` instead of producing a wrong
-position. On synthetic data: without a hint, feature matching finds the pose in about half the
-cases (and reports failure otherwise); with a hint ~1 m off, all test cases align to < 3 cm / < 1°
-in ~10 s on a laptop CPU.
+If localization runs elsewhere: take the frames from `GET /captures/{id}` (`frames[].image_url`,
+intrinsics, device pose), localize them and post the result:
 
-## Code map
-
-| file | purpose |
-|------|---------|
-| `app/main.py` | routes |
-| `app/schemas.py` | API contract (request / response models) |
-| `app/models.py` | DB tables (SQLite now, any SQLAlchemy URL later) |
-| `app/pipeline.py` | background steps: detection, localization |
-| `app/detection/` | `Detector` interface, Roboflow SAM 3, fake detector, class/prompt config |
-| `app/localization.py` | PLY reader, camera conventions, mask → 3D projection |
-| `app/registration.py` | ARKit capture → building scan alignment (Open3D), scene preprocessing |
-| `tools/` | SAM 3 evaluation scripts (Wikimedia test set, prompt / threshold tuning) |
-| `app/storage.py` | blob storage interface (local now; S3-compatible for R2 / GCS later) |
-| `app/media.py` | EXIF normalization, ffprobe, overlay rendering |
-
-## Status vs. project plan (README on `main`, iOS plan on `mobile-recorder-app`)
-
-Not aligned yet:
-
-* **Upload contract:** the iOS app uploads one zip (`capture.json`, 5 FPS frames, `photo.jpg`, IMU)
-  via a GCS signed URL (`POST /v1/captures` → `PUT` → `POST /v1/captures/{id}/complete`). This
-  backend currently takes a multipart upload of photo + video. The `/v1` flow, zip parsing and the
-  portrait rotation from the app plan (section 13) still need to be built.
-* **Localization:** the project plans visual positioning (MultiSet or hloc) of video frames in the
-  map, carried over to the photo through the ARKit poses. Here, the ARKit → map alignment exists
-  (manual, per session, or from LiDAR geometry), but no VPS. A VPS result plugs in as the session
-  alignment (`T = pose_map · pose_arkit⁻¹`).
-* **Issue tracking:** issues with observations, matching (same type within 15 cm), status
-  new / worsening / stable / repaired and severity are not built yet; `damages_3d` are per capture.
-* **Damage classes:** tuned for apartments (crack, mold, water damage, rust, peeling paint, ...);
-  the project list (corrosion, leak/stain, dent, exposed wiring, coating damage, ...) still needs
-  prompts and tests.
-* **Layout:** detection, lifting and registration live in `backend/app/` (one deployable service)
-  rather than separate `inspection/` and `localization/` folders.
+`POST /captures/{id}/registration` `{"frame_poses": [{"frame": "000012", "camera_to_map": 4x4}, ...]}`
+(or `camera_to_map` for the photo, or `device_to_map`). The backend combines the frames, places the
+damages and matches issues.
 
 ## Deployment (Google Cloud)
 
-* Cloud Run from the Dockerfile. Background tasks run after the response, so use instance-based
-  billing ("CPU always allocated") or move them to Cloud Tasks.
-* The container filesystem is ephemeral: use Cloud SQL (Postgres) via `DATABASE_URL` and a GCS
-  implementation of `Storage` (signed URLs) instead of SQLite / local files.
-* Open3D makes the image large (~1.3 GB venv); registration wants ≥ 2 vCPU and 4 GB RAM.
+* Cloud Run from `backend/Dockerfile` (build context = repo root). Background processing of `/v1`
+  uploads runs after the response, so use instance-based billing ("CPU always allocated") or Cloud Tasks.
+* `STORAGE=gcs` + `GCS_BUCKET`: uploads go straight to GCS via V4 signed URLs. The Cloud Run service
+  account needs `roles/iam.serviceAccountTokenCreator` on itself to sign.
+* `DATABASE_URL` → Cloud SQL (Postgres). The container filesystem is ephemeral, so no SQLite there.
+* `API_TOKEN` → static bearer token for the app (stored in the app's Keychain).
+* VPS: `--build-arg WITH_VPS=1` and `VPS=hloc`; index building wants a GPU (Cloud Run with L4).
 
-## Next steps / not done yet
+## Status
 
-* **Drone**: `POST /detect` is the single-frame path (synchronous, nothing stored). Roboflow takes
-  ~2 s per frame, so real-time needs a self-hosted detector behind the same `Detector` interface,
-  plus a stream ingest (WebRTC/RTSP → frame sampler). Drone GPS/gimbal poses plug in like ARKit
-  poses (`photo_camera` with convention `w2c_opencv` / `c2w_opengl`).
-* **LiDAR depth**: with ARKit `sceneDepth` uploaded alongside the photo, damages could be placed in
-  3D immediately, before (or without) a splat.
-* **Deployment**: swap `LocalStorage` for an S3-compatible implementation with signed URLs,
-  SQLite for Postgres, background tasks for a real queue (Cloud Tasks / Cloudflare Queues).
-* **Auth**: none yet — add API keys for app / splat worker before exposing it publicly.
-* **False positives**: thresholds were tuned on damaged images only; test on clean walls too.
+Tested (14 tests): camera conversions against the app plan's check, lifting (area, length, occlusion),
+frame-pose alignment with outliers, severity and matching, end-to-end `/inspect` (new → worsening →
+repair suggested → repaired), review, `/v1` zip upload with a fake VPS, external frame poses.
+
+Not tested yet:
+* **hloc VPS** (`localization/hloc_vps.py`): written against the hloc API, never run (needs torch,
+  hloc and real map views).
+* **GCS storage / Cloud SQL / Docker image**: written, not deployed.
+* **Real data**: no real splat or iOS capture has gone through the pipeline yet; the SAM 3 detector
+  was checked separately on real photos.
+* Lifting uses gaussian centers, not a rendered depth map; large or blurry gaussians can make
+  positions noisier than a depth render would.

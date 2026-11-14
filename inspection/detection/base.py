@@ -1,25 +1,11 @@
-"""Detector interface. Phone uploads and (later) drone stream frames go through the same API.
+"""Detector interface: image -> damage masks with type and confidence.
 
-To add real-time detection for the drone, implement `Detector` with a self-hosted model
-(e.g. SAM 3 on a GPU, or a YOLO-seg model trained on SAM 3 auto-labels) and select it via
-the DETECTOR setting.
+Implementations: Roboflow-hosted SAM 3 (default), a fake detector for tests. A self-hosted model
+(YOLO-seg, SAM fine-tuned on damage data) plugs in behind the same interface.
 """
 
 from dataclasses import dataclass, field
 from typing import Protocol
-
-# Damage classes, the SAM 3 text prompts used for them, and the minimum confidence.
-# Thresholds come from the Wikimedia test set: damage concepts score much lower than everyday
-# objects (0.3-0.9), so the usual 0.5 would miss a lot. Max 16 prompts per Roboflow request.
-DAMAGE_CLASSES: dict[str, dict] = {
-    "crack":         {"label": "Riss",               "prompts": ["crack"],                         "min_conf": 0.45},
-    "mold":          {"label": "Schimmel",           "prompts": ["mold", "dark stain"],            "min_conf": 0.35},
-    "water_damage":  {"label": "Wasserschaden",      "prompts": ["water stain", "water damage"],   "min_conf": 0.35},
-    "rust":          {"label": "Rost",               "prompts": ["rust"],                          "min_conf": 0.45},
-    "peeling_paint": {"label": "Abblätternde Farbe", "prompts": ["peeling paint", "damaged plaster"], "min_conf": 0.4},
-    "hole":          {"label": "Loch in Wand",       "prompts": ["hole in wall"],                  "min_conf": 0.45},
-    "broken_tile":   {"label": "Kaputte Fliese",     "prompts": ["broken tile"],                   "min_conf": 0.45},
-}
 
 FULL_FRAME_RATIO = 0.9
 

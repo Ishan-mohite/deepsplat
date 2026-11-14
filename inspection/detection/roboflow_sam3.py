@@ -3,27 +3,29 @@ import time
 
 import requests
 
-from .base import DAMAGE_CLASSES, DetectedDamage, DetectionResult, dedupe, make_damage
+from ..classes import enabled_classes
+from .base import DetectedDamage, DetectionResult, dedupe, make_damage
 
 ENDPOINT = "https://serverless.roboflow.com/sam3/concept_segment"
 
 
 class RoboflowSAM3Detector:
-    """SAM 3 concept segmentation via Roboflow serverless (~2 s per image, not real-time)."""
+    """SAM 3 concept segmentation via Roboflow serverless (~2-3 s per image)."""
 
     name = "roboflow/sam3"
 
-    def __init__(self, api_key: str, classes: dict[str, dict] = DAMAGE_CLASSES, timeout: float = 60):
+    def __init__(self, api_key: str, classes: dict[str, dict] | None = None, timeout: float = 60):
         if not api_key:
             raise ValueError("ROBOFLOW_API_KEY is not set")
         self.api_key = api_key
-        self.classes = classes
+        self.classes = classes if classes is not None else enabled_classes()
         self.timeout = timeout
-        # flat list of (class, prompt) in request order
-        self.prompts = [(cls, p) for cls, cfg in classes.items() for p in cfg["prompts"]]
+        self.prompts = [(cls, p) for cls, cfg in self.classes.items() for p in cfg["prompts"]]
+        if not self.prompts:
+            raise ValueError("no enabled damage classes")
         if len(self.prompts) > 16:
             raise ValueError("Roboflow SAM 3 accepts at most 16 prompts per request")
-        self.request_thresh = min(cfg["min_conf"] for cfg in classes.values())
+        self.request_thresh = min(cfg["min_conf"] for cfg in self.classes.values())
 
     def _post(self, payload: dict) -> dict:
         last = None
@@ -64,7 +66,6 @@ class RoboflowSAM3Detector:
                 d = make_damage(cls, prompt, conf, pred.get("masks", []), width, height)
                 if d:
                     detections.append(d)
-        detections = dedupe(detections)
         model = raw.get("resolved_model", {}).get("model_id", "sam3")
-        return DetectionResult(detections=detections, model=f"roboflow/{model}",
+        return DetectionResult(detections=dedupe(detections), model=f"roboflow/{model}",
                                latency_s=round(latency, 3), raw=raw)
