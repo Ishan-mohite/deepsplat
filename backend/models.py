@@ -83,6 +83,9 @@ class Capture(SQLModel, table=True):
     map_id: str | None = Field(default=None, foreign_key="map.id", index=True)
     status: CaptureStatus = Field(default=CaptureStatus.processing, index=True)
     error: str | None = None
+    # pipeline step reached: 0 upload, 1 localize, 2 detect (SAM 3), 3 place in 3D, 4 match, 5 done
+    stage: int = 0
+    size_bytes: int | None = None                # upload size (zip or photo)
     created_at: datetime = Field(default_factory=now, index=True)
     updated_at: datetime = Field(default_factory=now)
 
@@ -159,6 +162,7 @@ class Issue(SQLModel, table=True):
     first_seen: datetime = Field(default_factory=now)
     last_seen: datetime = Field(default_factory=now)
     closed_at: datetime | None = None            # set when repaired / rejected
+    closed_by: str | None = None                 # who confirmed the repair
     repair_suggested: bool = False              # a confident view of the spot showed no damage
     repair_suggested_at: datetime | None = None
     repair_suggested_capture_id: str | None = None

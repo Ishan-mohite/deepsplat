@@ -93,7 +93,7 @@ def _jpeg(upload: UploadFile, hashes: list | None = None) -> bytes:
     The SHA-256 of the bytes exactly as uploaded is appended to `hashes` (evidence)."""
     raw = upload.file.read()
     if hashes is not None:
-        hashes.append(evidence.sha256(raw))
+        hashes.append((evidence.sha256(raw), len(raw)))
     try:
         img = Image.open(io.BytesIO(raw)).convert("RGB")
     except Exception:
@@ -421,7 +421,8 @@ def inspect(
             map_pose = map_pose @ R_P
     cap = Capture(map_id=m.id, source_kind=meta.source.kind, device_id=meta.source.device_id,
                   device_model=meta.device_model, captured_at=meta.timestamp or now(), recorder=meta.recorder,
-                  event_kind=event_kind, handover_id=meta.handover_id, original_sha256=hashes[0])
+                  event_kind=event_kind, handover_id=meta.handover_id, original_sha256=hashes[0][0],
+                  size_bytes=hashes[0][1])
     s.add(cap)
     s.commit()
     pipeline.inspect(cap.id, frame, [], map_pose, meta.pose_confidence)
@@ -592,7 +593,9 @@ def patch_issue(issue_id: str, body: IssuePatch, s: SessionDep):
             i.status = IssueStatus(body.status)
         except ValueError:
             raise HTTPException(422, f"status must be one of {[x.value for x in IssueStatus]}")
-        i.closed_at = now() if i.status in (IssueStatus.repaired, IssueStatus.rejected) else None
+        closed = i.status in (IssueStatus.repaired, IssueStatus.rejected)
+        i.closed_at = now() if closed else None
+        i.closed_by = body.by if closed else None
         if i.status == IssueStatus.repaired:
             i.repair_suggested = False
     if body.severity is not None:
@@ -820,3 +823,9 @@ def get_file(key: str):
     if not path.is_file():
         raise HTTPException(404, "file not found")
     return FileResponse(path)
+
+
+# viewer prototype adapter (registered last: it imports from this module)
+from .viewer_api import router as viewer_router  # noqa: E402
+
+app.include_router(viewer_router)

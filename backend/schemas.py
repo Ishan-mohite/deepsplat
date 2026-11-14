@@ -110,6 +110,7 @@ class IssuePatch(BaseModel):
     severity: str | None = Field(None, description="low | medium | high | critical (sets manual severity)")
     object_id: str | None = None
     object_label: str | None = None
+    by: str | None = Field(None, description="who made the change (e.g. who confirmed the repair)")
 
 
 class Room(BaseModel):
@@ -218,6 +219,7 @@ class IssueOut(BaseModel):
     first_seen: datetime
     last_seen: datetime
     closed_at: datetime | None
+    closed_by: str | None
     days_to_repair: float | None
     repair_suggested: bool
     repair_suggested_capture_id: str | None
@@ -450,7 +452,7 @@ def issue_out(s: Session, i: Issue, m: Map | None = None) -> IssueOut:
         position_m=i.position, normal=i.normal, room=i.room, surface=i.surface, height_m=i.height_m,
         place=place_of(i), floor_xy=i.floor_xy or [], floor_plan_px=floor_plan_px(i, m),
         type_corrected=i.type_manual, size=i.size, first_seen=i.first_seen, last_seen=i.last_seen,
-        closed_at=i.closed_at, days_to_repair=days,
+        closed_at=i.closed_at, closed_by=i.closed_by, days_to_repair=days,
         repair_suggested=i.repair_suggested, repair_suggested_capture_id=i.repair_suggested_capture_id,
         observations=[observation_out(o) for o in obs])
 

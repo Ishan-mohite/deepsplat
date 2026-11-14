@@ -49,6 +49,27 @@ Places: every issue gets `room` (rooms drawn as floor-plane polygons via `PATCH 
 counts), `surface` (`floor`, `ceiling`, `north wall`, ... from the surface normal and the map's
 `north`), `height_m` above the floor (`floor_z`, estimated from the splat), `floor_xy`/`floor_plan_px`.
 
+## Web viewer (branch `web-viewer`)
+
+The viewer prototype (`viewer/index.html`) runs on mock data from `MockApi`. The backend serves the
+same shape, so switching is two calls:
+
+| `MockApi` | Backend |
+|---|---|
+| `listSites()` → `[{id, option}]` | `GET /viewer/sites` |
+| `getSite(id)` → site with `summary`, `monthly`, `issues` (README record), `captures` | `GET /viewer/sites/{id}` |
+
+Differences to the mock:
+* Geometry: instead of the procedural `segments` / `plan`, the site has `splat_url` (load with Spark)
+  and `splat_to_viewer` (4x4, apply to the splat mesh), plus `floor_plan_url` / `floor_plan`.
+* Positions, normals and `camera_pose` are already in the viewer frame (y up, three.js cameras).
+* `types`: the backend's damage types in the viewer's `TYPES` format (merge it; `stain` → `leak`,
+  `coating_damage` → `coating`; `hole` etc. are new keys).
+* Captures: `stage` 0–5 follows the viewer's `PIPELINE`; failed captures carry `reason`
+  (e.g. pose confidence below the threshold), done ones `result`.
+* Extra fields the viewer can use: issue `status`, `height_m`, `repair_suggested`; observation
+  `overlay_url`, `recorder`, `event_kind`, `record_hash`.
+
 ## Map = trained Gaussian splat
 
 `POST /maps` (multipart):
@@ -197,7 +218,7 @@ Large splats: Cloud Run accepts at most 32 MB per request, so use
 
 ## Status
 
-Tested (28 tests): splat upload via signed URLs, VPS index surviving a container restart; the imoscan flow on a rendered room (unit with rooms → record → move-out handover
+Tested (31 tests): viewer adapter (shape, frame conversion, pipeline stages); splat upload via signed URLs, VPS index surviving a container restart; the imoscan flow on a rendered room (unit with rooms → record → move-out handover
 linked to the move-in record → live in-view → type correction → repaired → rooms renamed → PDF →
 tampered record detected), places (rooms, compass walls, height), floor plan, hash chain; camera conversions against the app plan's check, lifting (area, length, occlusion),
 frame-pose alignment with outliers, severity and matching, end-to-end `/inspect` (new → worsening →

@@ -68,7 +68,8 @@ def process_package(capture_id: str) -> None:
         cap.captured_at = pkg.captured_at
         cap.geo = m.get("geo") or {}
         cap.n_frames = len((m.get("video") or {}).get("frames") or [])
-        cap.original_sha256 = evidence.sha256(storage.local_path(cap.package_key).read_bytes())
+        pkg_bytes = storage.local_path(cap.package_key).read_bytes()
+        cap.original_sha256, cap.size_bytes = evidence.sha256(pkg_bytes), len(pkg_bytes)
         s.add(cap)
         s.commit()
     inspect(capture_id, pkg.photo, pkg.frames)
@@ -101,15 +102,18 @@ def inspect(capture_id: str, photo: Frame, frames: list[Frame] | None = None,
                 _set(s, cap, CaptureStatus.rejected, "image quality: " + ", ".join(cap.quality["flags"]))
                 return
 
-            # 2. detect
-            _detect(s, cap, photo)
-
-            # 3. localize
-            m = s.get(Map, cap.map_id) if cap.map_id else None
-            loc = _localize(m, photo, frames, map_pose, map_pose_confidence)
-            cap.localization = loc
+            # 2. localize (VPS / client pose)
+            cap.stage = 1
             s.add(cap)
             s.commit()
+            m = s.get(Map, cap.map_id) if cap.map_id else None
+            cap.localization = _localize(m, photo, frames, map_pose, map_pose_confidence)
+            cap.stage = 2
+            s.add(cap)
+            s.commit()
+
+            # 3. detect (SAM 3) - also when localization failed, the 2D findings are kept
+            _detect(s, cap, photo)
             _finish(s, cap, m)
         except Exception as e:
             log.exception("inspection failed for %s", capture_id)
@@ -191,9 +195,11 @@ def _localize(m: Map | None, photo: Frame, frames: list[Frame], map_pose, map_po
 def _finish(s: Session, cap: Capture, m: Map | None) -> None:
     loc = cap.localization or {}
     if m is None or not loc.get("camera"):
+        cap.stage = 1 if m else 5
         _set(s, cap, CaptureStatus.needs_localization if m else CaptureStatus.done, loc.get("error"))
         return
     if m.status != MapStatus.ready:
+        cap.stage = 1
         _set(s, cap, CaptureStatus.needs_localization, f"map {m.id} is {m.status}")
         return
     cap.localization = {**loc, "room": camera_room(m, loc["camera"])}
@@ -201,12 +207,19 @@ def _finish(s: Session, cap: Capture, m: Map | None) -> None:
     s.add(cap)
     s.commit()
     if (loc.get("confidence") or 0) < settings.min_pose_confidence:
-        _set(s, cap, CaptureStatus.needs_review, f"pose confidence {loc.get('confidence')} below gate")
+        cap.stage = 1
+        _set(s, cap, CaptureStatus.needs_review,
+             f"Pose confidence {loc.get('confidence')} is below the {settings.min_pose_confidence:.2f} threshold")
         return
     if not cap.quality.get("ok", True):
+        cap.stage = 2
         _set(s, cap, CaptureStatus.needs_review, "image quality: " + ", ".join(cap.quality.get("flags", [])))
         return
+    cap.stage = 3
+    s.add(cap)
+    s.commit()
     _lift_and_match(s, cap, m, loc)
+    cap.stage = 5
     _set(s, cap, CaptureStatus.done)
 
 
