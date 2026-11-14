@@ -29,7 +29,7 @@ from .config import settings
 from .db import get_session, init_db
 from .models import OPEN_STATUSES, Capture, CaptureStatus, Issue, IssueStatus, Map, Observation, now
 from .schemas import (CaptureOut, DetectionOut, InspectMetadata, IssueOut, IssuePatch, LocalizeMetadata,
-                      LocalizeOut, MapOut, ObservationOut, ObservationReview, RegistrationIn, V1CaptureCreate,
+                      LocalizeMultiMetadata, LocalizeMultiOut, LocalizeOut, FrameResult, MapOut, ObservationOut, ObservationReview, RegistrationIn, V1CaptureCreate,
                       V1CaptureCreated, V1CaptureStatus, capture_out, issue_out, map_out, observation_out)
 from .storage import LocalStorage, storage
 
@@ -299,6 +299,37 @@ def localize(
     t, q = c2w_to_tq(r.c2w)
     return LocalizeOut(camera_pose={"t": t, "q": q}, camera_to_map=np.round(r.c2w, 6).tolist(),
                        confidence=r.confidence, num_inliers=r.num_inliers)
+
+
+@app.post("/localize/multi", response_model=LocalizeMultiOut, dependencies=[Auth])
+def localize_multi(
+    s: SessionDep,
+    images: Annotated[list[UploadFile], File(description="4-6 frames, ~0.5 s apart")],
+    metadata: Annotated[str, Form(description="LocalizeMultiMetadata JSON")],
+):
+    """Several frames with their ARKit poses -> one consensus transform ARKit world -> map
+    (the multi-frame query of hosted VPS services, self-hosted)."""
+    meta = _validated(LocalizeMultiMetadata, metadata, "metadata")
+    if len(images) != len(meta.frames):
+        raise HTTPException(422, f"{len(images)} images but {len(meta.frames)} frame entries")
+    _map(s, meta.map_id)
+    vps = vps_mod.get_vps()
+    if vps is None or not vps.has_index(meta.map_id):
+        raise HTTPException(503, "no VPS index for this map")
+    frames = [_frame(img, Intrinsics(**f.intrinsics.model_dump()), f.interface_orientation,
+                     _pose(f.camera_to_world, meta.pose_convention))
+              for img, f in zip(images, meta.frames)]
+    res = vps.localize(meta.map_id, frames)
+    ok = [(f, r) for f, r in zip(frames, res) if r is not None]
+    if not ok:
+        raise HTTPException(422, "no frame could be localized")
+    al = alignment_from_frame_poses([f.c2w for f, _ in ok], [r.c2w for _, r in ok])
+    conf = al["confidence"] * float(np.mean([r.confidence for _, r in ok]))
+    return LocalizeMultiOut(
+        device_to_map=al["matrix"], confidence=round(conf, 3), n_localized=len(ok), n_inliers=al["n_inliers"],
+        frames=[FrameResult(index=i, localized=r is not None,
+                            camera_to_map=np.round(r.c2w, 6).tolist() if r else None,
+                            num_inliers=r.num_inliers if r else None) for i, r in enumerate(res)])
 
 
 @app.post("/inspect", response_model=CaptureOut, dependencies=[Auth])

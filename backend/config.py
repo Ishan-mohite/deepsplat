@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     # detection: "roboflow_sam3" or "fake" (offline development / tests)
     detector: str = "roboflow_sam3"
     roboflow_api_key: str = ""
-    # visual positioning: "hloc" or "none"
-    vps: str = "none"
+    # visual positioning: "sift" (free, CPU), "hloc" (needs torch, GPU recommended) or "none"
+    vps: str = "sift"
 
     data_dir: Path = Path("data")
     database_url: str = "sqlite:///data/deepsplat.db"

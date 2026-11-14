@@ -15,9 +15,9 @@ capture ─► quality gate ─► detect (SAM 3) ─► localize in the splat �
 |---|---|
 | `backend/` | FastAPI app, database models, storage, pipeline orchestration |
 | `inspection/` | damage classes, SAM 3 detector, lifting onto the splat, severity, issue matching, quality gate |
-| `localization/` | camera conventions of the app, frame selection, frame-pose alignment, VPS interface, hloc VPS |
+| `localization/` | camera conventions of the app, frame selection, frame-pose alignment, own VPS (SIFT, CPU), hloc VPS |
 | `tools/` | SAM 3 evaluation scripts (test set from Wikimedia Commons, prompt / threshold tuning) |
-| `tests/` | unit + end-to-end tests (fake detector, fake VPS, synthetic splat), ~2 s |
+| `tests/` | unit + end-to-end tests (fake detector, rendered synthetic room for the VPS), ~30 s |
 
 ## Run locally
 
@@ -41,7 +41,26 @@ uv run pytest
 | `metadata` | optional JSON `{"up_axis": "z", "views_to_map": 4x4, "context": {...}}`. `views_to_map` if the view poses are not in the splat's frame (e.g. nerfstudio dataparser normalization). |
 
 In the background the backend extracts the opaque gaussian centers (opacity ≥ 0.2) for lifting
-and, with `VPS=hloc`, builds the VPS index from the views (`vps_status`). Rebuild: `POST /maps/{id}/index`.
+and builds the VPS index from the views (`vps_status`). Rebuild: `POST /maps/{id}/index`.
+
+## Own VPS (free, CPU only)
+
+`VPS=sift` (default), `localization/sift_vps.py`. Does what a hosted VPS such as MultiSet does,
+without an API:
+
+1. **Index, once per map:** SIFT keypoints in every training view; the 3D position of each keypoint
+   comes from the splat (gaussian centers projected into the view give its depth).
+2. **Query:** SIFT on the new image → nearest neighbours in the index → ratio test across distinct 3D
+   points → 2D-3D matches → PnP + RANSAC → pose in the splat.
+3. **Multi-frame:** 4–6 frames are localized; their ARKit poses give one robust ARKit→map transform,
+   which places the close-up photo (a plain wall alone is often not localizable).
+
+On the rendered test room: new viewpoints localized to < 3 cm / < 0.5°, ~1 s per frame on a laptop
+CPU, a full iOS capture placed the damage within 3 cm. Real rooms are harder (lighting changes,
+blank walls, repeated patterns); `VPS=hloc` (learned features, needs torch) is the upgrade path.
+
+Needs the training views with poses in the splat's frame; it cannot localize in areas no training
+view has seen.
 
 ## Inputs
 
@@ -75,9 +94,14 @@ Multipart `image` + `metadata`:
 
 Synchronous; returns the processed capture with its observations.
 
-### `POST /localize`
+### `POST /localize`, `POST /localize/multi`
 
-`image` + `{map_id, intrinsics, interface_orientation}` → `{camera_pose: {t, q}, camera_to_map, confidence, num_inliers}`. 503 without a VPS index.
+* `/localize`: `image` + `{map_id, intrinsics, interface_orientation}` → `{camera_pose: {t, q}, camera_to_map, confidence, num_inliers}`
+* `/localize/multi`: 4–6 `images` + `{map_id, frames: [{intrinsics, camera_to_world (ARKit), interface_orientation}]}`
+  → `{device_to_map, confidence, frames: [...]}` – like MultiSet's multi-image query; an app can
+  apply `device_to_map` to its ARKit world to show map content (e.g. known issues) in AR.
+
+503 without a VPS index.
 
 ## Outputs for the viewer
 
@@ -146,15 +170,18 @@ damages and matches issues.
   account needs `roles/iam.serviceAccountTokenCreator` on itself to sign.
 * `DATABASE_URL` → Cloud SQL (Postgres). The container filesystem is ephemeral, so no SQLite there.
 * `API_TOKEN` → static bearer token for the app (stored in the app's Keychain).
-* VPS: `--build-arg WITH_VPS=1` and `VPS=hloc`; index building wants a GPU (Cloud Run with L4).
+* VPS: the default SIFT VPS runs on CPU (2 vCPU / 4 GB is enough for a room-sized map). For hloc:
+  `--build-arg WITH_VPS=1` and `VPS=hloc`; index building wants a GPU.
 
 ## Status
 
-Tested (14 tests): camera conversions against the app plan's check, lifting (area, length, occlusion),
+Tested (21 tests): camera conversions against the app plan's check, lifting (area, length, occlusion),
 frame-pose alignment with outliers, severity and matching, end-to-end `/inspect` (new → worsening →
-repair suggested → repaired), review, `/v1` zip upload with a fake VPS, external frame poses.
+repair suggested → repaired), review, `/v1` zip upload, external frame poses, and the own SIFT VPS on
+a rendered room (single views, `/localize/multi`, full iOS capture with raw portrait frames).
 
 Not tested yet:
+* **Own VPS on real data:** only tested on a synthetic room with clean textures.
 * **hloc VPS** (`localization/hloc_vps.py`): written against the hloc API, never run (needs torch,
   hloc and real map views).
 * **GCS storage / Cloud SQL / Docker image**: written, not deployed.

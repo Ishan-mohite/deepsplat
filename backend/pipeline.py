@@ -338,7 +338,8 @@ def build_vps_index(map_id: str) -> None:
                         raise ValueError(f"unsafe path in views zip: {name}")
                 z.extractall(views_dir)
             T = np.asarray(m.views_to_map) if m.views_to_map else None
-            m.vps_info = vps.build_index(m.id, views_dir, T) if T is not None else vps.build_index(m.id, views_dir)
+            map_xyz = np.load(storage.local_path(m.proj_key))["xyz"].astype(np.float64)
+            m.vps_info = vps.build_index(m.id, views_dir, views_to_map=T, map_xyz=map_xyz)
             m.vps_status = "ready"
         except Exception as e:
             log.exception("VPS index failed for %s", map_id)

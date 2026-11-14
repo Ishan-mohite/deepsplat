@@ -59,6 +59,20 @@ class LocalizeMetadata(BaseModel):
     interface_orientation: str = "landscape"
 
 
+class FrameIn(BaseModel):
+    intrinsics: IntrinsicsIn
+    camera_to_world: list = Field(description="device tracking pose (ARKit camera.transform), 16 numbers or 4x4")
+    interface_orientation: str = "portrait"
+
+
+class LocalizeMultiMetadata(BaseModel):
+    """`metadata` of POST /localize/multi: one entry per uploaded image, same order (like MultiSet's
+    multi-image query)."""
+    map_id: str
+    frames: list[FrameIn] = Field(min_length=1, max_length=10)
+    pose_convention: str = "arkit"
+
+
 class V1CaptureCreate(BaseModel):
     """iOS app, step 1 (docs/PLAN.md section 10)."""
     capture_id: str
@@ -223,6 +237,21 @@ class LocalizeOut(BaseModel):
     camera_to_map: list[list[float]]
     confidence: float
     num_inliers: int
+
+
+class FrameResult(BaseModel):
+    index: int
+    localized: bool
+    camera_to_map: list[list[float]] | None = None
+    num_inliers: int | None = None
+
+
+class LocalizeMultiOut(BaseModel):
+    device_to_map: list[list[float]] = Field(description="ARKit world -> map; apply to any ARKit pose")
+    confidence: float
+    n_localized: int
+    n_inliers: int = Field(description="frames consistent with the consensus")
+    frames: list[FrameResult]
 
 
 class V1CaptureCreated(BaseModel):

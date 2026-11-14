@@ -1,8 +1,10 @@
 """Visual positioning: image -> 6-DoF pose in the map's (splat's) coordinate frame.
 
 Implementations:
-* `hloc_vps.HlocVPS` (README: NetVLAD retrieval + SuperPoint/LightGlue + PnP on the splat's
-  training images). Needs the optional VPS dependencies (localization/requirements-vps.txt).
+* `sift_vps.SiftVPS` (default): free, CPU only. SIFT on the splat's training views, keypoint depth
+  from the splat, direct 2D-3D matching + PnP.
+* `hloc_vps.HlocVPS` (README: NetVLAD retrieval + SuperPoint/LightGlue + PnP). More robust to
+  lighting / low texture, needs torch (localization/requirements-vps.txt) and ideally a GPU.
 * tests inject a fake through `set_vps`.
 A hosted VPS (e.g. MultiSet) would implement the same two methods.
 """
@@ -27,7 +29,7 @@ class VPS(Protocol):
 
     def has_index(self, map_id: str) -> bool: ...
 
-    def build_index(self, map_id: str, views_dir) -> dict: ...
+    def build_index(self, map_id: str, views_dir, views_to_map=None, map_xyz=None) -> dict: ...
 
     def localize(self, map_id: str, frames: list[Frame]) -> list[VpsResult | None]: ...
 
@@ -46,6 +48,9 @@ def configure(kind: str, index_root) -> None:
     global _default
     if kind in ("", "none"):
         _default = None
+    elif kind == "sift":
+        from .sift_vps import SiftVPS
+        _default = SiftVPS(index_root)
     elif kind == "hloc":
         from .hloc_vps import HlocVPS
         _default = HlocVPS(index_root)

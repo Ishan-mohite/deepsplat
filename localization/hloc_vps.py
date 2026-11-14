@@ -48,7 +48,7 @@ class HlocVPS:
     def has_index(self, map_id: str) -> bool:
         return (self._dir(map_id) / "index.json").is_file()
 
-    def build_index(self, map_id: str, views_dir, views_to_map=None) -> dict:
+    def build_index(self, map_id: str, views_dir, views_to_map=None, map_xyz=None) -> dict:
         from hloc import extract_features, match_features, pairs_from_poses, triangulation
 
         out = self._dir(map_id)
