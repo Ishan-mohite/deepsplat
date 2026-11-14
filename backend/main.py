@@ -17,17 +17,22 @@ from PIL import Image
 from pydantic import BaseModel, ValidationError
 from sqlmodel import Session, select
 
-from inspection.classes import DAMAGE_CLASSES
+from inspection import evidence
+from inspection.classes import DAMAGE_CLASSES, label
+from inspection.lifting import Camera, visible_points, is_visible
+from inspection.placement import place
 from inspection.detection import get_detector
 from inspection.severity import LEVELS
 from localization import vps as vps_mod
 from localization.alignment import alignment_from_frame_poses
 from localization.cameras import R_P, Frame, Intrinsics, c2w_to_tq, matrix_from_row_major, to_cv, upright
 
-from . import pipeline
+from . import pipeline, report
 from .config import settings
 from .db import get_session, init_db
-from .models import OPEN_STATUSES, Capture, CaptureStatus, Issue, IssueStatus, Map, Observation, now
+from .models import OPEN_STATUSES, Capture, CaptureStatus, Handover, Issue, IssueStatus, Map, Observation, aware, now
+from .schemas import (DashboardOut, HandoverIn, HandoverOut, InViewIn, InViewOut, InViewRecord, LatestRecord,
+                      MapPatch, OpenFinding, floor_plan_px, handover_out, live_observations, place_of)
 from .schemas import (CaptureOut, DetectionOut, InspectMetadata, IssueOut, IssuePatch, LocalizeMetadata,
                       LocalizeMultiMetadata, LocalizeMultiOut, LocalizeOut, FrameResult, MapOut, ObservationOut, ObservationReview, RegistrationIn, V1CaptureCreate,
                       V1CaptureCreated, V1CaptureStatus, capture_out, issue_out, map_out, observation_out)
@@ -81,10 +86,14 @@ def _validated(model: type[BaseModel], raw: str | None, field: str):
         raise HTTPException(422, json.loads(e.json()))
 
 
-def _jpeg(upload: UploadFile) -> bytes:
-    """Re-encode as JPEG without applying EXIF rotation (intrinsics refer to the stored pixels)."""
+def _jpeg(upload: UploadFile, hashes: list | None = None) -> bytes:
+    """Re-encode as JPEG without applying EXIF rotation (intrinsics refer to the stored pixels).
+    The SHA-256 of the bytes exactly as uploaded is appended to `hashes` (evidence)."""
+    raw = upload.file.read()
+    if hashes is not None:
+        hashes.append(evidence.sha256(raw))
     try:
-        img = Image.open(io.BytesIO(upload.file.read())).convert("RGB")
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
     except Exception:
         raise HTTPException(415, "image could not be decoded (JPEG, PNG or HEIC)")
     buf = io.BytesIO()
@@ -104,8 +113,8 @@ def _pose(values, convention: str) -> np.ndarray:
     raise HTTPException(422, "pose_convention must be 'arkit' or 'opencv'")
 
 
-def _frame(upload: UploadFile, K: Intrinsics, orientation: str, device_c2w=None) -> Frame:
-    img = _jpeg(upload)
+def _frame(upload: UploadFile, K: Intrinsics, orientation: str, device_c2w=None, hashes: list | None = None) -> Frame:
+    img = _jpeg(upload, hashes)
     w, h = Image.open(io.BytesIO(img)).size
     if (w, h) != (K.width, K.height):
         raise HTTPException(422, f"intrinsics are for {K.width}x{K.height} but the image is {w}x{h}")
@@ -163,9 +172,10 @@ def create_map(
     name: Annotated[str, Form()],
     map_id: Annotated[str | None, Form(description="id the app uses, e.g. office-floor-3")] = None,
     views: Annotated[UploadFile | None, File(description="zip: training images + transforms.json or COLMAP text model")] = None,
-    metadata: Annotated[str | None, Form(description='JSON: {"up_axis": "z", "views_to_map": 4x4, "context": {}}')] = None,
+    metadata: Annotated[str | None, Form(description='JSON: {"property", "floor_label", "scanned_at", "up_axis": "z", '
+                                                      '"north": [0, 1], "rooms": [...], "views_to_map": 4x4, "context": {}}')] = None,
 ):
-    """Register a map. Gaussian centers are extracted and the VPS index is built in the background."""
+    """Register a unit's map. Gaussian centers are extracted and the VPS index is built in the background."""
     meta = _json_form(metadata, "metadata")
     if Path(splat.filename or "").suffix.lower() != ".ply":
         raise HTTPException(415, "splat must be a 3DGS .ply")
@@ -173,8 +183,15 @@ def create_map(
     existing = s.get(Map, mid)
     if existing is not None:
         raise HTTPException(409, f"map {mid} already exists")
+    try:
+        unit = MapPatch.model_validate({k: meta[k] for k in MapPatch.model_fields if k in meta})
+    except ValidationError as e:
+        raise HTTPException(422, json.loads(e.json()))
     m = Map(id=mid, name=name, up_axis=meta.get("up_axis", "z"), context=meta.get("context", {}),
-            views_to_map=meta.get("views_to_map"), splat_key=f"maps/{mid}/splat.ply")
+            views_to_map=meta.get("views_to_map"), splat_key=f"maps/{mid}/splat.ply",
+            property=unit.property, floor_label=unit.floor_label, scanned_at=unit.scanned_at,
+            north=unit.north or [0.0, 1.0], floor_z=unit.floor_z,
+            rooms=[r.model_dump() for r in unit.rooms or []])
     storage.put_file(m.splat_key, splat.file, "application/octet-stream")
     if views is not None and views.filename:
         m.views_key = f"maps/{mid}/views.zip"
@@ -325,8 +342,10 @@ def localize_multi(
         raise HTTPException(422, "no frame could be localized")
     al = alignment_from_frame_poses([f.c2w for f, _ in ok], [r.c2w for _, r in ok])
     conf = al["confidence"] * float(np.mean([r.confidence for _, r in ok]))
+    room = pipeline.camera_room(s.get(Map, meta.map_id), {"matrix": np.asarray(al["matrix"]) @ frames[-1].c2w})
     return LocalizeMultiOut(
         device_to_map=al["matrix"], confidence=round(conf, 3), n_localized=len(ok), n_inliers=al["n_inliers"],
+        room=room,
         frames=[FrameResult(index=i, localized=r is not None,
                             camera_to_map=np.round(r.c2w, 6).tolist() if r else None,
                             num_inliers=r.num_inliers if r else None) for i, r in enumerate(res)])
@@ -342,14 +361,17 @@ def inspect(
     meta = _validated(InspectMetadata, metadata, "metadata")
     m = _map(s, meta.map_id)
     device = _pose(meta.camera_to_world, meta.pose_convention) if meta.camera_to_world else None
-    frame = _frame(image, Intrinsics(**meta.intrinsics.model_dump()), meta.interface_orientation, device)
+    hashes: list = []
+    frame = _frame(image, Intrinsics(**meta.intrinsics.model_dump()), meta.interface_orientation, device, hashes)
+    event_kind = meta.event_kind or _handover_kind(s, meta.handover_id, m.id)
     map_pose = None
     if meta.camera_to_map:
         map_pose = _pose(meta.camera_to_map, meta.pose_convention)
         if meta.interface_orientation == "portrait":
             map_pose = map_pose @ R_P
     cap = Capture(map_id=m.id, source_kind=meta.source.kind, device_id=meta.source.device_id,
-                  device_model=meta.device_model, captured_at=meta.timestamp or now())
+                  device_model=meta.device_model, captured_at=meta.timestamp or now(), recorder=meta.recorder,
+                  event_kind=event_kind, handover_id=meta.handover_id, original_sha256=hashes[0])
     s.add(cap)
     s.commit()
     pipeline.inspect(cap.id, frame, [], map_pose, meta.pose_confidence)
@@ -384,7 +406,9 @@ def v1_create(body: V1CaptureCreate, s: SessionDep):
     cap = s.get(Capture, body.capture_id)
     if cap is None:
         cap = Capture(id=body.capture_id, map_id=body.map_id, status=CaptureStatus.awaiting_upload,
-                      device_id=body.device_id, package_key=f"uploads/{body.capture_id}.zip")
+                      device_id=body.device_id, package_key=f"uploads/{body.capture_id}.zip",
+                      recorder=body.recorder, handover_id=body.handover_id,
+                      event_kind=body.event_kind or _handover_kind(s, body.handover_id, body.map_id))
         if body.created_unix:
             cap.captured_at = datetime.fromtimestamp(body.created_unix, UTC)
     elif cap.status in (CaptureStatus.processing,):
@@ -506,6 +530,10 @@ def get_issue(issue_id: str, s: SessionDep):
 def patch_issue(issue_id: str, body: IssuePatch, s: SessionDep):
     """Human decisions: confirm repaired, override severity, link to an object."""
     i = _issue(s, issue_id)
+    if body.type is not None:
+        if body.type not in DAMAGE_CLASSES:
+            raise HTTPException(422, f"type must be one of {list(DAMAGE_CLASSES)}")
+        i.damage_class, i.type_manual = body.type, True
     if body.status is not None:
         try:
             i.status = IssueStatus(body.status)
@@ -549,6 +577,181 @@ def review_observation(obs_id: str, body: ObservationReview, s: SessionDep):
         s.add(i)
         s.commit()
     return observation_out(o)
+
+
+# ---------------------------------------------------------------- units: details, dashboard, live view, evidence
+
+def _handover_kind(s: Session, handover_id: str | None, map_id: str) -> str | None:
+    if not handover_id:
+        return None
+    h = s.get(Handover, handover_id)
+    if h is None or h.map_id != map_id:
+        raise HTTPException(404, "handover not found for this map")
+    if h.status != "open":
+        raise HTTPException(409, "handover is finished")
+    return h.kind
+
+
+def _replace_issues(s: Session, m: Map) -> None:
+    """Recompute room / surface / height of all issues (after rooms, north or floor changed)."""
+    for i in s.exec(select(Issue).where(Issue.map_id == m.id)).all():
+        pl = place(i.position, i.normal or None, up_axis=m.up_axis, north=m.north, floor_z=m.floor_z, rooms=m.rooms)
+        i.room, i.surface, i.height_m, i.floor_xy = pl["room"], pl["surface"], pl["height_m"], pl["floor_xy"]
+        s.add(i)
+
+
+@app.patch("/maps/{map_id}", response_model=MapOut, dependencies=[Auth])
+def patch_map(map_id: str, body: MapPatch, s: SessionDep):
+    """Unit details and rooms (drawn on the floor plan). Issue places are recomputed."""
+    m = _map(s, map_id)
+    data = body.model_dump(exclude_unset=True)
+    if "rooms" in data:
+        data["rooms"] = [r.model_dump() for r in body.rooms or []]
+    for k, v in data.items():
+        setattr(m, k, v)
+    s.add(m)
+    _replace_issues(s, m)
+    s.commit()
+    return map_out(m)
+
+
+@app.get("/maps/{map_id}/dashboard", response_model=DashboardOut)
+def dashboard(map_id: str, s: SessionDep, latest: int = 5):
+    """Numbers for the unit dashboard."""
+    m = _map(s, map_id)
+    issues = s.exec(select(Issue).where(Issue.map_id == map_id)).all()
+    open_ = [i for i in issues if i.status in OPEN_STATUSES]
+    repaired = [i for i in issues if i.status == IssueStatus.repaired and i.closed_at]
+    year = now().year
+    days = [(aware(i.closed_at) - aware(i.first_seen)).total_seconds() / 86400 for i in repaired]
+    obs = s.exec(select(Observation).join(Issue, Observation.issue_seq == Issue.seq)
+                 .where(Issue.map_id == map_id, Observation.review != "superseded")
+                 .order_by(Observation.timestamp.desc())).all()
+    months = []
+    t = now()
+    for k in range(11, -1, -1):
+        y, mo = t.year, t.month - k
+        while mo <= 0:
+            y, mo = y - 1, mo + 12
+        months.append(f"{y:04d}-{mo:02d}")
+    counts = {mo: 0 for mo in months}
+    for o in obs:
+        key = f"{o.timestamp:%Y-%m}"
+        if key in counts:
+            counts[key] += 1
+    by_seq = {i.seq: i for i in issues}
+    return DashboardOut(
+        open_findings=len(open_), closed_this_year=sum(aware(i.closed_at).year == year for i in repaired),
+        days_to_repair_avg=round(sum(days) / len(days), 1) if days else None, records=len(obs),
+        findings_by_status={"open": len(open_), "closed": len(repaired), "total": len(open_) + len(repaired)},
+        records_per_month=[{"month": mo, "count": counts[mo]} for mo in months],
+        latest_records=[LatestRecord(
+            obs_id=o.obs_id, issue_id=f"ISS-{o.issue_seq:04d}", type=by_seq[o.issue_seq].damage_class,
+            label=label(by_seq[o.issue_seq].damage_class), place=place_of(by_seq[o.issue_seq]),
+            status=by_seq[o.issue_seq].status, event_kind=o.event_kind, recorder=o.recorder, timestamp=o.timestamp,
+            thumbnail_url=storage.url(o.overlay_key or o.image_key) if (o.overlay_key or o.image_key) else None)
+            for o in obs[:latest]],
+        open_list=[OpenFinding(issue_id=i.issue_id, label=label(i.damage_class), place=place_of(i),
+                               severity=i.severity, floor_plan_px=floor_plan_px(i, m))
+                   for i in sorted(open_, key=lambda x: LEVELS.index(x.severity), reverse=True)])
+
+
+@app.post("/maps/{map_id}/in-view", response_model=InViewOut, dependencies=[Auth])
+def records_in_view(map_id: str, body: InViewIn, s: SessionDep):
+    """Known open issues visible from a camera pose ('2 earlier records here'), with pixel positions
+    for an AR overlay, plus the room the camera is in."""
+    m = _map(s, map_id)
+    if m.status != "ready":
+        raise HTTPException(409, f"map is {m.status}")
+    c2w = _pose(body.camera_to_map, "arkit" if body.pose_convention == "arkit" else "opencv")
+    K = body.intrinsics
+    cam = Camera.from_dict({"convention": "c2w_opencv", "matrix": c2w.tolist(), **K.model_dump()})
+    xyz = np.load(storage.local_path(m.proj_key))["xyz"].astype(np.float64)
+    vis = visible_points(xyz, cam)
+    out = []
+    for i in s.exec(select(Issue).where(Issue.map_id == map_id, Issue.status.in_(OPEN_STATUSES))).all():
+        p = np.asarray(i.position)
+        pc = cam.R @ p + cam.t
+        dist = float(np.linalg.norm(p - cam.center))
+        if pc[2] <= 0 or dist > body.max_distance_m:
+            continue
+        u, v = K.fx * pc[0] / pc[2] + K.cx, K.fy * pc[1] / pc[2] + K.cy
+        if not (0 <= u < K.width and 0 <= v < K.height) or not is_visible(p, vis, xyz):
+            continue
+        obs = live_observations(s, i.seq)
+        out.append(InViewRecord(issue_id=i.issue_id, type=i.damage_class, label=label(i.damage_class),
+                                status=i.status, severity=i.severity, pixel=[round(u, 1), round(v, 1)],
+                                distance_m=round(dist, 2), n_records=len(obs), last_seen=i.last_seen,
+                                last_event_kind=obs[-1].event_kind if obs else None))
+    return InViewOut(room=pipeline.camera_room(m, {"matrix": c2w}), records=out)
+
+
+@app.get("/maps/{map_id}/verify")
+def verify_records(map_id: str, s: SessionDep):
+    """Check the unit's hash chain: every record's hash and link to the previous one."""
+    _map(s, map_id)
+    obs = s.exec(select(Observation).join(Issue, Observation.issue_seq == Issue.seq)
+                 .where(Issue.map_id == map_id, Observation.record_hash.is_not(None))
+                 .order_by(Observation.seq)).all()
+    return evidence.verify_chain([(pipeline.hash_fields(o), o.prev_hash, o.record_hash) for o in obs])
+
+
+@app.get("/maps/{map_id}/report.pdf")
+def report_pdf(map_id: str, s: SessionDep, handover_id: str | None = None, include_closed: bool = False):
+    """PDF report of the unit, or of the findings recorded during one handover."""
+    m = _map(s, map_id)
+    issues = _issues_query(s, map_id, None, None, None, include_closed, None)
+    suffix = ""
+    if handover_id:
+        h = s.get(Handover, handover_id)
+        if h is None or h.map_id != map_id:
+            raise HTTPException(404, "handover not found")
+        seqs = {o.issue_seq for o in s.exec(select(Observation).where(Observation.handover_id == h.id)).all()}
+        issues = [i for i in _issues_query(s, map_id, None, None, None, True, None) if i.seq in seqs]
+        suffix = f" · {h.kind.replace('_', '-')} {h.started_at:%d %b %Y}"
+    pdf = report.build(map_out(m), m, [issue_out(s, i, m) for i in issues], dashboard(map_id, s), suffix)
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{map_id}-report.pdf"'})
+
+
+# ---------------------------------------------------------------- handovers (move-in / move-out)
+
+@app.post("/maps/{map_id}/handovers", response_model=HandoverOut, status_code=201, dependencies=[Auth])
+def start_handover(map_id: str, body: HandoverIn, s: SessionDep):
+    """'Start handover': records made with this handover_id are linked to it."""
+    _map(s, map_id)
+    if body.kind not in ("move_in", "move_out"):
+        raise HTTPException(422, "kind must be move_in or move_out")
+    h = Handover(map_id=map_id, kind=body.kind, tenant=body.tenant, started_by=body.started_by, notes=body.notes)
+    s.add(h)
+    s.commit()
+    return handover_out(s, h)
+
+
+@app.get("/maps/{map_id}/handovers", response_model=list[HandoverOut])
+def list_handovers(map_id: str, s: SessionDep):
+    _map(s, map_id)
+    hs = s.exec(select(Handover).where(Handover.map_id == map_id).order_by(Handover.started_at.desc())).all()
+    return [handover_out(s, h) for h in hs]
+
+
+@app.get("/handovers/{handover_id}", response_model=HandoverOut)
+def get_handover(handover_id: str, s: SessionDep):
+    h = s.get(Handover, handover_id)
+    if h is None:
+        raise HTTPException(404, "handover not found")
+    return handover_out(s, h)
+
+
+@app.post("/handovers/{handover_id}/finish", response_model=HandoverOut, dependencies=[Auth])
+def finish_handover(handover_id: str, s: SessionDep):
+    h = s.get(Handover, handover_id)
+    if h is None:
+        raise HTTPException(404, "handover not found")
+    h.status, h.finished_at = "finished", now()
+    s.add(h)
+    s.commit()
+    return handover_out(s, h)
 
 
 # ---------------------------------------------------------------- files (local storage only)

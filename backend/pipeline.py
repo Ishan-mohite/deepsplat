@@ -18,11 +18,12 @@ import numpy as np
 from PIL import Image
 from sqlmodel import Session, select
 
-from inspection import quality, render
+from inspection import evidence, floorplan, quality, render
 from inspection.classes import enabled_classes
 from inspection.detection import get_detector
 from inspection.issues import OpenIssue, change, find_match, size_of
 from inspection.lifting import Camera, check_aspect, is_visible, lift, read_ply_points, visible_points
+from inspection.placement import place, room_at, to_zup
 from inspection.severity import max_severity, severity
 from localization.alignment import alignment_from_frame_poses
 from localization.cameras import Frame, Intrinsics, c2w_to_tq
@@ -67,6 +68,7 @@ def process_package(capture_id: str) -> None:
         cap.captured_at = pkg.captured_at
         cap.geo = m.get("geo") or {}
         cap.n_frames = len((m.get("video") or {}).get("frames") or [])
+        cap.original_sha256 = evidence.sha256(storage.local_path(cap.package_key).read_bytes())
         s.add(cap)
         s.commit()
     inspect(capture_id, pkg.photo, pkg.frames)
@@ -194,6 +196,10 @@ def _finish(s: Session, cap: Capture, m: Map | None) -> None:
     if m.status != MapStatus.ready:
         _set(s, cap, CaptureStatus.needs_localization, f"map {m.id} is {m.status}")
         return
+    cap.localization = {**loc, "room": camera_room(m, loc["camera"])}
+    loc = cap.localization
+    s.add(cap)
+    s.commit()
     if (loc.get("confidence") or 0) < settings.min_pose_confidence:
         _set(s, cap, CaptureStatus.needs_review, f"pose confidence {loc.get('confidence')} below gate")
         return
@@ -202,6 +208,22 @@ def _finish(s: Session, cap: Capture, m: Map | None) -> None:
         return
     _lift_and_match(s, cap, m, loc)
     _set(s, cap, CaptureStatus.done)
+
+
+def camera_room(m: Map, camera: dict) -> str | None:
+    c = to_zup(np.asarray(camera["matrix"])[:3, 3], m.up_axis)
+    r = room_at(c[:2], m.rooms)
+    return r["name"] if r else None
+
+
+def hash_fields(o: Observation) -> dict:
+    """The content an observation's record hash covers."""
+    return {"obs": o.seq, "issue": o.issue_seq, "capture": o.capture_id, "type": o.damage_class,
+            "timestamp": aware(o.timestamp).isoformat() if o.timestamp else None,
+            "recorded_at": aware(o.recorded_at).isoformat() if o.recorded_at else None,
+            "position": o.position, "length_m": o.length_m, "area_m2": o.area_m2,
+            "image_sha256": o.image_sha256, "recorder": o.recorder, "event": o.event_kind,
+            "device": o.device_id}
 
 
 def _store_points(key: str, pts: np.ndarray) -> None:
@@ -219,10 +241,18 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
     t, q = c2w_to_tq(np.asarray(loc["camera"]["matrix"]))
     ts = aware(cap.captured_at or cap.created_at)
 
-    # re-processing a capture replaces its observations
-    for o in s.exec(select(Observation).where(Observation.capture_id == cap.id)).all():
-        s.delete(o)
+    # re-processing a capture supersedes its earlier observations (kept: the hash chain stays intact)
+    for o in s.exec(select(Observation).where(Observation.capture_id == cap.id,
+                                              Observation.review != "superseded")).all():
+        o.review = "superseded"
+        s.add(o)
     s.flush()
+    image_sha = evidence.sha256(storage.local_path(cap.image_key).read_bytes())
+    last = s.exec(select(Observation).join(Issue, Observation.issue_seq == Issue.seq)
+                  .where(Issue.map_id == m.id, Observation.record_hash.is_not(None))
+                  .order_by(Observation.seq.desc())).first()
+    prev_hash = last.record_hash if last else evidence.GENESIS
+    place_kw = {"up_axis": m.up_axis, "north": m.north, "floor_z": m.floor_z, "rooms": m.rooms}
 
     open_issues = s.exec(select(Issue).where(Issue.map_id == m.id, Issue.status.in_(OPEN_STATUSES))).all()
     cands = [OpenIssue(i.seq, i.damage_class, i.position, i.object_id) for i in open_issues]
@@ -234,6 +264,7 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
         if lf is None:
             continue
         size = size_of(d.damage_class, lf.length_m, lf.area_m2)
+        pl = place(lf.centroid, lf.normal, **place_kw)
         hit = find_match(d.damage_class, lf.centroid, None, cands)
         if hit is not None:
             issue = s.get(Issue, hit.key)
@@ -249,15 +280,18 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
             ch = "new"
             issue = Issue(map_id=m.id, damage_class=d.damage_class, status=IssueStatus.new,
                           severity=severity(d.damage_class, lf.length_m, lf.area_m2),
-                          position=lf.centroid, normal=lf.normal, size=size, first_seen=ts, last_seen=ts)
+                          position=lf.centroid, normal=lf.normal, size=size, first_seen=ts, last_seen=ts,
+                          room=pl["room"], surface=pl["surface"], height_m=pl["height_m"], floor_xy=pl["floor_xy"])
             s.add(issue)
             s.flush()
             cands.append(OpenIssue(issue.seq, issue.damage_class, issue.position, None))
         matched.add(issue.seq)
         s.add(issue)
 
-        obs = Observation(issue_seq=issue.seq, capture_id=cap.id, detection_id=d.id, timestamp=ts,
-                          source_kind=cap.source_kind, device_id=cap.device_id, camera_t=t, camera_q=q,
+        obs = Observation(issue_seq=issue.seq, capture_id=cap.id, detection_id=d.id, damage_class=d.damage_class,
+                          timestamp=ts, source_kind=cap.source_kind, device_id=cap.device_id,
+                          recorder=cap.recorder, event_kind=cap.event_kind, handover_id=cap.handover_id,
+                          image_sha256=image_sha, camera_t=t, camera_q=q,
                           pose_confidence=loc.get("confidence"), image_key=cap.image_key, mask_key=d.mask_key,
                           overlay_key=cap.overlay_key, length_m=lf.length_m, area_m2=lf.area_m2,
                           detector_confidence=d.confidence, position=lf.centroid, normal=lf.normal,
@@ -268,6 +302,9 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
         _store_points(obs.points_key, xyz[lf.indices])
         obs.indices_key = f"captures/{cap.id}/obs_{obs.seq}_gaussians.json"
         storage.put_bytes(obs.indices_key, json.dumps(gidx[lf.indices].tolist()).encode(), "application/json")
+        obs.prev_hash = prev_hash
+        obs.record_hash = evidence.record_hash(hash_fields(obs), prev_hash)
+        prev_hash = obs.record_hash
         s.add(obs)
 
     # "Gone?": a confident view of a known issue's spot without a matching finding
@@ -305,6 +342,17 @@ def process_map(map_id: str) -> None:
             m.stats = {"n_gaussians": int(len(xyz)), "n_used": int(len(pts)), "min_opacity": MIN_OPACITY,
                        "has_opacity": opacity is not None,
                        "bounds_min": np.round(lo, 3).tolist(), "bounds_max": np.round(hi, 3).tolist()}
+            if m.floor_z is None:
+                m.floor_z = round(float(np.percentile(to_zup(pts, m.up_axis)[:, 2], 2)), 3)
+            try:
+                rgb = floorplan.read_ply_colors(storage.local_path(m.splat_key))
+                png, meta = floorplan.render(pts, rgb[keep] if rgb is not None else None,
+                                             up_axis=m.up_axis, floor_z=m.floor_z)
+                m.floor_plan_key = f"maps/{m.id}/floor_plan.png"
+                storage.put_bytes(m.floor_plan_key, png, "image/png")
+                m.floor_plan = meta
+            except Exception:
+                log.exception("floor plan failed for %s", map_id)
             m.status, m.error = MapStatus.ready, None
         except Exception as e:
             log.exception("map processing failed for %s", map_id)

@@ -1,7 +1,8 @@
 # DeepSplat backend
 
 Implements the "Inspect & log damage" pipeline from the project README, for the iOS capture app
-(`docs/PLAN.md` on `mobile-recorder-app`), robots / glasses and the digital-twin viewer.
+(`docs/PLAN.md` on `mobile-recorder-app`), robots / glasses, and the imoscan app + dashboard for
+property managers (`design/ux-layouts/imoscan_product_visuals.pdf` on `ux-design-layouts`).
 
 ```
 capture ─► quality gate ─► detect (SAM 3) ─► localize in the splat ─► lift to 3D ─► match issues ─► store
@@ -29,6 +30,25 @@ uv run uvicorn backend.main:app --reload
 uv run pytest
 ```
 
+## imoscan UX → API
+
+| Screen / element | Endpoint / field |
+|---|---|
+| Unit overview: "Unit 3.04 · Property A · 3rd floor", floor plan, open findings | `GET /maps/{id}` (`name`, `property`, `floor_label`, `scanned_at`, `floor_plan_url`, `rooms`), `GET /maps/{id}/dashboard` → `open_list` (with `floor_plan_px` pins) |
+| Camera: "Localized · Bathroom", "Crack detected", "2 earlier records here" | `POST /localize/multi` → `device_to_map`, `room`; `POST /detect`; `POST /maps/{id}/in-view` → open issues in the frame with pixel positions |
+| Record: type chips "detected by an open model", recorder, time, "1.4 m above floor", "Earlier record here · linked" | `/v1/captures` or `POST /inspect` with `recorder`, `event_kind`, `handover_id`; result: `observations[].issue_id` + `change` (linked to an existing issue or new), issue `place`, `height_m`; `PATCH /issues/{id}` `{type}` to correct |
+| Compare over time: timeline at this spot, move-in vs move-out | `GET /issues/{id}` → `observations[]` with `timestamp`, `event_kind`, `recorder`, `image_url`, `overlay_url` |
+| "Saved, hashed and timestamped" | `original_sha256` (upload), per record `image_sha256`, `recorded_at`, `record_hash` + `prev_hash` (hash chain per unit), `GET /maps/{id}/verify` |
+| Dashboard: open findings, closed this year, days to repair, records, by status, records per month, latest records | `GET /maps/{id}/dashboard` |
+| Handovers: "Start handover" | `POST /maps/{id}/handovers` `{kind: move_in \| move_out, tenant, started_by}`, `POST /handovers/{id}/finish`, `GET /handovers/{id}` (records, new issues, new since previous handover) |
+| "Export PDF", "Add to PDF report" | `GET /maps/{id}/report.pdf` (`?handover_id=` for one handover) |
+| "Old defects leave the view once repaired" | issue lists default to open issues; `PATCH /issues/{id}` `{status: "repaired"}` |
+
+Places: every issue gets `room` (rooms drawn as floor-plane polygons via `PATCH /maps/{id}`
+`{rooms: [{name, polygon}]}`; damage on a wall lies on the boundary, so the nearest room within 30 cm
+counts), `surface` (`floor`, `ceiling`, `north wall`, ... from the surface normal and the map's
+`north`), `height_m` above the floor (`floor_z`, estimated from the splat), `floor_xy`/`floor_plan_px`.
+
 ## Map = trained Gaussian splat
 
 `POST /maps` (multipart):
@@ -36,12 +56,13 @@ uv run pytest
 | field | |
 |---|---|
 | `splat` | trained, **metric** 3DGS `.ply` (what the viewer loads) |
-| `name`, `map_id` | `map_id` is what the app sends, e.g. `office-floor-3` |
+| `name`, `map_id` | the unit, e.g. "Unit 3.04"; `map_id` is what the app sends |
 | `views` | optional zip of the training images + poses (`transforms.json` from nerfstudio, or a COLMAP text model). Needed for the VPS. |
-| `metadata` | optional JSON `{"up_axis": "z", "views_to_map": 4x4, "context": {...}}`. `views_to_map` if the view poses are not in the splat's frame (e.g. nerfstudio dataparser normalization). |
+| `metadata` | optional JSON `{"property", "floor_label", "scanned_at", "up_axis": "z", "north": [0, 1], "rooms": [...], "views_to_map": 4x4, "context": {...}}`. `views_to_map` if the view poses are not in the splat's frame (e.g. nerfstudio dataparser normalization). |
 
-In the background the backend extracts the opaque gaussian centers (opacity ≥ 0.2) for lifting
-and builds the VPS index from the views (`vps_status`). Rebuild: `POST /maps/{id}/index`.
+In the background the backend extracts the opaque gaussian centers (opacity ≥ 0.2) for lifting,
+estimates the floor height, renders a top-down floor plan from the splat colors (dollhouse cut,
+2 cm/px) and builds the VPS index from the views (`vps_status`). Rebuild: `POST /maps/{id}/index`.
 
 ## Own VPS (free, CPU only)
 
@@ -149,9 +170,10 @@ Conventions: map coordinates in meters (splat frame); `camera_pose.q` = camera�
 | 5 Match | same type within 15 cm (and same object if known) → observation; > 20 % growth → `worsening`; open issue visible in a confident view without a finding → `repair_suggested` (human confirms) |
 | 6 Store | issues + observations, masks, overlays, 3D points and gaussian indices |
 
-Damage classes (`inspection/classes.py`): crack, corrosion, leak/stain and coating damage are enabled
-(prompts checked on real photos). Dent, exposed wiring and obstruction/spill have untested prompts and
-are disabled; "missing part" cannot be found with a text prompt.
+Damage classes (`inspection/classes.py`), labels as in the UX: Crack, Mould, Stain, Scratch, Peeling
+paint, Hole, Corrosion are enabled (crack / mould / stain / peeling paint / rust prompts checked on real
+photos; scratch and hole barely tested). Dent, exposed wiring and obstruction/spill are disabled;
+"missing part" cannot be found with a text prompt.
 
 ## External VPS (e.g. MultiSet)
 
@@ -175,7 +197,9 @@ damages and matches issues.
 
 ## Status
 
-Tested (21 tests): camera conversions against the app plan's check, lifting (area, length, occlusion),
+Tested (26 tests): the imoscan flow on a rendered room (unit with rooms → record → move-out handover
+linked to the move-in record → live in-view → type correction → repaired → rooms renamed → PDF →
+tampered record detected), places (rooms, compass walls, height), floor plan, hash chain; camera conversions against the app plan's check, lifting (area, length, occlusion),
 frame-pose alignment with outliers, severity and matching, end-to-end `/inspect` (new → worsening →
 repair suggested → repaired), review, `/v1` zip upload, external frame poses, and the own SIFT VPS on
 a rendered room (single views, `/localize/multi`, full iOS capture with raw portrait frames).

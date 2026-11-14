@@ -29,12 +29,20 @@ class MapStatus(StrEnum):
 
 class Map(SQLModel, table=True):
     """The site map: a trained, metric Gaussian splat (+ its training views for the VPS)."""
-    id: str = Field(primary_key=True)            # e.g. "office-floor-3", used by the app as map_id
-    name: str
+    id: str = Field(primary_key=True)            # e.g. "property-a-3-04", used by the app as map_id
+    name: str                                    # e.g. "Unit 3.04"
+    property: str | None = None                  # e.g. "Property A"
+    floor_label: str | None = None               # e.g. "3rd floor"
+    scanned_at: datetime | None = None
     created_at: datetime = Field(default_factory=now)
     status: MapStatus = Field(default=MapStatus.processing)
     error: str | None = None
     up_axis: str = "z"
+    north: list = Field(default_factory=lambda: [0.0, 1.0], sa_column=Column(JSON))   # floor-plane direction
+    floor_z: float | None = None                 # auto from the splat if not given
+    rooms: list = Field(default_factory=list, sa_column=Column(JSON))   # [{"name", "polygon": [[x,y],...]}]
+    floor_plan_key: str | None = None
+    floor_plan: dict = Field(default_factory=dict, sa_column=Column(JSON))   # pixel <-> floor meta
     context: dict = Field(default_factory=dict, sa_column=Column(JSON))
     splat_key: str                               # 3DGS .ply, also what the viewer loads
     proj_key: str | None = None                  # opaque gaussian centers (+ indices) for lifting
@@ -43,6 +51,19 @@ class Map(SQLModel, table=True):
     vps_status: str = "none"                     # none | building | ready | failed
     vps_info: dict = Field(default_factory=dict, sa_column=Column(JSON))
     stats: dict = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class Handover(SQLModel, table=True):
+    """Move-in / move-out walkthrough of a unit; records made during it are linked."""
+    id: str = Field(default_factory=new_id, primary_key=True)
+    map_id: str = Field(foreign_key="map.id", index=True)
+    kind: str = "move_in"                        # move_in | move_out
+    tenant: str | None = None
+    started_by: str | None = None
+    started_at: datetime = Field(default_factory=now)
+    finished_at: datetime | None = None
+    status: str = "open"                         # open | finished
+    notes: str | None = None
 
 
 class CaptureStatus(StrEnum):
@@ -67,6 +88,10 @@ class Capture(SQLModel, table=True):
 
     source_kind: str = "phone"                   # phone | glasses | robot | fixed
     device_id: str | None = None
+    recorder: str | None = None                  # person who recorded, e.g. "M. Keller"
+    event_kind: str | None = None                # move_in | move_out | repair | tenant_report | inspection
+    handover_id: str | None = Field(default=None, foreign_key="handover.id", index=True)
+    original_sha256: str | None = None           # of the photo / zip exactly as uploaded
     device_model: str | None = None
     app_version: str | None = None
     captured_at: datetime | None = None
@@ -125,6 +150,11 @@ class Issue(SQLModel, table=True):
     object_label: str | None = None
     position: list = Field(default_factory=list, sa_column=Column(JSON))   # m, map frame
     normal: list = Field(default_factory=list, sa_column=Column(JSON))
+    room: str | None = None
+    surface: str | None = None                   # floor | ceiling | north wall | ...
+    height_m: float | None = None                # above floor
+    floor_xy: list = Field(default_factory=list, sa_column=Column(JSON))
+    type_manual: bool = False                    # type corrected by a person
     size: float | None = None                    # last length (m) or area (m²), see classes.size_metric
     first_seen: datetime = Field(default_factory=now)
     last_seen: datetime = Field(default_factory=now)
@@ -143,9 +173,17 @@ class Observation(SQLModel, table=True):
     issue_seq: int = Field(foreign_key="issue.seq", index=True)
     capture_id: str = Field(foreign_key="capture.id", index=True)
     detection_id: str = Field(foreign_key="detection.id")
+    damage_class: str = ""                       # as detected (the issue's type may be corrected later)
     timestamp: datetime = Field(default_factory=now)
     source_kind: str = "phone"
     device_id: str | None = None
+    recorder: str | None = None
+    event_kind: str | None = None
+    handover_id: str | None = None
+    recorded_at: datetime = Field(default_factory=now)    # server time
+    image_sha256: str | None = None
+    prev_hash: str | None = None
+    record_hash: str | None = None
     camera_t: list = Field(default_factory=list, sa_column=Column(JSON))
     camera_q: list = Field(default_factory=list, sa_column=Column(JSON))   # [x, y, z, w]
     pose_confidence: float | None = None
@@ -161,7 +199,7 @@ class Observation(SQLModel, table=True):
     points_key: str | None = None                # [x,y,z] list (max 5000)
     indices_key: str | None = None               # gaussian indices into the map splat
     change: str = "new"                          # new | worsening | stable
-    review: str = "unreviewed"                   # unreviewed | confirmed | rejected
+    review: str = "unreviewed"                   # unreviewed | confirmed | rejected | superseded
     reviewed_by: str | None = None
     reviewed_at: datetime | None = None
 

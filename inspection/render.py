@@ -7,9 +7,10 @@ from PIL import Image, ImageDraw, ImageFont
 from .classes import label
 
 COLORS = {
-    "crack": (230, 25, 75), "corrosion": (245, 130, 48), "leak_stain": (0, 130, 200),
-    "coating_damage": (145, 30, 180), "dent": (60, 180, 75), "exposed_wiring": (240, 50, 230),
-    "obstruction_spill": (210, 245, 60), "missing_part": (128, 128, 128),
+    "crack": (230, 25, 75), "mould": (60, 140, 60), "stain": (0, 130, 200), "scratch": (240, 160, 30),
+    "coating_damage": (145, 30, 180), "hole": (240, 50, 230), "corrosion": (200, 90, 30),
+    "dent": (90, 180, 170), "exposed_wiring": (250, 200, 0), "obstruction_spill": (210, 245, 60),
+    "missing_part": (128, 128, 128),
 }
 
 

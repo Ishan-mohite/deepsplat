@@ -23,4 +23,4 @@ def test_change():
     assert change("crack", 0.30, 0.34) == "stable"       # +13 %
     assert change("crack", 0.30, 0.40) == "worsening"
     assert change("crack", 0.05, 0.065) == "stable"      # +30 % but only 1.5 cm
-    assert change("leak_stain", 0.010, 0.020) == "worsening"
+    assert change("stain", 0.010, 0.020) == "worsening"

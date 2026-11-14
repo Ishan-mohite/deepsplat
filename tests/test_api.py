@@ -164,7 +164,7 @@ def test_v1_upload_localized_through_frames(client):
 
 def test_v1_without_vps_then_external_frame_poses(client):
     c = client
-    set_detector(FakeDetector(damage_class="leak_stain"))
+    set_detector(FakeDetector(damage_class="stain"))
     cid = "6F1C2A9E-0000-4000-8000-000000000002"
     st = upload(c, cid)
     assert st["status"] == "done" and st["detail"] == "needs_localization"
