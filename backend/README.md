@@ -186,18 +186,18 @@ damages and matches issues.
 
 ## Deployment (Google Cloud)
 
-* Cloud Run from `backend/Dockerfile` (build context = repo root). Background processing of `/v1`
-  uploads runs after the response, so use instance-based billing ("CPU always allocated") or Cloud Tasks.
-* `STORAGE=gcs` + `GCS_BUCKET`: uploads go straight to GCS via V4 signed URLs. The Cloud Run service
-  account needs `roles/iam.serviceAccountTokenCreator` on itself to sign.
-* `DATABASE_URL` → Cloud SQL (Postgres). The container filesystem is ephemeral, so no SQLite there.
-* `API_TOKEN` → static bearer token for the app (stored in the app's Keychain).
-* VPS: the default SIFT VPS runs on CPU (2 vCPU / 4 GB is enough for a room-sized map). For hloc:
-  `--build-arg WITH_VPS=1` and `VPS=hloc`; index building wants a GPU.
+Step by step in [deploy/DEPLOY.md](deploy/DEPLOY.md): Cloud Run (`--no-cpu-throttling`, 2 vCPU / 4 GB),
+Cloud Storage with signed URLs (app uploads, splat uploads, viewer downloads), Cloud SQL (Postgres),
+Secret Manager. VPS indexes are pushed to the bucket (`vps/<map_id>/`) and pulled by new instances,
+because Cloud Run disks are ephemeral.
+
+Large splats: Cloud Run accepts at most 32 MB per request, so use
+`POST /maps/upload-urls` → `PUT` splat / views to the signed URLs → `POST /maps/register`
+(`POST /maps` with a direct upload is for local use).
 
 ## Status
 
-Tested (26 tests): the imoscan flow on a rendered room (unit with rooms → record → move-out handover
+Tested (28 tests): splat upload via signed URLs, VPS index surviving a container restart; the imoscan flow on a rendered room (unit with rooms → record → move-out handover
 linked to the move-in record → live in-view → type correction → repaired → rooms renamed → PDF →
 tampered record detected), places (rooms, compass walls, height), floor plan, hash chain; camera conversions against the app plan's check, lifting (area, length, occlusion),
 frame-pose alignment with outliers, severity and matching, end-to-end `/inspect` (new → worsening →
@@ -208,7 +208,8 @@ Not tested yet:
 * **Own VPS on real data:** only tested on a synthetic room with clean textures.
 * **hloc VPS** (`localization/hloc_vps.py`): written against the hloc API, never run (needs torch,
   hloc and real map views).
-* **GCS storage / Cloud SQL / Docker image**: written, not deployed.
+* **GCS storage / Cloud SQL / Docker image / deploy commands**: written, not deployed yet (the storage
+  sync and signed-URL flows are tested against local storage).
 * **Real data**: no real splat or iOS capture has gone through the pipeline yet; the SAM 3 detector
   was checked separately on real photos.
 * Lifting uses gaussian centers, not a rendered depth map; large or blurry gaussians can make

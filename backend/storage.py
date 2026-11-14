@@ -15,6 +15,7 @@ class Storage(Protocol):
     def local_path(self, key: str) -> Path: ...          # readable local copy
     def url(self, key: str) -> str: ...                  # GET URL for clients
     def upload_url(self, key: str, content_type: str) -> tuple[str, datetime]: ...   # PUT URL
+    def list_keys(self, prefix: str) -> list[str]: ...
 
 
 class LocalStorage:
@@ -49,6 +50,12 @@ class LocalStorage:
 
     def url(self, key):
         return f"{self.base_url}/files/{key}"
+
+    def list_keys(self, prefix):
+        base = self._path(prefix.rstrip("/")) if prefix else self.root
+        if not base.exists():
+            return []
+        return sorted(str(p.relative_to(self.root)) for p in base.rglob("*") if p.is_file())
 
     def upload_url(self, key, content_type):
         # served by PUT /v1/uploads/{key} (local development stand-in for a GCS signed URL)
@@ -101,9 +108,38 @@ class GCSStorage:
     def url(self, key):
         return self._sign(key, "GET", timedelta(days=7))
 
+    def list_keys(self, prefix):
+        return sorted(b.name for b in self.bucket.client.list_blobs(self.bucket, prefix=prefix))
+
     def upload_url(self, key, content_type):
         expires = timedelta(hours=1)
         return self._sign(key, "PUT", expires, content_type), datetime.now(UTC) + expires
+
+
+class StorageIndexSync:
+    """Keeps VPS index folders in object storage under vps/<map_id>/ (survives restarts, shared
+    between Cloud Run instances)."""
+
+    def __init__(self, store: "Storage"):
+        self.store = store
+
+    def push(self, map_id: str, local_dir) -> None:
+        local_dir = Path(local_dir)
+        for f in local_dir.rglob("*"):
+            if f.is_file():
+                with open(f, "rb") as fh:
+                    self.store.put_file(f"vps/{map_id}/{f.relative_to(local_dir).as_posix()}", fh)
+
+    def pull(self, map_id: str, local_dir) -> bool:
+        keys = self.store.list_keys(f"vps/{map_id}/")
+        if not keys:
+            return False
+        local_dir = Path(local_dir)
+        for k in keys:
+            dst = local_dir / k.removeprefix(f"vps/{map_id}/")
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(self.store.local_path(k), dst)
+        return True
 
 
 def _make() -> Storage:

@@ -36,7 +36,7 @@ from .schemas import (DashboardOut, HandoverIn, HandoverOut, InViewIn, InViewOut
 from .schemas import (CaptureOut, DetectionOut, InspectMetadata, IssueOut, IssuePatch, LocalizeMetadata,
                       LocalizeMultiMetadata, LocalizeMultiOut, LocalizeOut, FrameResult, MapOut, ObservationOut, ObservationReview, RegistrationIn, V1CaptureCreate,
                       V1CaptureCreated, V1CaptureStatus, capture_out, issue_out, map_out, observation_out)
-from .storage import LocalStorage, storage
+from .storage import LocalStorage, StorageIndexSync, storage
 
 try:  # iPhone photos may be HEIC
     from pillow_heif import register_heif_opener
@@ -48,7 +48,9 @@ except ImportError:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    vps_mod.configure(settings.vps, settings.data_dir / "vps")
+    # on GCS the VPS indexes are persisted in the bucket (Cloud Run disks are ephemeral)
+    sync = StorageIndexSync(storage) if settings.storage == "gcs" else None
+    vps_mod.configure(settings.vps, settings.data_dir / "vps", sync)
     yield
 
 
@@ -175,32 +177,80 @@ def create_map(
     metadata: Annotated[str | None, Form(description='JSON: {"property", "floor_label", "scanned_at", "up_axis": "z", '
                                                       '"north": [0, 1], "rooms": [...], "views_to_map": 4x4, "context": {}}')] = None,
 ):
-    """Register a unit's map. Gaussian centers are extracted and the VPS index is built in the background."""
+    """Register a unit's map with a direct upload (local / small files). On Cloud Run (32 MB request
+    limit) use POST /maps/upload-urls + POST /maps/register instead."""
     meta = _json_form(metadata, "metadata")
     if Path(splat.filename or "").suffix.lower() != ".ply":
         raise HTTPException(415, "splat must be a 3DGS .ply")
     mid = map_id or name.lower().replace(" ", "-")
-    existing = s.get(Map, mid)
-    if existing is not None:
+    if s.get(Map, mid) is not None:
         raise HTTPException(409, f"map {mid} already exists")
+    storage.put_file(_map_key(mid, "splat"), splat.file, "application/octet-stream")
+    has_views = views is not None and bool(views.filename)
+    if has_views:
+        storage.put_file(_map_key(mid, "views"), views.file, "application/zip")
+    return _register_map(s, bg, mid, name, meta, has_views)
+
+
+MAP_FILES = {"splat": ("splat.ply", "application/octet-stream"), "views": ("views.zip", "application/zip")}
+
+
+def _map_key(map_id: str, kind: str) -> str:
+    return f"maps/{map_id}/{MAP_FILES[kind][0]}"
+
+
+def _register_map(s: Session, bg: BackgroundTasks, mid: str, name: str, meta: dict, has_views: bool) -> MapOut:
     try:
         unit = MapPatch.model_validate({k: meta[k] for k in MapPatch.model_fields if k in meta})
     except ValidationError as e:
         raise HTTPException(422, json.loads(e.json()))
+    if meta.get("up_axis", "z") not in ("z", "y"):
+        raise HTTPException(422, "up_axis must be 'z' or 'y'")
     m = Map(id=mid, name=name, up_axis=meta.get("up_axis", "z"), context=meta.get("context", {}),
-            views_to_map=meta.get("views_to_map"), splat_key=f"maps/{mid}/splat.ply",
+            views_to_map=meta.get("views_to_map"), splat_key=_map_key(mid, "splat"),
+            views_key=_map_key(mid, "views") if has_views else None,
             property=unit.property, floor_label=unit.floor_label, scanned_at=unit.scanned_at,
             north=unit.north or [0.0, 1.0], floor_z=unit.floor_z,
             rooms=[r.model_dump() for r in unit.rooms or []])
-    storage.put_file(m.splat_key, splat.file, "application/octet-stream")
-    if views is not None and views.filename:
-        m.views_key = f"maps/{mid}/views.zip"
-        storage.put_file(m.views_key, views.file, "application/zip")
     s.add(m)
     s.commit()
     s.refresh(m)
     bg.add_task(pipeline.process_map, m.id)
     return map_out(m)
+
+
+class MapUploadIn(BaseModel):
+    map_id: str
+
+
+class MapRegisterIn(BaseModel):
+    map_id: str
+    name: str
+    metadata: dict = {}
+
+
+@app.post("/maps/upload-urls", dependencies=[Auth])
+def map_upload_urls(body: MapUploadIn, s: SessionDep):
+    """Step 1 for large splats: signed PUT URLs for the splat (.ply) and the training views (.zip).
+    PUT each file with exactly the given content_type, then POST /maps/register."""
+    if s.get(Map, body.map_id) is not None:
+        raise HTTPException(409, f"map {body.map_id} already exists")
+    out = {}
+    for kind, (_, ctype) in MAP_FILES.items():
+        url, expires = storage.upload_url(_map_key(body.map_id, kind), ctype)
+        out[kind] = {"upload_url": url, "content_type": ctype, "expires_at": expires}
+    return out
+
+
+@app.post("/maps/register", response_model=MapOut, status_code=202, dependencies=[Auth])
+def map_register(body: MapRegisterIn, s: SessionDep, bg: BackgroundTasks):
+    """Step 2: register the map once the uploads are done (views are optional)."""
+    if s.get(Map, body.map_id) is not None:
+        raise HTTPException(409, f"map {body.map_id} already exists")
+    if not storage.exists(_map_key(body.map_id, "splat")):
+        raise HTTPException(409, "splat not uploaded yet")
+    return _register_map(s, bg, body.map_id, body.name, body.metadata,
+                         storage.exists(_map_key(body.map_id, "views")))
 
 
 @app.get("/maps", response_model=list[MapOut])
@@ -423,8 +473,11 @@ def v1_create(body: V1CaptureCreate, s: SessionDep):
 
 @app.put("/v1/uploads/{key:path}", status_code=200)
 async def v1_local_upload(key: str, request: Request):
-    """Local-storage stand-in for the GCS signed URL (PUT the zip here)."""
-    if not isinstance(storage, LocalStorage) or not key.startswith("uploads/") or not key.endswith(".zip"):
+    """Local-storage stand-in for GCS signed URLs (capture zips, map splats / views)."""
+    parts = key.split("/")
+    allowed = (len(parts) == 2 and parts[0] == "uploads" and key.endswith(".zip")) or \
+              (len(parts) == 3 and parts[0] == "maps" and parts[2] in ("splat.ply", "views.zip"))
+    if not isinstance(storage, LocalStorage) or not allowed:
         raise HTTPException(404, "not found")
     path = storage.local_path(key)
     path.parent.mkdir(parents=True, exist_ok=True)
