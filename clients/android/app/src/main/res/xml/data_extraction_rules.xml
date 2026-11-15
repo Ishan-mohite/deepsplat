@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Captures and the encrypted token stay on the device: the token key lives in the Keystore and cannot be restored elsewhere. -->
+<data-extraction-rules>
+    <cloud-backup><exclude domain="root"/><exclude domain="file"/><exclude domain="sharedpref"/></cloud-backup>
+    <device-transfer><exclude domain="root"/><exclude domain="file"/><exclude domain="sharedpref"/></device-transfer>
+</data-extraction-rules>

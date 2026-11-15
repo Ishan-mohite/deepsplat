@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mirrors design/system/tokens.css. Compose uses ui/theme/Tokens.kt; these are for XML only. -->
+<resources>
+    <color name="paper">#F1EEE6</color>
+    <color name="ink">#172033</color>
+</resources>

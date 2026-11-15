@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">deepsplat</string>
+    <string name="upload_channel">Uploads</string>
+    <string name="upload_channel_description">Progress while captures are sent to your backend</string>
+</resources>
