@@ -1114,7 +1114,7 @@ function adaptSite(raw) {
       observations: i.observations.map((o) => {
         const kind = o.source?.kind || 'phone';
         SOURCES[kind] ??= { label: titleCase(kind), device: '' };
-        return { ...o, source: { kind, device_id: o.source?.device_id || '' }, image_url: fileUrl(o.image_url), mask_url: fileUrl(o.mask_url), overlay_url: fileUrl(o.overlay_url) };
+        return { ...o, source: { kind, device_id: o.source?.device_id || '' }, image_url: fileUrl(o.image_url), mask_url: fileUrl(o.mask_url), overlay_url: fileUrl(o.overlay_url), points_url: fileUrl(o.points_url) };
       }),
     };
   });
@@ -1939,7 +1939,7 @@ function renderLayers() {
   </div>
   <div class="psec">
     <div class="eyebrow">Segmentation</div>
-    <div class="hint">This scan has no object labels yet, so there are no layers to switch. Findings are shown as pins.</div>
+    <div class="hint">This scan has no object labels yet. Findings are shown as pins, with their SAM 3 mask on the scanned surface in the severity colour.</div>
   </div>${pinFilters}${vpsSec}`;
     return;
   }
@@ -2200,6 +2200,7 @@ class Twin {
     this.vpsGroup = new THREE.Group();
     this.scene.add(this.splatRoot, this.helpers, this.vpsGroup);
     this.vpsMarks = []; this.vpsKey = null;
+    this.masks = new Map(); // `${issue_id}|${obs_id}` -> SplatMesh of the damage mask lifted onto the scan
     this.meshes = [];
     this.bySeg = new Map();
     this.raycaster = new THREE.Raycaster();
@@ -2222,6 +2223,8 @@ class Twin {
     for (const m of this.meshes) { this.splatRoot.remove(m); m.dispose?.(); }
     this.meshes = []; this.bySeg.clear();
     if (this.scan) { this.splatRoot.remove(this.scan); this.scan.dispose?.(); this.scan = null; }
+    for (const m of this.masks.values()) if (m.mesh) { this.splatRoot.remove(m.mesh); m.mesh.dispose?.(); }
+    this.masks.clear();
     this.helpers.clear();
     this.clearVps();
     this.pinLayer.innerHTML = ''; this.pins = []; this.vpsMarks = [];
@@ -2310,6 +2313,7 @@ class Twin {
       p.el.classList.toggle('selected', state.selection?.kind === 'issue' && state.selection.id === p.issue.issue_id);
       p.el.querySelector('.pin-status').textContent = st ? STATUS[st.status].label.toLowerCase() : '';
     }
+    this.syncMasks();
     this.showObservation();
     this.drawVps();
   }
@@ -2386,6 +2390,62 @@ class Twin {
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
     const eye = through ? t.clone().addScaledVector(fwd, 0.02) : t.clone().addScaledVector(fwd, -1.1).addScaledVector(up, 0.45);
     this.flyTo(eye.toArray(), t.clone().addScaledVector(fwd, through ? 1.5 : 1.2).toArray());
+  }
+  // The observation whose mask an issue shows: the one picked in the inspector, else the latest as of the time bar.
+  maskObs(issue) {
+    const sel = state.selection;
+    if (sel?.kind === 'issue' && sel.id === issue.issue_id && sel.obsIndex != null) return issue.observations[sel.obsIndex];
+    return statusAt(issue, state.asOf)?.obs.at(-1);
+  }
+  // Damage masks on the scan: the SAM 3 mask's gaussians (lifted by the backend, map frame) as small
+  // discs on the surface, tinted with the severity colour; shown with the issue's pin.
+  syncMasks() {
+    if (!this.site?.live) return;
+    const want = new Map();
+    for (const issue of this.site.issues) {
+      const o = this.maskObs(issue);
+      if (o?.points_url && this.issueVisible(issue)) want.set(`${issue.issue_id}|${o.obs_id}`, { issue, o });
+    }
+    for (const [key, { issue, o }] of want) if (!this.masks.has(key)) this.loadMask(key, issue, o);
+    const selId = state.selection?.kind === 'issue' ? state.selection.id : null;
+    for (const [key, m] of this.masks) {
+      if (!m.mesh) continue;
+      const w = want.get(key);
+      m.mesh.visible = !!w;
+      if (!w) continue;
+      m.mesh.recolor = new THREE.Color(SEV[w.issue.severity].color);
+      m.mesh.opacity = selId === w.issue.issue_id ? 1 : 0.8;
+    }
+  }
+  async loadMask(key, issue, o) {
+    const site = this.site, entry = { mesh: null };
+    this.masks.set(key, entry);
+    let raw;
+    try {
+      const r = await fetch(o.points_url, { cache: 'force-cache' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      raw = await r.json();
+    } catch (e) { console.warn(`Mask points of ${o.obs_id}:`, e); return; }
+    if (this.site?.id !== site.id || this.masks.get(key) !== entry || !raw?.length) return;
+    const M = new THREE.Matrix4().set(...site.splat_to_viewer.flat());
+    const n = new THREE.Vector3(...(o.normal || issue.normal || [0, 0, 1]));
+    if (n.lengthSq() < 1e-6) n.set(0, 0, 1);
+    n.normalize();
+    // Flat discs facing the surface normal, lifted 5 mm towards the camera so they don't z-fight the scan.
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), off = n.clone().multiplyScalar(0.005);
+    const spacing = Math.sqrt((o.area_m2 || 0.0004 * raw.length) / raw.length);
+    const r = clamp(spacing * 0.7, 0.003, 0.03), scale = new THREE.Vector3(r, r, 0.0015), white = new THREE.Color(1, 1, 1);
+    const mesh = new Spark.SplatMesh({
+      constructSplats: (packed) => {
+        for (const p of raw) packed.pushSplat(_c.set(p[0], p[1], p[2]).applyMatrix4(M).add(off), scale, q, 0.9, white);
+      },
+    });
+    mesh.userData.mask = { issueId: issue.issue_id, obsId: o.obs_id };
+    await mesh.initialized;
+    if (this.site?.id !== site.id || this.masks.get(key) !== entry) { mesh.dispose?.(); return; }
+    entry.mesh = mesh;
+    this.splatRoot.add(mesh);
+    this.syncMasks();
   }
   buildPins() {
     this.pins = this.site.issues.map((issue) => {

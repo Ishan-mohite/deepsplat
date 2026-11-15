@@ -1,5 +1,6 @@
 """GET /viewer/sites[/id] matches the web-viewer prototype's MockApi shape."""
 import json
+from urllib.parse import urlsplit
 
 import numpy as np
 import pytest
@@ -85,6 +86,22 @@ def test_issue_in_viewer_frame(site):
     forward = -R[:, 2]                                                    # three.js cameras look along -z
     assert np.allclose(forward, [0, 0, 1], atol=1e-3)                     # map -y = viewer +z
     assert np.allclose(R[:, 1], [0, 1, 0], atol=1e-3)                     # camera up = viewer up
+
+
+def test_observation_mask_points(site):
+    """The lifted mask points lie on the issue once splat_to_viewer is applied, like the splat."""
+    _, s = site
+    iss = s["issues"][0]
+    o = iss["observations"][0]
+    assert o["points_url"] and np.allclose(o["normal"], iss["normal"], atol=0.05)
+    with TestClient(app) as c:
+        r = c.get(urlsplit(o["points_url"]).path)
+    assert r.status_code == 200
+    pts = np.asarray(r.json(), dtype=np.float64)
+    assert pts.ndim == 2 and pts.shape[1] == 3 and len(pts) >= 5
+    M = np.asarray(s["splat_to_viewer"], dtype=np.float64)
+    v = pts @ M[:3, :3].T + M[:3, 3]
+    assert np.allclose(np.median(v, axis=0), iss["position_m"], atol=0.05)
 
 
 def test_captures_pipeline_stage(site):

@@ -186,6 +186,9 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
                 "image_url": storage.url(o.image_key) if o.image_key else None,
                 "mask_url": storage.url(o.mask_key) if o.mask_key else None,
                 "overlay_url": storage.url(o.overlay_key) if o.overlay_key else None,
+                # the mask lifted onto the scan: JSON [[x,y,z], ...] in the map frame (apply splat_to_viewer)
+                "points_url": storage.url(o.points_key) if o.points_key else None,
+                "normal": _v(M, o.normal) if o.normal else None,
                 "length_m": o.length_m, "area_m2": o.area_m2, "detector_confidence": o.detector_confidence,
                 "reviewed_by": o.reviewed_by, "capture_id": o.capture_id,
                 "recorder": o.recorder, "event_kind": o.event_kind, "record_hash": o.record_hash,
