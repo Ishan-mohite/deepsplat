@@ -189,3 +189,27 @@ def test_validation(client):
     assert r.status_code == 422
     assert c.post("/localize", files={"image": ("f.jpg", noise_jpeg(W, H), "image/jpeg")},
                   data={"metadata": json.dumps({"map_id": "test-hall", "intrinsics": K})}).status_code == 503
+
+
+def test_delete_capture(client):
+    """DELETE /captures/{id} removes the row, its detections and every stored file; captures that
+    filed records stay (hash chain)."""
+    from backend.storage import storage
+
+    c = client
+    cap = robot_inspect(c, damage=False)
+    assert cap["status"] == "done" and not cap["observations"]
+    files = storage.list_keys(f"captures/{cap['id']}/")
+    assert files and rel(cap["image_url"]).removeprefix("/files/") in files
+    r = c.delete(f"/captures/{cap['id']}")
+    assert r.status_code == 200, r.text
+    assert r.json()["files"] == len(files)
+    assert storage.list_keys(f"captures/{cap['id']}/") == []
+    assert c.get(f"/captures/{cap['id']}").status_code == 404
+    assert c.delete(f"/captures/{cap['id']}").status_code == 404
+
+    with_records = robot_inspect(c, box=(0.1, 0.1, 0.2, 0.2))
+    assert with_records["observations"]
+    r = c.delete(f"/captures/{with_records['id']}")
+    assert r.status_code == 409 and "ISS-" in r.json()["detail"]
+    assert c.get(f"/captures/{with_records['id']}").status_code == 200

@@ -261,6 +261,63 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
 .cap-result { font: var(--text-body-s); }
 .cap-result.fail { color: var(--rust); }
 .link-btn { border: 0; background: none; padding: 0; color: var(--blue); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.cap[data-action="open-capture"] { cursor: pointer; transition: border-color .12s; }
+.cap[data-action="open-capture"]:hover { border-color: var(--ink-2); }
+.cap .open-hint { color: var(--blue); font-size: 12px; font-weight: 600; margin-top: 6px; }
+
+/* ---------- capture detail sheet ---------- */
+.sheet { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(780px, 100vw); max-width: 100vw; height: 100dvh; max-height: 100dvh; padding: 0; border: 0; border-left: 1px solid var(--line); background: var(--card); color: var(--ink); box-shadow: var(--shadow-float); overflow: hidden; }
+.sheet[open] { display: flex; flex-direction: column; animation: sheet-in .18s ease-out; }
+.sheet::backdrop { background: color-mix(in srgb, var(--ink) 32%, transparent); }
+@keyframes sheet-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet-head { padding: var(--space-5) var(--space-6) var(--space-4); border-bottom: 1px solid var(--line); flex: none; }
+.sheet-head h3 { font: var(--text-display-m); letter-spacing: -.015em; margin: var(--space-2) 0 var(--space-3); }
+.sheet-head .steps { margin-top: var(--space-3); }
+.sheet-body { flex: 1; overflow-y: auto; padding: var(--space-5) var(--space-6) var(--space-8); display: grid; gap: var(--space-6); align-content: start; }
+.sheet-body section > .eyebrow { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); margin-bottom: 10px; }
+.sheet-body section > .eyebrow .hint { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.cap-viewer { position: relative; aspect-ratio: var(--ar, 1.3333); width: min(100%, calc(64vh * var(--ar, 1.3333))); margin: 0 auto; background: var(--vp); border-radius: var(--r-md); overflow: hidden; }
+.cap-viewer .vload { position: absolute; inset: 0; display: grid; place-items: center; color: var(--vp-muted); font: var(--text-body-s); text-align: center; padding: var(--space-6); pointer-events: none; }
+.cap-viewer .vload::before { content: ""; display: block; width: 28px; height: 28px; margin: 0 auto 10px; border-radius: 50%; border: 2px solid var(--vp-line); border-top-color: var(--pick); animation: spin .9s linear infinite; }
+.cap-viewer.loaded .vload { display: none; }
+.cap-viewer.failed .vload::before { display: none; }
+.cap-viewer:not(.loaded) .dets { opacity: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.cap-viewer > img, .cap-viewer > svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.cap-viewer .dets polygon, .cap-viewer .dets rect { fill: color-mix(in srgb, var(--c) 28%, transparent); stroke: var(--c); stroke-width: 2; vector-effect: non-scaling-stroke; transition: fill .12s; }
+.cap-viewer .dets g.hot polygon, .cap-viewer .dets g.hot rect { fill: color-mix(in srgb, var(--c) 55%, transparent); stroke-width: 3; }
+.cap-viewer .dets.dim g:not(.hot) { opacity: .35; }
+.cap-viewer .vtag { position: absolute; left: 10px; top: 10px; padding: 4px 10px; border-radius: var(--r-pill); background: var(--card); font: var(--text-mono-s); }
+.cap-viewer .vnav { position: absolute; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--card); cursor: pointer; font-size: 18px; line-height: 1; box-shadow: var(--shadow-float); }
+.cap-viewer .vnav.prev { left: 10px; } .cap-viewer .vnav.next { right: 10px; }
+.cap-viewer .vempty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--vp-muted); font: var(--text-body-s); text-align: center; padding: var(--space-6); }
+.viewer-bar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-top: 10px; }
+.seg { display: inline-flex; padding: 3px; border-radius: var(--r-pill); background: var(--paper-2); gap: 2px; }
+.seg button { border: 0; background: none; padding: 6px 14px; border-radius: var(--r-pill); font: var(--text-label); cursor: pointer; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 600; }
+.seg button:disabled { opacity: .45; cursor: default; }
+.dets-list { list-style: none; margin: 0; padding: 2px; display: grid; gap: 6px; max-height: 300px; overflow-y: auto; }
+.dets-sum { margin: 0 0 8px; }
+.dets-list li { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; padding: 9px var(--space-3); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card); font: var(--text-body-s); }
+.dets-list li:hover, .dets-list li.hot { border-color: var(--ink-2); }
+.dets-list .sub { color: var(--ink-2); font-size: 12px; }
+.frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; max-height: 312px; overflow-y: auto; padding: 2px; }
+.frames button { position: relative; padding: 0; border: 0; border-radius: var(--r-sm); overflow: hidden; aspect-ratio: 4 / 3; background: var(--paper-2); cursor: pointer; }
+.frames button img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.frames button span { position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--ink) 70%, transparent); color: #fff; font: var(--text-mono-s); font-size: 10px; }
+.frames button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--blue); }
+.fact-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-5) var(--space-6); }
+.fact-groups .eyebrow { margin-bottom: 8px; display: block; }
+.flag { display: inline-block; padding: 1px 8px; border-radius: var(--r-pill); background: var(--amber-soft); color: var(--amber); font-weight: 600; font-size: 11px; margin-left: 4px; }
+.sheet-error { padding: var(--space-6); color: var(--rust); }
+.cap-delete { border-top: 1px solid var(--line); padding-top: var(--space-5); }
+.cap-delete p { margin: 0 0 var(--space-3); font: var(--text-body-s); color: var(--ink-2); }
+.del-confirm { border: 1px solid var(--rust); background: var(--rust-soft); border-radius: var(--r-md); padding: var(--space-4); }
+.del-confirm p { color: var(--ink); }
+.ds-btn.danger { background: var(--rust); border-color: var(--rust); color: #fff; }
+.ds-btn.danger:hover { filter: brightness(.92); }
+.ds-btn--danger-ghost { color: var(--rust); }
+@media (max-width: 680px) { .sheet-head, .sheet-body { padding-left: var(--space-4); padding-right: var(--space-4); } .fact-groups { grid-template-columns: 1fr; } }
 
 /* ---------- tooltip + toast ---------- */
 #tip { position: fixed; z-index: 50; pointer-events: none; padding: 6px 10px; border-radius: var(--r-sm); background: var(--ink); color: #fff; font: var(--text-body-s); display: none; white-space: nowrap; box-shadow: var(--shadow-float); }
@@ -341,6 +398,7 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
   <section id="view-issues" class="view" aria-label="Issues"></section>
   <section id="view-captures" class="view" aria-label="Captures"></section>
 </main>
+<dialog id="cap-sheet" class="sheet" aria-label="Capture details"></dialog>
 <div id="tip" role="tooltip"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -1382,14 +1440,312 @@ function renderCaptures() {
       else if (c.status === 'uploaded') result = `<div class="cap-result">Uploaded, waiting for the localizer.</div>`;
       else if (c.issue_id) result = `<div class="cap-result">${c.obs_id} filed on <button class="link-btn" data-action="open-issue" data-id="${c.issue_id}">${c.issue_id}</button><div class="meta">Pose confidence ${fmt.f2(c.pose_confidence)}</div></div>`;
       else result = `<div class="cap-result">${esc(c.result)}</div>`;
-      return `<article class="ds-card cap">
-        <div><b class="mono">${c.capture_id}</b><div class="meta">${fmt.dt(c.created)} UTC · ${SOURCES[c.source].label}${s.live ? '' : ` ${SOURCES[c.source].device}`}</div><div class="meta">${c.frames ? `${c.frames} frames + photo` : 'Photo'}${c.size_mb ? ` · ${c.size_mb} MB` : ''}</div></div>
+      return `<article class="ds-card cap" data-action="open-capture" data-id="${esc(c.capture_id)}" tabindex="0" aria-label="Open capture ${esc(c.capture_id)}">
+        <div><b class="mono">${c.capture_id}</b><div class="meta">${fmt.dt(c.created)} UTC · ${SOURCES[c.source].label}${s.live ? '' : ` ${SOURCES[c.source].device}`}</div><div class="meta">${c.frames ? `${c.frames} frames + photo` : 'Photo'}${c.size_mb ? ` · ${c.size_mb} MB` : ''}</div><div class="open-hint">Photos and details →</div></div>
         <ol class="steps" aria-label="Processing steps">${steps}</ol>
         ${result}
       </article>`;
     }).join('')}</div>
   </div>`;
 }
+
+/* ---------- capture detail (sheet over the captures page) ---------- */
+// Live: GET /captures/{id} (photo, SAM 3 detections, video frames, localization, quality, hash).
+// Sample data: built from the capture list and the mock photo of its record.
+const capView = { id: null, data: null, mode: 'photo', frame: null, hot: null, req: 0, confirmDelete: false, deleting: false, deleteError: null };
+const CAP_STATUS = { done: ['Done', '--green'], processing: ['Processing', '--blue'], uploaded: ['Uploaded', '--blue'], failed: ['Stopped', '--rust'] };
+const LOC_METHOD = {
+  client: 'Pose sent by the app', vps_frames: 'VPS on the video frames', vps_photo: 'VPS on the photo',
+  frame_poses: 'Video frame poses', camera_to_map: 'Camera-to-map transform', device_to_map: 'Device-to-map transform',
+};
+const detColor = (j) => SLOTS[j % SLOTS.length];
+const kv = (label, value, cls = '') => (value == null || value === '' ? '' : `<dt>${label}</dt><dd class="${cls}">${value}</dd>`);
+
+function mockCaptureDetail(s, c) {
+  const issue = c.issue_id ? s.issues.find((i) => i.issue_id === c.issue_id) : null;
+  const k = issue ? issue.observations.findIndex((o) => o.obs_id === c.obs_id) : -1, o = issue?.observations[k];
+  const r = mulberry32(hashStr(c.capture_id));
+  const located = c.stage >= 2 || c.status === 'done';
+  return {
+    id: c.capture_id, entry: c, mock: issue ? { issue, k } : null, created: c.created, captured_at: o?.timestamp || c.created,
+    source: { kind: c.source, device_id: SOURCES[c.source].device }, device_model: { phone: 'iPhone 15 Pro', glasses: 'Smart glasses', robot: 'Patrol robot camera' }[c.source],
+    image: o?.image_url || null, image_size: [1920, 1440],
+    quality: c.stage >= 1 ? { sharpness: +(180 + r() * 260).toFixed(1), brightness: +(95 + r() * 60).toFixed(1), flags: [], ok: true } : {},
+    loc: located ? { method: 'vps_frames', confidence: c.pose_confidence ?? +(0.8 + r() * 0.15).toFixed(2), camera_pose: o?.camera_pose, room: issue?.where }
+      : c.status === 'failed' ? { method: 'vps_frames', confidence: 0.41, error: c.reason } : {},
+    detector_model: c.stage >= 3 || c.status === 'done' ? 'SAM 3' : null, detection_latency_s: c.stage >= 3 || c.status === 'done' ? +(1.2 + r()).toFixed(2) : null,
+    detections: o ? [{ damage_class: issue.type, label: TYPES[issue.type].label, prompt: TYPES[issue.type].prompt, confidence: o.detector_confidence, area_ratio: null, bbox: [], polygons: [] }] : [],
+    observations: o ? [{ obs_id: o.obs_id, issue_id: issue.issue_id, change: k === 0 ? 'new' : 'stable', review: o.reviewed_by ? 'confirmed' : 'unreviewed', reviewed_by: o.reviewed_by, length_m: o.length_m, area_m2: o.area_m2, type: issue.type }] : [],
+    frames: [], n_frames: c.frames, sha: null,
+  };
+}
+async function loadCapture(id) {
+  const s = state.site, c = s.captures.find((x) => x.capture_id === id);
+  if (!s.live) { if (!c) throw new Error(`Capture ${id} is not in the sample data.`); return mockCaptureDetail(s, c); }
+  const raw = await getJSON(`/captures/${encodeURIComponent(id)}`);
+  const issueType = (iid) => s.issues.find((i) => i.issue_id === iid)?.type;
+  return {
+    id: raw.id, entry: c, backendStatus: raw.status, error: raw.error, created: raw.created_at, captured_at: raw.captured_at,
+    source: raw.source || { kind: 'phone' }, device_model: raw.device_model, recorder: raw.recorder, event_kind: raw.event_kind,
+    image: fileUrl(raw.image_url), overlay: fileUrl(raw.overlay_url), image_size: raw.image_size,
+    quality: raw.quality || {}, loc: raw.localization || {}, detector_model: raw.detector_model, detection_latency_s: raw.detection_latency_s,
+    detections: (raw.detections || []).map((d) => ({ ...d, mask_url: fileUrl(d.mask_url) })),
+    observations: (raw.observations || []).map((o) => ({ ...o, type: issueType(o.issue_id) || VIEWER_TYPE_OF(o.detected_type) })),
+    frames: (() => { const fr = raw.frames || [], t0 = Math.min(...fr.map((f) => f.t ?? Infinity));
+      const inl = new Map(((raw.localization?.details || {}).frames || []).map((x) => [x.name, x.num_inliers]));
+      return fr.map((f) => ({ name: f.name, url: fileUrl(f.image_url), t: f.t != null && Number.isFinite(t0) ? f.t - t0 : null,
+        size: f.intrinsics?.width ? [f.intrinsics.width, f.intrinsics.height] : null, inliers: inl.get(f.name) })); })(),
+    n_frames: c?.frames || raw.frames?.length || 0, sha: raw.original_sha256,
+  };
+}
+const VIEWER_TYPE_OF = (t) => ({ stain: 'leak', coating_damage: 'coating' }[t] || t);
+
+function capViewerHTML(d) {
+  const nf = d.frames.length;
+  if (capView.frame != null && d.frames[capView.frame]) {
+    const k = capView.frame, f = d.frames[k];
+    return `<img src="${esc(f.url)}" alt="Video frame ${k + 1} of ${nf}"><div class="vload">Loading frame ${k + 1}…</div>
+      <span class="vtag">Frame ${k + 1} / ${nf}${f.t != null ? ` · ${(+f.t).toFixed(1)} s` : ''}${f.inliers != null ? ` · ${f.inliers} VPS inliers` : ''}</span>
+      ${k > 0 ? `<button class="vnav prev" data-action="cap-frame" data-index="${k - 1}" aria-label="Previous frame">‹</button>` : ''}
+      ${k < nf - 1 ? `<button class="vnav next" data-action="cap-frame" data-index="${k + 1}" aria-label="Next frame">›</button>` : ''}`;
+  }
+  const det = capView.mode === 'detections';
+  if (d.mock) return photoSVG(d.mock.issue, d.mock.k, det);
+  if (!d.image && !d.overlay) return `<div class="vempty">${d.entry?.status === 'uploaded' || d.entry?.status === 'processing' ? 'The photo appears once the upload is unpacked.' : 'No photo stored for this capture.'}</div>`;
+  if (det) {
+    const [W, H] = d.image_size || [];
+    const shapes = d.detections.some((x) => x.polygons?.length || x.bbox?.length === 4);
+    if (W && H && shapes && d.image) {
+      return `<img src="${esc(d.image)}" alt="Capture photo with SAM 3 detections"><div class="vload">Loading the photo…</div>
+        <svg class="dets${capView.hot != null ? ' dim' : ''}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${d.detections.map((x, j) => `<g data-det="${j}" class="${capView.hot === j ? 'hot' : ''}" style="--c:${detColor(j)}">${
+          x.polygons?.length ? x.polygons.map((p) => `<polygon points="${p.map((q) => q.join(',')).join(' ')}"/>`).join('')
+          : x.bbox?.length === 4 ? `<rect x="${x.bbox[0]}" y="${x.bbox[1]}" width="${x.bbox[2] - x.bbox[0]}" height="${x.bbox[3] - x.bbox[1]}"/>` : ''}</g>`).join('')}</svg>`;
+    }
+    if (d.overlay) return `<img src="${esc(d.overlay)}" alt="Capture photo with the SAM 3 overlay"><div class="vload">Loading the overlay…</div>`;
+  }
+  return `<img src="${esc(d.image || d.overlay)}" alt="Capture photo"><div class="vload">Loading the photo…</div>`;
+}
+
+function capAspect(d) {
+  const f = capView.frame != null ? d.frames[capView.frame] : null;
+  const [w, h] = (f ? f.size : null) || (d.mock ? null : d.image_size) || [4, 3];
+  return clamp(w / h, 0.5, 2).toFixed(4);
+}
+function watchCapImage(dlg) {
+  const v = dlg.querySelector('.cap-viewer'), img = v?.querySelector(':scope > img');
+  if (!img) { v?.classList.add('loaded'); return; }
+  const done = () => v.classList.add('loaded');
+  const fail = () => { v.classList.add('failed'); const l = v.querySelector('.vload'); if (l) l.textContent = 'The image could not be loaded.'; };
+  if (img.complete && img.naturalWidth) done();
+  else { img.addEventListener('load', done, { once: true }); img.addEventListener('error', fail, { once: true }); }
+}
+function capDeleteHTML(d) {
+  const c = d.entry || {}, host = state.site.live ? new URL(API).host : null;
+  let inner;
+  if (d.observations.length) {
+    inner = `<p>This capture filed records on ${[...new Set(d.observations.map((o) => esc(o.issue_id)))].join(', ')}. They are part of the unit's evidence log, so it cannot be deleted. Reject the records in review instead.</p>`;
+  } else if (['processing', 'uploaded'].includes(c.status) && d.backendStatus !== 'awaiting_upload') {
+    inner = '<p>The capture can be deleted once processing has finished.</p>';
+  } else if (capView.confirmDelete) {
+    const what = [d.image ? 'the photo' : null, d.frames.length ? `${d.frames.length} video frames` : null, c.size_mb ? `the upload (${c.size_mb} MB)` : 'the upload', d.detections.length ? `${d.detections.length} SAM 3 detection${d.detections.length === 1 ? '' : 's'}` : null].filter(Boolean);
+    inner = `<div class="del-confirm" role="alertdialog" aria-label="Confirm deletion">
+      <p><b>Delete ${esc(d.id)} for good?</b> This removes ${what.join(', ').replace(/, ([^,]*)$/, ' and $1')} from ${esc(host)}. It cannot be undone.</p>
+      ${capView.deleteError ? `<p style="color:var(--rust)"><b>Not deleted:</b> ${esc(capView.deleteError)}</p>` : ''}
+      <div class="insp-actions">
+        <button class="ds-btn ds-btn--sm danger" data-action="cap-delete-confirm" ${capView.deleting ? 'disabled' : ''}>${capView.deleting ? 'Deleting…' : 'Delete capture'}</button>
+        <button class="ds-btn ds-btn--secondary ds-btn--sm" data-action="cap-delete-cancel" ${capView.deleting ? 'disabled' : ''}>Cancel</button>
+      </div></div>`;
+  } else {
+    inner = `<p>${host ? `Stored on the backend at <span class="mono">${esc(host)}</span>.` : 'Sample data.'}</p>
+      <button class="ds-btn ds-btn--secondary ds-btn--sm ds-btn--danger-ghost" data-action="${state.site.live ? 'cap-delete' : 'toast'}" data-msg="Deleting needs the backend. The sample data was not changed.">Delete capture…</button>`;
+  }
+  return `<section class="cap-delete" aria-label="Delete capture"><div class="eyebrow" style="margin-bottom:8px">Delete</div>${inner}</section>`;
+}
+const TOKEN_KEY = 'deepsplat.apiToken';
+const readToken = () => { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } };
+const saveToken = (t) => { try { t ? sessionStorage.setItem(TOKEN_KEY, t) : sessionStorage.removeItem(TOKEN_KEY); } catch { /* storage blocked */ } };
+async function deleteCapture(id) {
+  let token = readToken();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await fetch(`${API}/captures/${encodeURIComponent(id)}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (r.status === 401) {
+      saveToken('');
+      token = prompt(attempt ? 'That token was not accepted. API token of the backend (the same one the capture app uses):' : 'The backend needs its API token to delete (the same one the capture app uses):');
+      if (!token) throw new Error('No API token given.');
+      saveToken(token);
+      continue;
+    }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `The backend answered HTTP ${r.status}.`);
+    return r.json();
+  }
+  throw new Error('The API token was not accepted.');
+}
+async function confirmDeleteCapture() {
+  const id = capView.id;
+  if (!id || capView.deleting) return;
+  capView.deleting = true; capView.deleteError = null; renderCaptureSheet();
+  try {
+    const res = await deleteCapture(id);
+    closeCapture();
+    toast(`Deleted ${id.slice(0, 8)} and ${res.files} stored file${res.files === 1 ? '' : 's'}`);
+    const site = await LiveApi.getSite(state.siteId);
+    if (site.id === state.siteId) { state.site = site; renderDashboard(); renderCaptures(); renderIssues(); renderLayers(); renderInspector(); renderTimebar(); }
+  } catch (err) {
+    if (capView.id !== id) return;
+    capView.deleting = false; capView.deleteError = err.message; renderCaptureSheet();
+  }
+}
+function capResultText(d) {
+  const c = d.entry || {};
+  if (c.status === 'failed') return `<span style="color:var(--rust)"><b>Stopped before “${esc(PIPELINE[c.stage] || 'the last step')}”.</b> ${esc(c.reason || d.error || '')}</span>`;
+  if (c.status === 'processing') return `${PIPELINE_ACTIVE[c.stage] || 'Processing'}…`;
+  if (c.status === 'uploaded') return 'Uploaded, waiting for the localizer.';
+  if (c.issue_id) return `${esc(c.obs_id)} filed on <button class="link-btn" data-action="open-issue" data-id="${esc(c.issue_id)}">${esc(c.issue_id)}</button>`;
+  return esc(c.result || '');
+}
+
+function renderCaptureSheet() {
+  const dlg = $('#cap-sheet'), d = capView.data;
+  if (!d) return;
+  const body = dlg.querySelector('.sheet-body'), framesEl = dlg.querySelector('.frames');
+  const keepScroll = [body?.scrollTop || 0, framesEl?.scrollTop || 0];
+  const c = d.entry || {}, kind = d.source?.kind || 'phone';
+  const [stLabel, stColor] = CAP_STATUS[c.status] || [titleCase(d.backendStatus), '--muted'];
+  const steps = c.stage != null ? PIPELINE.map((label, k) => `<li class="${k < c.stage ? 'done' : k === c.stage ? (c.status === 'failed' ? 'failed' : c.status === 'done' ? 'done' : 'active') : ''}">${label}</li>`).join('') : '';
+  const nDet = d.detections.length, nf = d.frames.length, hasPhoto = !!(d.mock || d.image || d.overlay);
+  const canDet = hasPhoto && (d.mock ? !!d.mock : (nDet > 0 || !!d.overlay));
+  if (capView.mode === 'detections' && !canDet) capView.mode = 'photo';
+  const origUrl = capView.frame != null ? d.frames[capView.frame]?.url : (capView.mode === 'detections' && d.overlay ? d.overlay : d.image);
+  const segmented = c.status === 'done' || c.stage >= 3 || d.detector_model;
+  const q = d.quality || {}, loc = d.loc || {};
+  const metricText = (o) => (o.length_m != null && TYPES[o.type]?.metric !== 'area' ? `${(+o.length_m).toFixed(2)} m` : o.area_m2 != null ? `${(+o.area_m2).toFixed(3)} m²` : '–');
+
+  dlg.innerHTML = `
+  <div class="sheet-head">
+    <div class="insp-kicker"><span class="mono">${esc(d.id)}</span><span class="ds-chip"><span class="sw" style="--c:var(${stColor})"></span>${esc(stLabel)}</span>${d.backendStatus && !['done', 'processing', 'uploaded', 'awaiting_upload'].includes(d.backendStatus) ? `<span class="ds-chip">${esc(titleCase(d.backendStatus))}</span>` : ''}<button class="insp-close" data-action="close-capture" aria-label="Close">×</button></div>
+    <h3>${esc(SOURCES[kind]?.label || titleCase(kind))} capture · ${fmt.dt(d.captured_at || d.created)} UTC</h3>
+    <div class="cap-result">${capResultText(d)}</div>
+    ${steps ? `<ol class="steps" aria-label="Processing steps">${steps}</ol>` : ''}
+  </div>
+  <div class="sheet-body">
+    <section aria-label="Photo">
+      <div class="cap-viewer" style="--ar:${capAspect(d)}">${capViewerHTML(d)}</div>
+      <div class="viewer-bar">
+        <div class="seg" role="group" aria-label="Photo view">
+          <button data-action="cap-mode" data-mode="photo" aria-pressed="${capView.frame == null && capView.mode === 'photo'}">Damage photo</button>
+          <button data-action="cap-mode" data-mode="detections" aria-pressed="${capView.frame == null && capView.mode === 'detections'}" ${canDet ? '' : 'disabled'}>SAM 3 detections${nDet ? ` (${nDet})` : ''}</button>
+        </div>
+        ${state.site.live && origUrl ? `<a class="ds-btn ds-btn--secondary ds-btn--sm" href="${esc(origUrl)}" target="_blank" rel="noopener">Open full size</a>` : ''}
+      </div>
+    </section>
+
+    <section aria-label="Detections">
+      <div class="eyebrow">SAM 3 detections${nDet ? ` (${nDet})` : ''}<span class="hint">${[d.detector_model, d.detection_latency_s != null ? `${(+d.detection_latency_s).toFixed(2)} s` : null].filter(Boolean).map(esc).join(' · ')}</span></div>
+      ${nDet > 3 ? `<p class="hint dets-sum">${Object.entries(d.detections.reduce((m, x) => { const l = x.label || titleCase(x.damage_class); m[l] = (m[l] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]).map(([l, n]) => `${n} × ${esc(l)}`).join(' · ')}</p>` : ''}
+      ${nDet ? `<ul class="dets-list">${d.detections.map((x, j) => `<li data-det="${j}" class="${capView.hot === j ? 'hot' : ''}">
+          <span class="sw" style="--c:${detColor(j)}"></span>
+          <span><b>${esc(x.label || titleCase(x.damage_class))}</b><span class="sub"> · prompt “${esc(x.prompt)}”${x.covers_full_frame ? ' · covers the whole frame' : ''}</span></span>
+          <span class="mono">${fmt.f2(x.confidence)}${x.area_ratio ? ` · ${(x.area_ratio * 100).toFixed(1)} %` : ''}${x.mask_url ? ` · <a href="${esc(x.mask_url)}" target="_blank" rel="noopener">mask</a>` : ''}</span>
+        </li>`).join('')}</ul>`
+        : `<p class="hint" style="margin:0">${segmented ? 'SAM 3 found no damage in this photo.' : 'Not segmented yet.'}</p>`}
+    </section>
+
+    ${d.observations.length ? `<section aria-label="Records">
+      <div class="eyebrow">Records filed from this capture</div>
+      <ul class="issue-list">${d.observations.map((o) => `<li><button data-action="open-issue" data-id="${esc(o.issue_id)}"><span class="grow"><span class="ds-row__title">${esc(TYPES[o.type]?.label || titleCase(o.type))} · ${esc(o.issue_id)}</span><span class="ds-row__meta mono">${esc(o.obs_id)} · ${esc(o.change)} · ${esc(o.review)}${o.reviewed_by ? ` by ${esc(o.reviewed_by)}` : ''}</span></span><span class="mono">${metricText(o)}</span></button></li>`).join('')}</ul>
+    </section>` : ''}
+
+    <section aria-label="Video frames">
+      <div class="eyebrow">Video frames${nf && d.n_frames > nf ? ` (${nf} of ${d.n_frames} kept)` : nf ? ` (${nf})` : d.n_frames ? ` (${d.n_frames})` : ''}<span class="hint">Used to localize the capture in the 3D scan</span></div>
+      ${nf ? `<div class="frames">${d.frames.map((f, k) => `<button data-action="cap-frame" data-index="${k}" aria-pressed="${capView.frame === k}" aria-label="Frame ${k + 1}"${f.inliers != null ? ` title="${f.inliers} VPS inliers"` : ''}><img src="${esc(f.url)}" alt="" loading="lazy" decoding="async"><span>${f.t != null ? `${(+f.t).toFixed(1)} s` : k + 1}</span></button>`).join('')}</div>`
+        : `<p class="hint" style="margin:0">${d.mock ? 'The sample data has no frames. With the backend connected, every frame kept for localization shows up here.' : 'No video frames were stored for this capture.'}</p>`}
+    </section>
+
+    <div class="fact-groups">
+      <div><span class="eyebrow">Capture</span><dl class="facts">
+        ${kv('Captured', `${fmt.dt(d.captured_at || d.created)} UTC`)}
+        ${kv('Received', `${fmt.dt(d.created)} UTC`)}
+        ${kv('Source', esc(srcText({ kind, device_id: d.source?.device_id })))}
+        ${kv('Device model', d.device_model && esc(d.device_model))}
+        ${kv('Recorded by', d.recorder && esc(d.recorder))}
+        ${kv('Event', d.event_kind && esc(titleCase(d.event_kind)))}
+        ${kv('Photo size', d.image_size ? `${d.image_size[0]} × ${d.image_size[1]} px` : null, 'mono')}
+        ${kv('Upload', [d.n_frames ? `${d.n_frames} frames + photo` : null, c.size_mb ? `${c.size_mb} MB` : null].filter(Boolean).join(' · '))}
+      </dl></div>
+      <div><span class="eyebrow">Localization</span><dl class="facts">
+        ${loc.method || loc.confidence != null || loc.error ? `
+        ${kv('Method', loc.method && esc(LOC_METHOD[loc.method] || loc.method))}
+        ${kv('Pose confidence', loc.confidence != null ? fmt.f2(loc.confidence) : null)}
+        ${kv('Frames localized', loc.details?.frames?.length ? `${loc.details.frames.length}${nf ? ` of ${nf}` : ''} · ${Math.min(...loc.details.frames.map((x) => x.num_inliers))}–${Math.max(...loc.details.frames.map((x) => x.num_inliers))} inliers` : null)}
+        ${kv('Frame agreement', loc.details?.alignment?.max_dev_m != null ? `${loc.details.alignment.n_inliers ?? '?'} of ${loc.details.alignment.n_frames ?? '?'} frames · within ${(loc.details.alignment.max_dev_m * 100).toFixed(1)} cm, ${(+loc.details.alignment.max_dev_deg).toFixed(1)}°` : null)}
+        ${kv('Room', loc.room && esc(loc.room))}
+        ${kv('Camera position', loc.camera_pose?.t ? `${fmt.xyz(loc.camera_pose.t)} m` : null, 'mono')}
+        ${kv('Problem', loc.error && esc(loc.error))}` : '<dt>Status</dt><dd>Not localized yet</dd>'}
+      </dl></div>
+      <div><span class="eyebrow">Image quality</span><dl class="facts">
+        ${q.sharpness != null ? `
+        ${kv('Sharpness', `${q.sharpness}`, 'mono')}
+        ${kv('Brightness', `${q.brightness}`, 'mono')}
+        ${kv('Gate', q.ok === false ? (q.flags || []).map((f) => `<span class="flag">${esc(titleCase(f))}</span>`).join('') : 'Passed')}` : '<dt>Status</dt><dd>Not checked yet</dd>'}
+      </dl></div>
+      <div><span class="eyebrow">Integrity</span><dl class="facts">
+        ${kv('SHA-256 of upload', d.sha ? `<span title="${esc(d.sha)}">${esc(d.sha.slice(0, 20))}…</span>` : (d.mock ? 'Sample data' : 'Not recorded'), 'mono small')}
+        ${kv('Backend status', d.backendStatus && esc(d.backendStatus), 'mono')}
+        ${kv('Error', d.error && d.error !== loc.error ? esc(d.error) : null)}
+      </dl></div>
+    </div>
+    ${capDeleteHTML(d)}
+  </div>`;
+  const nb = dlg.querySelector('.sheet-body'), nfEl = dlg.querySelector('.frames');
+  if (nb) nb.scrollTop = keepScroll[0];
+  if (nfEl) nfEl.scrollTop = keepScroll[1];
+  watchCapImage(dlg);
+}
+function setCapHot(j) {
+  if (capView.hot === j) return;
+  capView.hot = j;
+  const dlg = $('#cap-sheet');
+  dlg.querySelectorAll('[data-det]').forEach((el) => el.classList.toggle('hot', j != null && +el.dataset.det === j));
+  dlg.querySelector('svg.dets')?.classList.toggle('dim', j != null);
+}
+async function openCapture(id, { refresh = false } = {}) {
+  const dlg = $('#cap-sheet');
+  if (!refresh) {
+    Object.assign(capView, { id, data: null, mode: 'photo', frame: null, hot: null, confirmDelete: false, deleting: false, deleteError: null });
+    dlg.innerHTML = `<div class="sheet-head"><div class="insp-kicker"><span class="mono">${esc(id)}</span><button class="insp-close" data-action="close-capture" aria-label="Close">×</button></div><h3>Loading the capture…</h3></div><div class="sheet-body"><div class="cap-viewer"></div></div>`;
+    if (!dlg.open) dlg.showModal();
+    app.writeHash();
+  }
+  const req = ++capView.req;
+  try {
+    const d = await loadCapture(id);
+    if (req !== capView.req || capView.id !== id || !dlg.open) return;
+    capView.data = d;
+    renderCaptureSheet();
+  } catch (err) {
+    console.error(err);
+    if (req !== capView.req || refresh) return;
+    dlg.querySelector('.sheet-body').innerHTML = `<div class="sheet-error">The capture could not be loaded: ${esc(err.message)}</div>`;
+  }
+}
+// Cleanup runs right away (not only on the dialog's async 'close' event, which a background tab may delay).
+function onCaptureClosed() {
+  if (capView.id == null) return;
+  Object.assign(capView, { id: null, data: null, hot: null, confirmDelete: false, deleting: false, deleteError: null });
+  capView.req++;
+  app.writeHash();
+}
+const closeCapture = () => { const dlg = $('#cap-sheet'); if (dlg.open) dlg.close(); onCaptureClosed(); };
+$('#cap-sheet').addEventListener('cancel', onCaptureClosed);   // Esc
+$('#cap-sheet').addEventListener('close', onCaptureClosed);
+$('#cap-sheet').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCapture(); });
+$('#cap-sheet').addEventListener('pointerover', (e) => { const el = e.target.closest('.dets-list [data-det]'); setCapHot(el ? +el.dataset.det : null); });
+document.addEventListener('keydown', (e) => {
+  const d = capView.data;
+  if (!d || !$('#cap-sheet').open || capView.frame == null || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+  const k = clamp(capView.frame + (e.key === 'ArrowRight' ? 1 : -1), 0, d.frames.length - 1);
+  if (k !== capView.frame) { e.preventDefault(); capView.frame = k; renderCaptureSheet(); }
+});
 
 /* ---------- twin panels ---------- */
 const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -1847,6 +2203,7 @@ const app = {
   async setSite(id) {
     state.siteId = id;
     state.selection = null; state.asOf = NOW; state.hiddenClasses.clear(); state.hiddenSegs.clear();
+    closeCapture();
     state.site = await Api.getSite(id);
     $('#site-select').value = id;
     $('#stage-site').innerHTML = `${esc(state.site.name)} <span class="mono">${fmt.num(state.site.gaussians)} Gaussians</span>`;
@@ -1856,6 +2213,7 @@ const app = {
   },
   async setTab(tab) {
     state.tab = tab;
+    if (tab !== 'captures') closeCapture();
     document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${tab}`));
     if (twin) twin.active = tab === 'twin';
@@ -1911,6 +2269,7 @@ const app = {
   writeHash() {
     const parts = [state.tab, state.siteId];
     if (state.tab === 'twin' && state.selection?.kind === 'issue') parts.push(state.selection.id);
+    if (state.tab === 'captures' && capView.id) parts.push(capView.id);
     const h = `#${parts.join('/')}`;
     if (location.hash !== h) history.replaceState(null, '', h);
   },
@@ -1940,6 +2299,13 @@ document.addEventListener('click', (e) => {
     twin?.flyTo(t.map((v, k) => v - dir[k] * 0.35), i.position_m);
   }
   else if (a === 'clear-selection') app.clearSelection();
+  else if (a === 'open-capture') openCapture(el.dataset.id);
+  else if (a === 'close-capture') closeCapture();
+  else if (a === 'cap-mode') { capView.mode = el.dataset.mode; capView.frame = null; renderCaptureSheet(); }
+  else if (a === 'cap-frame') { capView.frame = +el.dataset.index; renderCaptureSheet(); }
+  else if (a === 'cap-delete') { capView.confirmDelete = true; capView.deleteError = null; renderCaptureSheet(); }
+  else if (a === 'cap-delete-cancel') { capView.confirmDelete = false; capView.deleteError = null; renderCaptureSheet(); }
+  else if (a === 'cap-delete-confirm') confirmDeleteCapture();
   else if (a === 'toggle-class') {
     e.preventDefault(); e.stopPropagation();
     const c = el.dataset.cls;
@@ -1954,6 +2320,7 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('tr[data-action]')) e.target.click();
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.cap[data-action]')) { e.preventDefault(); e.target.click(); }
   if (e.key === 'Escape' && state.tab === 'twin' && state.selection) app.clearSelection();
 });
 let paintRaf = 0;
@@ -2003,6 +2370,7 @@ async function pollLive() {
       if (state.selection?.kind === 'issue' && !site.issues.some((i) => i.issue_id === state.selection.id)) state.selection = null;
       renderDashboard(); renderCaptures(); renderLayers(); renderInspector(); renderTimebar();
       if (document.activeElement?.id === 'f-q') renderIssueTable(); else renderIssues();
+      if (capView.id) openCapture(capView.id, { refresh: true });
       if (twin && twinSiteId === site.id) {
         if (site.splat_src !== prev.splat_src) { twinSiteId = null; if (state.tab === 'twin') await app.ensureTwin(); }
         else { if (twinLoading) await twinLoading; twin.update(site); }
@@ -2031,12 +2399,13 @@ async function pollLive() {
     }
   } else sites = await MockApi.listSites();
   $('#site-select').innerHTML = sites.map((s) => `<option value="${esc(s.id)}">${esc(s.option)}</option>`).join('');
-  const [tab, siteId, issueId] = decodeURIComponent(location.hash.slice(1)).split('/');
+  const [tab, siteId, itemId] = decodeURIComponent(location.hash.slice(1)).split('/');
   const validTab = ['dashboard', 'twin', 'issues', 'captures'].includes(tab) ? tab : 'dashboard';
   const fallback = sites.some((s) => s.id === 'bridge-b17') ? 'bridge-b17' : sites[0].id;
   await app.setSite(sites.some((s) => s.id === siteId) ? siteId : fallback);
   await app.setTab(validTab);
-  if (issueId) app.selectIssue(issueId);
+  if (itemId && validTab === 'captures') openCapture(itemId);
+  else if (itemId) app.selectIssue(itemId);
   if (LIVE) setTimeout(pollLive, 4000);
 })();
 </script>

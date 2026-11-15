@@ -16,6 +16,8 @@ class Storage(Protocol):
     def url(self, key: str) -> str: ...                  # GET URL for clients
     def upload_url(self, key: str, content_type: str) -> tuple[str, datetime]: ...   # PUT URL
     def list_keys(self, prefix: str) -> list[str]: ...
+    def delete(self, key: str) -> None: ...              # no error if missing
+    def delete_prefix(self, prefix: str) -> int: ...     # all keys under prefix; returns the count
 
 
 class LocalStorage:
@@ -56,6 +58,21 @@ class LocalStorage:
         if not base.exists():
             return []
         return sorted(str(p.relative_to(self.root)) for p in base.rglob("*") if p.is_file())
+
+    def delete(self, key):
+        self._path(key).unlink(missing_ok=True)
+
+    def delete_prefix(self, prefix):
+        if not prefix.strip("/"):
+            raise ValueError("refusing to delete the whole store")
+        keys = self.list_keys(prefix)
+        base = self._path(prefix.rstrip("/"))
+        if base.is_dir():
+            shutil.rmtree(base)
+        else:
+            for k in keys:
+                self.delete(k)
+        return len(keys)
 
     def upload_url(self, key, content_type):
         # served by PUT /v1/uploads/{key} (local development stand-in for a GCS signed URL)
@@ -110,6 +127,21 @@ class GCSStorage:
 
     def list_keys(self, prefix):
         return sorted(b.name for b in self.bucket.client.list_blobs(self.bucket, prefix=prefix))
+
+    def delete(self, key):
+        blob = self.bucket.blob(key)
+        if blob.exists():
+            blob.delete()
+        (self.cache / key).unlink(missing_ok=True)
+
+    def delete_prefix(self, prefix):
+        if not prefix.strip("/"):
+            raise ValueError("refusing to delete the whole store")
+        keys = self.list_keys(prefix)
+        for k in keys:
+            self.delete(k)
+        shutil.rmtree(self.cache / prefix.rstrip("/"), ignore_errors=True)
+        return len(keys)
 
     def upload_url(self, key, content_type):
         expires = timedelta(hours=1)
