@@ -23,8 +23,17 @@ function availability() {
   const unavailable = !connected || !state.ready;
   document.querySelectorAll('[data-command]').forEach(button => { button.disabled = unavailable; });
   $('freeze').disabled = unavailable;
-  $('manual').disabled = unavailable;
+  $('manual').disabled = unavailable || Boolean(state.emergency);
   $('send').disabled = unavailable;
+  const views = state.view_settings || {show_trajectory: false, show_urdf: true, show_fov: false};
+  document.querySelectorAll('[data-view]').forEach(button => {
+    const key = button.dataset.view;
+    const lastVisible = (key === 'show_urdf' && views.show_urdf && !views.show_fov)
+      || (key === 'show_fov' && views.show_fov && !views.show_urdf);
+    button.setAttribute('aria-pressed', String(views[key]));
+    button.disabled = unavailable || lastVisible;
+    button.title = lastVisible ? 'Enable the other pose display before hiding this one.' : '';
+  });
 }
 function liveFrame() {
   frozen = null;
@@ -33,7 +42,11 @@ function liveFrame() {
   $('freeze').textContent = 'Freeze to select';
 }
 function render(value) {
+  const wasManual = state.mode === 'manual' && state.state === 'idle';
   state = value;
+  if (!wasManual && value.mode === 'manual' && value.state === 'idle' && !value.emergency) {
+    keys.clear(); $('manual').checked = true;
+  }
   availability();
   $('action').textContent = value.action || 'Loading scene…';
   $('state').textContent = [value.state, value.paused ? 'paused' : '', value.emergency ? 'emergency stopped' : ''].filter(Boolean).join(' · ');
@@ -46,7 +59,9 @@ function render(value) {
   $('telemetry').textContent = `${value.speed.toFixed(2)} m/s · ${value.elapsed.toFixed(1)} s`;
   $('areas').textContent = `${coverage.inspected_area_m2.toFixed(1)} / ${coverage.total_area_m2.toFixed(1)} m² inspected · ${coverage.pending_area_m2.toFixed(1)} m² pending · ${coverage.unreachable_area_m2.toFixed(1)} m² unreachable`;
   $('saved').textContent = value.run_folder ? `Run files: ${value.run_folder}` : '';
-  if (value.selection) $('selection').textContent = `Region center: ${value.selection.center.map(x => x.toFixed(2)).join(', ')} m · radius ${value.selection.radius.toFixed(2)} m. Choose Selected region and start inspection.`;
+  $('selection').textContent = value.selection
+    ? `Region center: ${value.selection.center.map(x => x.toFixed(2)).join(', ')} m · radius ${value.selection.radius.toFixed(2)} m. Choose Selected region and start inspection.`
+    : 'Freeze a frame, then click a surface to preview an inspection region.';
   $('chat').replaceChildren(...(value.chat || []).map(entry => {
     const p = document.createElement('p');
     p.textContent = `${entry.user} · ${entry.status}: ${entry.explanation}`;
@@ -64,11 +79,19 @@ function connect() {
   };
   socket.onerror = () => socket.close();
 }
+document.querySelectorAll('[data-view]').forEach(button => {
+  button.addEventListener('click', () => {
+    const key = button.dataset.view;
+    command({type: 'view', [key]: !state.view_settings[key]});
+    button.blur();
+  });
+});
 document.querySelectorAll('[data-command]').forEach(button => {
   button.disabled = true;
   button.addEventListener('click', () => {
     const type = button.dataset.command;
     keys.clear(); $('manual').checked = false;
+    button.blur();
     if (type === 'reset') { liveFrame(); $('selection').textContent = 'Freeze a frame, then click a surface to preview an inspection region.'; }
     command(type === 'start' ? {type, mode: $('mode').value} : {type});
   });
@@ -101,7 +124,7 @@ function stopManual() {
   if ($('manual').checked && connected && state.ready) command({type: 'hover'});
   $('manual').checked = false;
 }
-$('manual').addEventListener('change', () => { keys.clear(); if (state.ready) command({type: 'hover'}); });
+$('manual').addEventListener('change', () => { keys.clear(); $('manual').blur(); if (state.ready) command({type: 'hover'}); });
 window.addEventListener('blur', stopManual);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopManual(); });
 window.addEventListener('keydown', event => {

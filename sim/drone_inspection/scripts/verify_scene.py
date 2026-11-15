@@ -73,6 +73,30 @@ def main():
         montage.save(args.output / 'camera-montage.png')
         for view, data in simulation.images.items():
             (args.output / ('initial-%s.jpg' % view)).write_bytes(data)
+        # Exercise all pose displays against a real planned route.
+        simulation.begin_task({'mode':'autonomous'})
+        simulation.control()
+        assert simulation.route, 'No planned route available for overlay verification'
+        pose,quaternion,*_=simulation.physics.state()
+        lens,orientation=camera_pose(pose,quaternion)
+        yaw=Rotation.from_quat(quaternion).as_euler('xyz')[2]
+        overlays=Image.new('RGB',(3*width,height+40),'white')
+        overlay_labels=ImageDraw.Draw(overlays)
+        variants=[('drone',True,False,False),('fov',False,True,False),('trajectory',True,True,True)]
+        for index,(name,urdf,fov,trajectory) in enumerate(variants):
+            simulation.apply({'type':'view','show_urdf':urdf,'show_fov':fov,'show_trajectory':trajectory})
+            view=simulation.chase.capture_chase(pose,yaw,*simulation.chase_settings,simulation.physics.sim_time,
+                                                lens,orientation,settings=simulation.view_settings,route=simulation.route)
+            image=Image.fromarray(view.rgb)
+            image.save(args.output/('follow-%s.png'%name))
+            overlays.paste(image,(index*width,40))
+            overlay_labels.text((index*width+8,12),name,fill='black')
+            if urdf:
+                body=reference.capture(view.position,view.rotation,view.timestamp)
+                model_pixels=((body.segmentation & ((1<<24)-1))==simulation.physics.drone)
+                assert model_pixels.any(), 'URDF is not visible in the follow view'
+                print('Visible URDF pixels:',int(model_pixels.sum()),flush=True)
+        overlays.save(args.output/'follow-overlays.png')
         (args.output / 'report.json').write_text(json.dumps(report, indent=2, allow_nan=False))
         print('Visual QA artifacts:', args.output, flush=True)
         if not report['passed']:

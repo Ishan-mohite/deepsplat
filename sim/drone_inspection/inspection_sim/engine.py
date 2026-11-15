@@ -31,8 +31,9 @@ class Simulation:
         self.mode='autonomous';self.state='idle';self.paused=False;self.emergency=False;self.manual_override=False
         self.manual=np.zeros(4);self.manual_frame='body_horizontal_world_vertical';self.manual_at=0;self.heartbeat_at=time.monotonic()
         self.selection=None;self.active_view=None;self.route=[];self.view_hold=0.;self.reason=None
-        self.chat=[];self.command_history=[];self.trajectory=[];self.run_folder=None;self.run_start=0.;self.last_saved_image=-99
+        self.chat=[];self.command_history=[];self.trajectory=[];self.run_folder=None;self.run_start=0.;self.run_elapsed=0.;self.last_saved_image=-99
         self.chase_settings=[0.0,1.6,.45];self.error=None;self.action='Ready';self.collision_count=0
+        self.view_settings={'show_trajectory':False,'show_urdf':True,'show_fov':False}
 
     def initialize(self):
         def loading(message):self.publish(ready=False,action=message)
@@ -110,7 +111,7 @@ class Simulation:
             if self.emergency:raise ValueError('Reset is required after emergency stop or collision')
             self.paused=False;self.manual_override=False;self.active_view=None;self.route=[];self.physics.hover()
             self.heartbeat_at=time.monotonic();self.action='Resumed; replanning from current pose'
-        elif name=='cancel':self.finish('cancelled','cancelled');self.manual_override=False;self.physics.hover()
+        elif name in ('cancel','stop'):self.stop_inspection()
         elif name=='emergency_stop':self.emergency=True;self.paused=True;self.finish('emergency_stop','cancelled');self.action='Emergency stop: physics frozen'
         elif name=='reset':
             if self.run_folder:self.save_run()
@@ -119,7 +120,7 @@ class Simulation:
             self.physics.reset(position,quaternion);self.config.initial_position=list(position);self.config.initial_quaternion_xyzw=list(quaternion)
             self.coverage=Coverage(self.geometry,self.config);self.planner=InspectionPlanner(self.coverage,self.grid,self.physics,self.config)
             self.state='idle';self.paused=False;self.emergency=False;self.manual_override=False;self.manual[:]=0
-            self.route=[];self.active_view=None;self.selection=None;self.reason=None;self.run_folder=None
+            self.route=[];self.active_view=None;self.selection=None;self.reason=None;self.run_folder=None;self.run_elapsed=0.
             self.trajectory=[];self.command_history=[];self.collision_count=0;self.action='Reset to supplied starting pose';self.heartbeat_at=time.monotonic()
         elif name=='camera':
             if self.state=='running':raise ValueError('Pause or finish the task before changing camera settings')
@@ -138,6 +139,14 @@ class Simulation:
                 if not np.isfinite(clearance) or not .05<=clearance<=.8:raise ValueError('Clearance must be .05–.8 metres')
                 if abs(clearance-self.config.clearance)>1e-6:raise ValueError('Clearance is configured at startup because changing it requires rebuilding the collision probe and occupancy grid')
         elif name=='select':self.select(command)
+        elif name=='view':
+            changes={key:value for key,value in command.items() if key!='type'}
+            if not changes or set(changes)-set(self.view_settings) or any(type(value) is not bool for value in changes.values()):
+                raise ValueError('View settings must be boolean trajectory, URDF or FOV toggles')
+            updated={**self.view_settings,**changes}
+            if not updated['show_urdf'] and not updated['show_fov']:
+                raise ValueError('Keep at least one of Drone URDF or FOV visible')
+            self.view_settings=updated
         elif name=='start':self.begin_task(command)
         elif name=='chase':
             values=np.asarray([command.get('azimuth',0),command.get('distance',1.6),command.get('elevation',.45)],dtype=float)
@@ -182,7 +191,7 @@ class Simulation:
         else:self.coverage.define();self.selection=None
         self.coverage.started=True;self.planner=InspectionPlanner(self.coverage,self.grid,self.physics,self.config)
         self.mode=mode;self.state='running';self.reason=None;self.paused=False;self.manual_override=False
-        self.active_view=None;self.route=[];self.run_start=self.physics.sim_time;self.heartbeat_at=time.monotonic()
+        self.active_view=None;self.route=[];self.run_start=self.physics.sim_time;self.run_elapsed=0.;self.heartbeat_at=time.monotonic()
         self.trajectory=[];self.command_history=[]
         tag=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'_'+uuid.uuid4().hex[:8]
         self.run_folder=ROOT/'runs'/tag;self.run_folder.mkdir(parents=True)
@@ -228,7 +237,7 @@ class Simulation:
         self.coverage.observe(observation,self.physics.visible)
         if self.state=='running' and self.coverage.summary()['fraction']>=self.config.coverage_threshold:self.finish('coverage_threshold','completed')
         yaw=Rotation.from_quat(quat).as_euler('xyz')[2]
-        chase=self.chase.capture_chase(pos,yaw,*self.chase_settings,self.physics.sim_time,eye,rotation)
+        chase=self.chase.capture_chase(pos,yaw,*self.chase_settings,self.physics.sim_time,eye,rotation,settings=self.view_settings,route=self.route)
         with self.frame_lock:
             self.frames[observation.id]=observation
             while len(self.frames)>40:self.frames.popitem(last=False)
@@ -240,9 +249,22 @@ class Simulation:
             (self.run_folder/('frame_%.3f.jpg'%observation.timestamp)).write_bytes(jpeg(observation.rgb));self.last_saved_image=self.physics.sim_time
 
     def finish(self,reason,state):
+        if self.coverage.started:self.run_elapsed=max(0,self.physics.sim_time-self.run_start)
+        self.coverage.started=False
         self.state=state;self.reason=reason;self.route=[];self.active_view=None;self.manual_override=False
         self.action='Task %s: %s'%(state,reason.replace('_',' '))
         if self.run_folder:self.save_run()
+
+    def stop_inspection(self):
+        # Save the stopped run before clearing the live inspection baseline.
+        self.finish('cancelled','cancelled')
+        self.run_folder=None;self.coverage.define();self.selection=None
+        self.planner=InspectionPlanner(self.coverage,self.grid,self.physics,self.config)
+        self.state='idle';self.mode='manual';self.reason=None;self.run_elapsed=0.;self.view_hold=0.
+        self.trajectory=[];self.command_history=[];self.manual[:]=0
+        self.manual_at=time.monotonic();self.manual_override=True;self.physics.hover()
+        if not self.emergency:self.paused=False
+        self.action='Inspection stopped; progress reset. '+('Reset is required after emergency stop or collision.' if self.emergency else 'Manual flight is available.')
 
     def save_run(self):
         if not self.geometry:return
@@ -259,10 +281,11 @@ class Simulation:
         if self.physics and hasattr(self,'coverage'):
             pos,quat,velocity,_=self.physics.state();eye,rotation=camera_pose(pos,quat)
             value={'ready':True,'state':self.state,'paused':self.paused,'emergency':self.emergency,'mode':self.mode,
+                   'view_settings':dict(self.view_settings),
                    'manual_override':self.manual_override,'action':self.action,'error':self.error,'completion_reason':self.reason,
                    'position':pos.tolist(),'quaternion_xyzw':quat.tolist(),'speed':float(np.linalg.norm(velocity)),'altitude':float(pos[2]),
                    'collision':self.physics.collided,'collision_count':self.collision_count,'clearance_blocked':self.physics.last_blocked,
-                   'sim_time':self.physics.sim_time,'elapsed':max(0,self.physics.sim_time-self.run_start),
+                   'sim_time':self.physics.sim_time,'elapsed':max(0,self.physics.sim_time-self.run_start) if self.state=='running' else self.run_elapsed,
                    'frame_id':getattr(self,'last_frame_id',None),'camera':{'position':eye.tolist(),'rotation':rotation.tolist(),'intrinsics':self.renderer.k,'renderer':self.renderer.name},
                    'coverage':self.coverage.summary(),'points':self.coverage.points.tolist(),'colors':self.coverage.colors(),
                    'route':[point.tolist() for point in self.route],'target':self.active_view['target'].tolist() if self.active_view else None,

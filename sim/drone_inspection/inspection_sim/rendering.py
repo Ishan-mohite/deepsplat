@@ -15,6 +15,7 @@ class Observation:
     position: np.ndarray
     rotation: np.ndarray
     intrinsics: dict
+    segmentation: np.ndarray = None
 
 class HabitatRenderer:
     name='habitat'
@@ -63,12 +64,12 @@ class BulletRenderer:
         w,h=self.config.resolution;n,f=.02,50.
         view=p.computeViewMatrix(position,position-rotation[:,2],rotation[:,1])
         projection=p.computeProjectionMatrixFOV(self.k['vfov'],w/h,n,f)
-        _,_,rgba,buffer,_=p.getCameraImage(w,h,viewMatrix=view,projectionMatrix=projection,renderer=p.ER_TINY_RENDERER,physicsClientId=self.physics.c)
+        _,_,rgba,buffer,segmentation=p.getCameraImage(w,h,viewMatrix=view,projectionMatrix=projection,renderer=p.ER_TINY_RENDERER,physicsClientId=self.physics.c)
         # PyBullet builds without NumPy support return flat tuples rather than image arrays.
         rgba=np.asarray(rgba,dtype=np.uint8).reshape(h,w,4)
         buffer=np.asarray(buffer,dtype=float).reshape(h,w)
         depth=f*n/(f-(f-n)*buffer);depth[depth>=49.9]=np.nan
-        return Observation(uuid.uuid4().hex,timestamp,rgba[...,:3].copy(),depth,np.array(position),np.array(rotation),dict(self.k))
+        return Observation(uuid.uuid4().hex,timestamp,rgba[...,:3].copy(),depth,np.array(position),np.array(rotation),dict(self.k),np.asarray(segmentation,dtype=np.int64).reshape(h,w))
     def close(self): pass
 
 class ChaseRenderer:
@@ -76,7 +77,8 @@ class ChaseRenderer:
     def __init__(self,renderer,config,physics):
         self.renderer=renderer;self.config=config;self.physics=physics
 
-    def capture_chase(self,position,yaw,azimuth,distance,elevation,timestamp,camera_position,camera_rotation):
+    def capture_chase(self,position,yaw,azimuth,distance,elevation,timestamp,camera_position,camera_rotation,settings=None,route=None):
+        settings=settings or {'show_urdf':True,'show_fov':False,'show_trajectory':False}
         # Shorten the camera boom before it crosses a wall. Try side views only
         # when the requested behind-camera direction has no usable clearance.
         eye=None
@@ -92,12 +94,30 @@ class ChaseRenderer:
             # A tiny offset remains within the already validated drone clearance.
             eye=np.asarray(position)+np.array([0,0,.04])
         target=camera_position-camera_rotation[:,2]*.2
-        observation=self.renderer.capture(eye,look_at(eye,target),timestamp)
-        observation.rgb=draw_camera_pose(observation,camera_position,camera_rotation,self.config.horizontal_fov)
+        hidden=[]
+        if isinstance(self.renderer,BulletRenderer) and not settings['show_urdf']:
+            import pybullet as p
+            hidden=[(shape[1],shape[7]) for shape in p.getVisualShapeData(self.physics.drone,physicsClientId=self.physics.c)]
+            for link,color in hidden:p.changeVisualShape(self.physics.drone,link,rgbaColor=[0,0,0,0],physicsClientId=self.physics.c)
+        try:
+            observation=self.renderer.capture(eye,look_at(eye,target),timestamp)
+        finally:
+            if hidden:
+                for link,color in hidden:p.changeVisualShape(self.physics.drone,link,rgbaColor=color,physicsClientId=self.physics.c)
+        # Composite the actual URDF visual from physics into the textured render.
+        # Segmentation selects only the drone; scene depth handles occlusion.
+        if settings['show_urdf']:
+            drone=BulletRenderer(None,self.config,self.physics).capture(observation.position,observation.rotation,timestamp)
+            mask=((drone.segmentation & ((1<<24)-1))==self.physics.drone)
+            mask &= ~np.isfinite(observation.depth) | (drone.depth<=observation.depth+.025)
+            observation.rgb[mask]=drone.rgb[mask]
+            observation.depth[mask]=drone.depth[mask]
+        observation.rgb=draw_camera_pose(observation,camera_position,camera_rotation,self.config.horizontal_fov,
+                                         show_fov=settings['show_fov'],route=([np.asarray(position)]+list(route or [])) if settings['show_trajectory'] else None)
         return observation
 
 
-def draw_camera_pose(view,position,rotation,hfov):
+def draw_camera_pose(view,position,rotation,hfov,show_fov=True,route=None):
     """Project a camera frustum into the third-person image with depth occlusion."""
     from PIL import Image,ImageDraw
     image=Image.fromarray(np.asarray(view.rgb,dtype=np.uint8));draw=ImageDraw.Draw(image)
@@ -122,12 +142,16 @@ def draw_camera_pose(view,position,rotation,hfov):
     half_height=half_width*height/width
     corners=np.array([[-half_width,-half_height,-depth],[half_width,-half_height,-depth],
                       [half_width,half_height,-depth],[-half_width,half_height,-depth]])@rotation.T+position
-    for index in range(4):
-        line(position,corners[index],blue)
-        line(corners[index],corners[(index+1)%4],blue)
+    if route:
+        for start,end in zip(route,route[1:]):line(start,end,(25,158,112),3)
+    if show_fov:
+        for index in range(4):
+            line(position,corners[index],blue)
+            line(corners[index],corners[(index+1)%4],blue)
     # Camera-local right, up and forward axes follow the full pose, including tilt.
-    for direction,color in [(rotation[:,0],(232,120,74)),(rotation[:,1],(47,125,75)),(-rotation[:,2],blue)]:
+    for direction,color in ([(rotation[:,0],(232,120,74)),(rotation[:,1],(47,125,75)),(-rotation[:,2],blue)] if show_fov else []):
         line(position,position+direction*.3,color,3)
-    draw.rectangle([8,height-30,244,height-8],fill=(35,44,62))
-    draw.text((16,height-25),'Camera pose | blue: field of view',fill=(233,236,243))
+    label=('FOV: blue' if show_fov else 'Drone model')+(' | Planned route: green' if route else '')
+    draw.rectangle([8,height-30,min(width-8,300),height-8],fill=(35,44,62))
+    draw.text((16,height-25),label,fill=(233,236,243))
     return np.asarray(image).copy()

@@ -21,7 +21,7 @@
       <button class="ds-btn ds-btn--secondary" data-command="pause">Pause</button>
       <button class="ds-btn ds-btn--secondary" data-command="resume">Resume</button>
       <button class="ds-btn ds-btn--secondary" data-command="hover">Hover</button>
-      <button class="ds-btn ds-btn--secondary" data-command="cancel">Cancel</button>
+      <button class="ds-btn ds-btn--secondary" data-command="cancel">Stop inspection</button>
       <button class="ds-btn ds-btn--secondary" data-command="reset">Reset</button>
       <button class="ds-btn ds-btn--secondary" data-command="save">Save run</button>
       <button class="ds-btn stop" data-command="emergency_stop">Emergency stop</button>
@@ -44,8 +44,13 @@
       </section>
       <section class="ds-card">
         <h2>Camera pose · third person</h2>
+        <div class="controls view-toggles" role="group" aria-label="Third-person overlays">
+          <button class="ds-btn ds-btn--secondary" data-view="show_trajectory" aria-pressed="false" disabled>Planned trajectory</button>
+          <button class="ds-btn ds-btn--secondary" data-view="show_urdf" aria-pressed="true" disabled>Drone URDF</button>
+          <button class="ds-btn ds-btn--secondary" data-view="show_fov" aria-pressed="false" disabled>FOV</button>
+        </div>
         <div class="camera"><img alt="Live follow camera" src="/api/stream/third.mjpg"></div>
-        <p>The blue frustum shows the onboard camera’s position, direction, and field of view.</p>
+        <p>Show the drone model, its blue FOV, or both. Keep at least one visible. The planned trajectory appears in green.</p>
         <label><input id="manual" type="checkbox" disabled> Enable keyboard flight</label>
         <p>W / S forward / back · A / D left / right · R / F up / down · Q / E turn. Space to hover. Release keys to hover.</p>
       </section>

@@ -23,7 +23,8 @@ class FollowCameraTests(unittest.TestCase):
         position = np.array([0., 0., 1.3])
         lens, rotation = camera_pose(position, [0, 0, 0, 1])
         chase = ChaseRenderer(renderer, config, Physics())
-        observation = chase.capture_chase(position, 0, 0, 1.6, .45, 0, lens, rotation)
+        observation = chase.capture_chase(position, 0, 0, 1.6, .45, 0, lens, rotation,
+                                         settings={'show_urdf': False, 'show_fov': True, 'show_trajectory': False})
         self.assertIs(chase.renderer, renderer)
         self.assertGreaterEqual(renderer.position[0], -.7)
         self.assertLess(renderer.position[0], lens[0])
