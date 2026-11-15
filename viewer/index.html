@@ -125,6 +125,14 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
 .chip-toggle[aria-pressed="false"] { opacity: .45; }
 .chip-toggle[aria-pressed="false"] .ds-sev::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sev); }
 .check-row { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-3); font: var(--text-label); }
+.debug { padding: 0; background: var(--paper); }
+.debug > summary { list-style: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-5); cursor: pointer; font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--muted); }
+.debug > summary::-webkit-details-marker { display: none; }
+.debug > summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; }
+.debug[open] > summary::before { transform: rotate(45deg); }
+.debug > summary:hover { color: var(--ink-2); }
+.debug > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.debug .psec { border-bottom: 0; border-top: 1px solid var(--line); }
 
 .stage { position: relative; overflow: hidden; min-height: 320px; border-radius: 0; }
 .canvas-host { position: absolute; inset: 0; }
@@ -1423,7 +1431,8 @@ const state = {
   overlay: true, overlayAlpha: 0.5,
   hiddenClasses: new Set(), hiddenSegs: new Set(),
   sevFilter: new Set(Object.keys(SEV)), showRepaired: true,
-  showVps: true, vpsLow: true, // VPS layer: camera poses of all localized captures, also those below the threshold
+  showVps: false, vpsLow: true, // VPS layer (debug): camera poses of all localized captures, also those below the threshold
+  debugOpen: false, // the collapsed "Debug" group at the bottom of the twin's layer panel
   asOf: NOW, issueFilter: { q: '', sev: '', status: '' },
 };
 
@@ -1935,12 +1944,15 @@ function renderLayers() {
     <div class="eyebrow">Scan</div>
     <b>${esc(s.name)}</b>
     <div class="hint">${fmt.num(s.gaussians)} Gaussians · scanned ${fmt.date(s.scanned_at)}</div>
-    <div class="hint">Map <span class="mono">${esc(s.map_id)}</span> · ${esc(s.status || 'ready')} · localization ${esc(s.vps_status || 'not set up')}</div>
   </div>
   <div class="psec">
     <div class="eyebrow">Segmentation</div>
     <div class="hint">This scan has no object labels yet. Findings are shown as pins, with their SAM 3 mask on the scanned surface in the severity colour.</div>
-  </div>${pinFilters}${vpsSec}`;
+  </div>${pinFilters}${debugHTML(`
+  <div class="psec">
+    <div class="eyebrow">Map</div>
+    <div class="hint">Map <span class="mono">${esc(s.map_id)}</span> · ${esc(s.status || 'ready')} · localization ${esc(s.vps_status || 'not set up')}</div>
+  </div>${vpsSec}`)}`;
     return;
   }
   $('#layers').innerHTML = `
@@ -1963,8 +1975,13 @@ function renderLayers() {
       </details></li>`;
     }).join('')}</ul>
   </div>
-  ${pinFilters}${vpsSec}`;
+  ${pinFilters}${debugHTML(vpsSec)}`;
 }
+// Developer-facing sections (map ids, VPS poses) live in one collapsed group so the panel stays about the scan.
+const debugHTML = (inner) => `
+  <details class="psec debug" id="layers-debug" ${state.debugOpen ? 'open' : ''}>
+    <summary>Debug</summary>${inner}
+  </details>`;
 const vpsPass = (v) => v?.camera_pose && v.confidence != null && v.confidence >= v.threshold;
 const vpsShort = (id) => (id.length > 12 ? id.slice(0, 8) : id);
 function vpsLayerHTML(s) {
@@ -1987,7 +2004,7 @@ function vpsLayerHTML(s) {
       };
       return `<label class="vps-pick"><span class="sr-only">Capture</span>
         <span class="vps-dot${col ? '' : ' none'}" style="--c:${col}" aria-hidden="true"></span>
-        <select id="vps-select" ${state.showVps ? '' : 'disabled'}>
+        <select id="vps-select">
           <option value="" ${selId ? '' : 'selected'}>Select a capture (${caps.length})…</option>
           ${caps.map(opt).join('')}
         </select></label>`;
@@ -2655,7 +2672,7 @@ const app = {
   async selectCapture(id, { fly = true } = {}) {
     const c = state.site.captures.find((x) => x.capture_id === id);
     if (!c?.vps) return;
-    if (!state.showVps) state.showVps = true;
+    state.showVps = true; state.debugOpen = true;
     state.selection = { kind: 'capture', id };
     if (state.tab !== 'twin') await this.setTab('twin');
     if (twinLoading) await twinLoading;
@@ -2767,6 +2784,7 @@ document.addEventListener('change', (e) => {
   else if (t.id === 'f-sev') { state.issueFilter.sev = t.value; renderIssueTable(); }
   else if (t.id === 'f-status') { state.issueFilter.status = t.value; renderIssueTable(); }
 });
+document.addEventListener('toggle', (e) => { if (e.target.id === 'layers-debug') state.debugOpen = e.target.open; }, true);
 const tipEl = $('#tip');
 document.addEventListener('pointerover', (e) => {
   const el = e.target.closest?.('[data-tip]');
