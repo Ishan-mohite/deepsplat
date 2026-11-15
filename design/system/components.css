@@ -1,0 +1,133 @@
+/*
+ * deepsplat components. Requires tokens.css. All classes are prefixed with ds-.
+ * Docs and markup examples: design/system/DESIGN_SYSTEM.md, live preview: design/system/index.html
+ */
+
+/* Base ------------------------------------------------------------------ */
+.ds-page { background: var(--paper); color: var(--ink); font: var(--text-body); -webkit-font-smoothing: antialiased; }
+.ds-eyebrow { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--blue); margin: 0; }
+.ds-h1 { font: var(--text-display-xl); letter-spacing: -0.025em; margin: 0; }
+.ds-h2 { font: var(--text-display-l); letter-spacing: var(--tracking-display); margin: 0; }
+.ds-h3 { font: var(--text-display-m); letter-spacing: -0.015em; margin: 0; }
+.ds-h4 { font: var(--text-display-s); letter-spacing: -0.01em; margin: 0; }
+.ds-meta { font: var(--text-body-s); color: var(--ink-2); }
+.ds-mono { font: var(--text-mono); }
+:where(.ds-btn, .ds-nav button, .ds-input):focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Card ------------------------------------------------------------------ */
+.ds-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: var(--space-6); }
+.ds-card--sunken { background: var(--paper-2); border-color: transparent; }
+.ds-card--hero { background: linear-gradient(180deg, var(--card), var(--paper-2)); border-color: transparent; }
+
+/* Buttons (pills) ------------------------------------------------------- */
+.ds-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  height: 44px; padding: 0 var(--space-5); border-radius: var(--r-pill); border: 1px solid transparent;
+  font: var(--text-button); cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.ds-btn--primary { background: var(--blue); color: #fff; }
+.ds-btn--primary:hover { background: #1E46B8; }
+.ds-btn--dark { background: var(--ink); color: #fff; }
+.ds-btn--secondary { background: var(--card); color: var(--ink); border-color: var(--line-2); }
+.ds-btn--secondary:hover { border-color: var(--ink-2); }
+.ds-btn--ghost { background: transparent; color: var(--ink-2); font-weight: 500; }
+.ds-btn--sm { height: 36px; padding: 0 var(--space-4); font-size: 13px; }
+.ds-btn--block { width: 100%; }
+.ds-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Segmented navigation ---------------------------------------------------- */
+.ds-nav { display: inline-flex; gap: var(--space-1); padding: var(--space-1); background: var(--paper); border-radius: var(--r-pill); }
+.ds-nav button, .ds-nav a {
+  border: 0; background: none; padding: 9px var(--space-5); border-radius: var(--r-pill);
+  font: var(--text-label); color: var(--ink-2); cursor: pointer; text-decoration: none;
+}
+.ds-nav [aria-current="page"], .ds-nav [aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 600; }
+
+/* Search / input ---------------------------------------------------------- */
+.ds-input {
+  height: 40px; padding: 0 var(--space-4); border-radius: var(--r-pill); border: 1px solid transparent;
+  background: var(--paper); color: var(--ink); font: var(--text-label);
+}
+.ds-input::placeholder { color: var(--muted); }
+
+/* Chips -------------------------------------------------------------------- */
+.ds-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 var(--space-3);
+  border-radius: var(--r-pill); border: 1px solid var(--line-2); background: var(--card);
+  font: 500 12px/1 var(--font-body); color: var(--ink); white-space: nowrap;
+}
+.ds-chip--live { background: var(--green-soft); border-color: var(--green); color: var(--green); font-weight: 600; }
+.ds-chip--live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ds-chip--selected { background: var(--blue); border-color: var(--blue); color: #fff; }
+.ds-chip--info { background: var(--blue-soft); border-color: transparent; color: var(--blue); font-weight: 600; }
+
+/* Severity: dot + label, never colour alone */
+.ds-sev { display: inline-flex; align-items: center; gap: 6px; font: 500 12px/1 var(--font-body); color: var(--ink); }
+.ds-sev::before { content: ""; width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); background: var(--sev, var(--sev-low)); }
+.ds-sev[data-sev="low"] { --sev: var(--sev-low); }
+.ds-sev[data-sev="medium"] { --sev: var(--sev-medium); }
+.ds-sev[data-sev="high"] { --sev: var(--sev-high); }
+.ds-sev[data-sev="critical"] { --sev: var(--sev-critical); font-weight: 600; }
+
+/* Issue status: glyph + label on a soft pill */
+.ds-status {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px;
+  border-radius: var(--r-pill); font: 600 12px/1 var(--font-body);
+}
+.ds-status::before { font: 700 12px/1 var(--font-body); }
+.ds-status[data-status="new"] { background: var(--blue-soft); color: var(--blue); }
+.ds-status[data-status="new"]::before { content: "+"; }
+.ds-status[data-status="worsening"] { background: var(--rust-soft); color: var(--rust); }
+.ds-status[data-status="worsening"]::before { content: "\2197"; }
+.ds-status[data-status="stable"] { background: var(--paper-2); color: var(--ink-2); }
+.ds-status[data-status="stable"]::before { content: "="; }
+.ds-status[data-status="repaired"] { background: var(--green-soft); color: var(--green); }
+.ds-status[data-status="repaired"]::before { content: "\2713"; }
+
+/* Callout pill (label for a pin, connected by a leader line) ---------------- */
+.ds-callout {
+  display: inline-flex; align-items: center; height: 34px; padding: 0 var(--space-4);
+  border-radius: var(--r-pill); border: 1.5px solid var(--callout, var(--blue)); background: var(--card);
+  font: 600 13px/1 var(--font-body); color: var(--ink); white-space: nowrap;
+}
+.ds-callout--open { --callout: var(--rust); }
+.ds-callout--live { --callout: var(--green); background: var(--green-soft); color: var(--green); }
+.ds-leader { stroke: var(--callout, var(--blue)); stroke-width: 1.5; fill: none; }
+
+/* Pins ----------------------------------------------------------------------- */
+.ds-pin {
+  display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--pin, var(--blue)); box-shadow: 0 0 0 2px var(--card);
+}
+.ds-pin--open { --pin: var(--rust); }
+.ds-pin.is-selected { box-shadow: 0 0 0 2px var(--card), 0 0 0 8px color-mix(in srgb, var(--pin, var(--blue)) 28%, transparent); }
+
+/* Time bar (records at one spot over time) ------------------------------------ */
+.ds-timebar { position: relative; display: flex; justify-content: space-between; padding-top: 4px; }
+.ds-timebar::before { content: ""; position: absolute; left: 6px; right: 6px; top: 9px; height: 2px; background: var(--blue); }
+.ds-timebar__node { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; font: var(--text-mono-s); color: var(--ink-2); }
+.ds-timebar__node::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 2px var(--card); }
+.ds-timebar__node--open::before { background: var(--rust); }
+
+/* KPI tile ---------------------------------------------------------------------- */
+.ds-kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-4); }
+.ds-kpi__label { font: var(--text-body-s); color: var(--ink-2); }
+.ds-kpi__value { font: var(--text-kpi); letter-spacing: -0.03em; color: var(--ink); }
+.ds-kpi__value--open { color: var(--rust); }
+.ds-kpi__value--time { color: var(--blue); }
+
+/* List row (record) ------------------------------------------------------------- */
+.ds-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; }
+.ds-row__thumb { width: 48px; height: 36px; flex: none; border-radius: var(--r-sm); background: var(--paper-2); object-fit: cover; }
+.ds-row__title { font: 600 14px/1.3 var(--font-body); color: var(--ink); }
+.ds-row__meta { font: 400 12px/1.4 var(--font-body); color: var(--ink-2); }
+.ds-row--boxed { padding: var(--space-3) var(--space-4); background: var(--card); border: 1px solid var(--line); border-radius: var(--r-sm); }
+
+/* 3D viewport ------------------------------------------------------------------- */
+.ds-viewport { background: var(--vp); color: var(--vp-ink); border-radius: var(--r-md); }
+.ds-viewport .ds-meta { color: var(--vp-muted); }
+.ds-vp-panel { background: var(--vp-2); border: 1px solid var(--vp-line); border-radius: var(--r-md); color: var(--vp-ink); padding: var(--space-3) var(--space-4); }
+.ds-viewport .ds-btn--secondary { background: var(--vp-2); color: var(--vp-ink); border-color: var(--vp-line); }
+.ds-viewport .ds-chip { background: var(--vp-2); border-color: var(--vp-line); color: var(--vp-ink); }
+.ds-viewport .ds-pin { --pin: var(--pick); box-shadow: 0 0 0 2px var(--vp); }
+.ds-viewport .ds-pin--open { --pin: var(--vp-rust); }
