@@ -4,18 +4,22 @@
 #   scripts/start-backend.sh             viewer + API on this machine and the local network (http)
 #   scripts/start-backend.sh --tunnel    also publish an https address, which the iOS app needs
 #
-# Options: --port <n> (default 8000), --no-sync (skip `uv sync`).
+#   scripts/start-backend.sh --host mac.local   advertise this name instead of the IP (stable across networks)
+#
+# Options: --port <n> (default 8000), --host <name> (address clients use, default: this machine's IP),
+#          --no-sync (skip `uv sync`).
 # Data lives in ./data (database, splats, photos); settings in ./.env (see backend/.env.example).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PORT=8000 TUNNEL=0 SYNC=1
+PORT=8000 TUNNEL=0 SYNC=1 HOST=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --tunnel) TUNNEL=1 ;;
     --port) PORT="$2"; shift ;;
+    --host) HOST="$2"; shift ;;
     --no-sync) SYNC=0 ;;
-    -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -56,7 +60,7 @@ if [ "$(setting DETECTOR)" != "fake" ] && [ -z "$(setting ROBOFLOW_API_KEY)" ]; 
 fi
 
 LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || true)
-BASE="http://${LAN_IP:-localhost}:$PORT"
+BASE="http://${HOST:-${LAN_IP:-localhost}}:$PORT"
 
 TUNNEL_PID=""
 cleanup() { [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null || true; }
@@ -113,7 +117,7 @@ for m in maps:
   if [ "$TUNNEL" = 1 ]; then
     echo "    Backend URL:  $BASE"
   else
-    echo "    Backend URL:  needs https — restart with --tunnel to get one"
+    echo "    Backend URL:  $BASE   (plain http: needs the app build from the lan-http-testing branch; use --tunnel for https)"
   fi
   echo "    Token:        $TOKEN"
   if [ -n "$MAPS" ]; then
