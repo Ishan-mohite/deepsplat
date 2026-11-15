@@ -14,6 +14,7 @@ RUN uv sync --frozen --no-dev --extra gcp
 COPY localization ./localization
 RUN if [ "$WITH_VPS" = "1" ]; then uv pip install --python /app/.venv -r localization/requirements-vps.txt; fi
 COPY inspection ./inspection
+COPY elevmap ./elevmap
 COPY backend ./backend
 
 ENV PATH="/app/.venv/bin:$PATH" PORT=8080

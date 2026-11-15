@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import align, export, grid, mesh3d, render, source
+from . import align, export, floormap, grid, mesh3d, render, source
 
 
 def main(argv=None):
@@ -58,6 +58,8 @@ def main(argv=None):
     render.alignment_figure(a.out / "floor_alignment.png", d["xyz"], p, al)
     render.overview(a.out / "elevation_overview.png", g)
     render.robot_map(a.out / "robot_map.png", g)
+    fm_png, fm_meta = floormap.make(p, n, res=a.res, z_max=a.z_max)
+    (a.out / "floor_map.png").write_bytes(fm_png)
     mesh3d.build(a.out / "elevation.npz", a.out)
     render.preview3d(a.out / "elevation_3d_preview.png", a.out / "elevation.npz")
 
@@ -66,7 +68,8 @@ def main(argv=None):
                "mapped_area_m2": round(float(hg.sum()) * a.res ** 2, 1),
                "traversable_area_m2": round(float((hg & g["trav"]).sum()) * a.res ** 2, 1),
                "ground_height_range_m": [round(float(np.nanmin(g["ground"])), 2), round(float(np.nanmax(g["ground"])), 2)],
-               "floor_tilt_corrected_deg": round(al.tilt_deg, 3), "seconds": round(time.time() - t0, 1)}
+               "floor_tilt_corrected_deg": round(al.tilt_deg, 3),
+               "floor_map": fm_meta, "seconds": round(time.time() - t0, 1)}
     (a.out / "summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
 

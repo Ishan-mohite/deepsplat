@@ -47,7 +47,7 @@ button { font: inherit; color: inherit; }
 .site-select select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px solid var(--line-2); background: var(--card); padding: 0 34px 0 var(--space-4); border-radius: var(--r-pill); font: var(--text-label); color: var(--ink); cursor: pointer; max-width: 260px; }
 .site-select::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
 .sample-chip { background: var(--amber-soft); border-color: transparent; color: var(--amber); font-weight: 600; }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--paper-2); color: var(--ink); display: grid; place-items: center; font: 600 12px var(--font-display); flex: none; }
+.avatar { height: 34px; padding: 0 var(--space-3); border-radius: var(--r-pill); background: var(--paper-2); color: var(--ink); display: grid; place-items: center; font: 600 12px var(--font-display); flex: none; }
 
 .view { display: none; }
 .view.active { display: block; }
@@ -230,6 +230,30 @@ table.vps-frames tbody tr:hover { background: none; }
 .compare .tag.l { left: 9px; } .compare .tag.r { right: 9px; }
 .photo { border-radius: var(--r-md); overflow: hidden; aspect-ratio: 4 / 3; }
 .photo svg { width: 100%; height: 100%; display: block; }
+button.photo { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+button.photo:focus-visible, .zoom-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.zoom-btn { position: absolute; right: 9px; bottom: 9px; z-index: 2; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--card); color: var(--ink); cursor: zoom-in; box-shadow: var(--shadow-float); opacity: .9; transition: opacity .12s, transform .12s; }
+.zoom-btn svg { width: 16px; height: 16px; }
+button.photo .zoom-btn { pointer-events: none; }
+button.photo:hover .zoom-btn, .zoom-btn:hover { opacity: 1; transform: scale(1.06); }
+/* Photo lightbox */
+.lightbox { position: fixed; inset: 0; width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; padding: 0; border: 0; background: transparent; color: #fff; }
+.lightbox[open] { display: flex; flex-direction: column; animation: lb-in .15s ease-out; }
+.lightbox::backdrop { background: color-mix(in srgb, #0b1220 88%, transparent); }
+@keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
+.lb-bar { flex: none; display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 12px 16px; }
+.lb-title { min-width: 0; flex: 1; font: var(--text-label); }
+.lb-title b { display: block; font-weight: 600; }
+.lb-title span { opacity: .7; font: var(--text-mono-s); }
+.lb-bar .seg { background: rgba(255, 255, 255, .12); }
+.lb-bar .seg button { color: rgba(255, 255, 255, .8); }
+.lb-bar .seg button[aria-pressed="true"] { background: #fff; color: #0b1220; }
+.lb-close { border: 0; background: rgba(255, 255, 255, .12); color: #fff; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; line-height: 1; cursor: pointer; }
+.lb-close:hover { background: rgba(255, 255, 255, .22); }
+.lb-stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0 16px 16px; }
+.lb-stage > img, .lb-stage > svg { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: var(--r-sm); display: block; }
+.lb-stage > svg { width: min(100%, calc((100dvh - 100px) * 4 / 3)); height: auto; }
+.lb-stage .lb-msg { opacity: .75; font: var(--text-body-s); }
 /* Records at one spot: past records blue, the newest open one rust */
 .timeline { list-style: none; margin: 0; padding: 0; position: relative; }
 .timeline::before { content: ""; position: absolute; left: 13px; top: 14px; bottom: 14px; width: 2px; background: var(--blue); }
@@ -393,7 +417,7 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
   <div class="top-right">
     <span class="ds-chip sample-chip" title="Sample data generated in the browser. Served by the backend, this page shows its live data.">Sample data</span>
     <label class="site-select"><span class="sr-only">Site</span><select id="site-select"></select></label>
-    <div class="avatar" aria-hidden="true">FZ</div>
+    <div class="avatar" title="Signed in as admin">Admin</div>
   </div>
 </header>
 
@@ -425,6 +449,7 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
   <section id="view-captures" class="view" aria-label="Captures"></section>
 </main>
 <dialog id="cap-sheet" class="sheet" aria-label="Capture details"></dialog>
+<dialog id="photo-box" class="lightbox" aria-label="Photo"></dialog>
 <div id="tip" role="tooltip"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -1100,11 +1125,11 @@ function adaptSite(raw) {
   if (follow) state.asOf = NOW;
   return {
     ...raw, live: true, issues, captures, segments: [], segById: new Map(),
-    splat_src: fileUrl(raw.viewer_splat_url || raw.splat_url), floor_plan_src: fileUrl(raw.floor_plan_url),
+    splat_src: fileUrl(raw.viewer_splat_url || raw.splat_url), floor_plan_src: fileUrl(raw.floor_plan_url), floor_map_src: fileUrl(raw.floor_map_url),
     sig: JSON.stringify([
       issues.map((i) => [i.issue_id, i.type, i.severity, i.status, i.repaired_at, i.observations.length, i.position_m]),
       captures.map((c) => [c.capture_id, c.status, c.stage, c.issue_id, c.vps?.confidence, c.vps?.camera_pose?.t]),
-      raw.summary, raw.status, raw.vps_status, raw.viewer_splat_url ? 1 : 0, raw.floor_plan_url ? 1 : 0,
+      raw.summary, raw.status, raw.vps_status, raw.viewer_splat_url ? 1 : 0, raw.floor_plan_url ? 1 : 0, raw.floor_map_url ? 1 : 0,
     ]),
   };
 }
@@ -1138,6 +1163,7 @@ const SURF = {
   plaster: ['#DCD5C8', '#CBC2B1'], concrete: ['#ADA9A1', '#8E8B83'], steel: ['#6E7A78', '#58625F'], wood: ['#9C7350', '#7E5A3C'], tiles: ['#DAD9D4', '#C6C5BF'],
 };
 let svgUid = 0;
+const ZOOM_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
 function photoSVG(issue, obsIdx, labels = true) {
   const uid = `ph${++svgUid}`, W = 320, H = 240, obs = issue.observations[obsIdx];
   if (state.site?.live) { // the capture photo; in the inspector with the detected mask drawn on it
@@ -1319,15 +1345,59 @@ function barsSVG(values, flagLast) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Captures per month, December 2025 to November 2026">${g}</svg>`;
 }
 // Floor plan the backend renders top-down from the splat, with the findings pinned on it.
+// Floor plans rendered before the backend wrote an alpha channel have a flat (245, 245, 245) background:
+// make it transparent in the browser (cached per URL; the dashboard image gets it once it is ready).
+const planCache = new Map();
+function transparentPlan(src) {
+  if (planCache.has(src)) return planCache.get(src);
+  const p = new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+        const ctx = cv.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i + 3] === 255 && d[i] === 245 && d[i + 1] === 245 && d[i + 2] === 245) { d[i + 3] = 0; n++; }
+        if (!n) { resolve(src); return; }                     // already transparent
+        ctx.putImageData(im, 0, 0);
+        cv.toBlob((b) => resolve(b ? URL.createObjectURL(b) : src), 'image/png');
+      } catch { resolve(src); }                             // canvas blocked (no CORS): keep the original
+    };
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+  planCache.set(src, p);
+  p.then((url) => { planCache.set(src, { url }); document.querySelectorAll(`.hero-plan image[data-src="${CSS.escape(src)}"]`).forEach((el) => el.setAttribute('href', url)); });
+  return p;
+}
+// One download per plan: the <image> stays empty until the transparent copy (or, failing that, the original) is ready.
+const planHref = (src) => { const c = planCache.get(src); if (c?.url) return c.url; transparentPlan(src); return ''; };
 function livePlanSVG(site) {
-  const W = 640, H = 400, reg = [222, 18, 630, 382], fp = site.floor_plan;
-  if (!site.floor_plan_src || !fp?.width) return `<p class="plan-empty">The backend is still preparing the floor plan of this scan (map status: ${esc(site.status || 'processing')}).</p>`;
-  const sc = Math.min((reg[2] - reg[0]) / fp.width, (reg[3] - reg[1]) / fp.height), w = fp.width * sc, h = fp.height * sc;
-  const ox = reg[0] + (reg[2] - reg[0] - w) / 2, oy = reg[1] + (reg[3] - reg[1] - h) / 2;
-  const toXY = (_p, i) => [+(ox + ((i.floor_xy[0] - fp.origin_x) / fp.m_per_px) * sc).toFixed(1), +(oy + ((fp.origin_y - i.floor_xy[1]) / fp.m_per_px) * sc).toFixed(1)];
+  // The floor map (floor, raised levels, furniture, walls; elevmap/floormap.py) when the backend has built it,
+  // else the top-down render of the splat.
+  const useMap = !!(site.floor_map_src && site.floor_map?.width), W = 640, H = 400;
+  const fp = useMap ? site.floor_map : site.floor_plan, src = useMap ? site.floor_map_src : site.floor_plan_src;
+  if (!src || !fp?.width) return `<p class="plan-empty">The backend is still preparing the floor plan of this scan (map status: ${esc(site.status || 'processing')}).</p>`;
   const pinned = { ...site, issues: site.issues.filter((i) => i.floor_xy) };
+  // Long side horizontal: an upright plan is turned 90° clockwise. Centred; callouts (if any) in a band on top.
+  const rot = fp.height > fp.width, pw = rot ? fp.height : fp.width, ph = rot ? fp.width : fp.height;
+  const reg = pinned.issues.length ? [16, 100, W - 16, H - 12] : [16, 14, W - 16, H - 14];
+  const sc = Math.min((reg[2] - reg[0]) / pw, (reg[3] - reg[1]) / ph), w = pw * sc, h = ph * sc;
+  const ox = reg[0] + (reg[2] - reg[0] - w) / 2, oy = reg[1] + (reg[3] - reg[1] - h) / 2;
+  const toXY = (_p, i) => {
+    const px = (i.floor_xy[0] - fp.origin_x) / fp.m_per_px, py = (fp.origin_y - i.floor_xy[1]) / fp.m_per_px;
+    const [x, y] = rot ? [fp.height - py, px] : [px, py];
+    return [+(ox + x * sc).toFixed(1), +(oy + y * sc).toFixed(1)];
+  };
+  const img = rot
+    ? `<image href="${esc(planHref(src))}" data-src="${esc(src)}" width="${(fp.width * sc).toFixed(1)}" height="${(fp.height * sc).toFixed(1)}" preserveAspectRatio="none" transform="translate(${(ox + w).toFixed(1)} ${oy.toFixed(1)}) rotate(90)"/>`
+    : `<image href="${esc(planHref(src))}" data-src="${esc(src)}" x="${ox.toFixed(1)}" y="${oy.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" preserveAspectRatio="none"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Floor plan of ${esc(site.name)} with open findings">
-    <image href="${esc(site.floor_plan_src)}" x="${ox.toFixed(1)}" y="${oy.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" preserveAspectRatio="none"/>${pinsAndCallouts(pinned, toXY, 'left', W)}</svg>`;
+    ${img}${pinned.issues.length ? pinsAndCallouts(pinned, toXY, 'top', W) : ''}</svg>`;
 }
 function donutSVG(open, repaired) {
   const total = open + repaired, R = 46, C = TAU * R, gap = total > 0 && open && repaired ? 3 : 0;
@@ -1371,7 +1441,7 @@ function renderDashboard() {
         <button class="ds-btn ds-btn--dark" data-action="goto-tab" data-tab="twin">Open 3D twin</button>
         ${s.live ? `<a class="ds-btn ds-btn--secondary" href="${esc(`${API}/maps/${encodeURIComponent(s.id)}/report.pdf`)}" target="_blank" rel="noopener">Export PDF</a>`
     : `<button class="ds-btn ds-btn--secondary" data-action="toast" data-msg="PDF export arrives with the backend. Nothing was exported.">Export PDF</button>`}
-        <span class="hint">${s.live ? 'Floor plan rendered from the scan' : `${s.plan ? 'Floor plan' : 'Side elevation'} drawn from the scan`} · click a label to open the issue</span>
+        <span class="hint">${s.live ? (s.floor_map_src && s.floor_map?.width ? 'Floor map built from the scan' : 'Floor plan rendered from the scan') : `${s.plan ? 'Floor plan' : 'Side elevation'} drawn from the scan`} · click a label to open the issue</span>
       </div>
     </article>
     <div class="kpis">
@@ -1766,6 +1836,71 @@ function onCaptureClosed() {
   app.writeHash();
 }
 const closeCapture = () => { const dlg = $('#cap-sheet'); if (dlg.open) dlg.close(); onCaptureClosed(); };
+
+/* ---------- photo lightbox: one record's photo, full size, with a download ---------- */
+const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>';
+const photoBox = { issue: null, k: 0, view: 'detections', busy: false };
+function photoBoxSrc() { // live only: the URL shown, following the Detections / Original toggle
+  const o = photoBox.issue.observations[photoBox.k];
+  return (photoBox.view === 'detections' && o.overlay_url) || o.image_url || o.overlay_url || null;
+}
+function renderPhotoBox() {
+  const { issue: i, k } = photoBox, o = i.observations[k], live = state.site.live;
+  const both = live && o.overlay_url && o.image_url && o.overlay_url !== o.image_url;
+  const src = live ? photoBoxSrc() : null;
+  const stage = live
+    ? (src ? `<img src="${esc(src)}" alt="Photo of ${esc(i.issue_id)}, ${fmt.date(o.timestamp)}">` : '<div class="lb-msg">No photo stored for this record.</div>')
+    : photoSVG(i, k);
+  $('#photo-box').innerHTML = `
+    <div class="lb-bar">
+      <div class="lb-title"><b>${esc(issueTitle(i))}</b><span>${esc(i.issue_id)} · ${esc(o.obs_id)} · ${fmt.dt(o.timestamp)} UTC</span></div>
+      ${both ? `<div class="seg" role="group" aria-label="Photo view">
+        <button data-action="photo-view" data-view="detections" aria-pressed="${photoBox.view === 'detections'}">SAM 3 detections</button>
+        <button data-action="photo-view" data-view="original" aria-pressed="${photoBox.view === 'original'}">Original</button>
+      </div>` : ''}
+      <button class="ds-btn ds-btn--sm" style="background:#fff;color:#0b1220" data-action="photo-download" ${live && !src ? 'disabled' : ''}>${DOWNLOAD_ICON} ${photoBox.busy ? 'Downloading…' : 'Download'}</button>
+      <button class="lb-close" data-action="photo-close" aria-label="Close">×</button>
+    </div>
+    <div class="lb-stage">${stage}</div>`;
+}
+function openPhotoBox(issue, k) {
+  Object.assign(photoBox, { issue, k, view: 'detections', busy: false });
+  renderPhotoBox();
+  const dlg = $('#photo-box');
+  if (!dlg.open) dlg.showModal();
+  dlg.querySelector('[data-action="photo-download"]')?.focus();
+}
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function downloadPhotoBox() {
+  if (photoBox.busy) return;
+  const { issue: i, k } = photoBox, o = i.observations[k];
+  const base = `${i.issue_id}_${o.obs_id}${photoBox.view === 'detections' && o.overlay_url ? '_detections' : ''}`.replace(/[^\w.-]+/g, '-');
+  photoBox.busy = true; renderPhotoBox();
+  try {
+    if (state.site.live) {
+      const src = photoBoxSrc(), r = await fetch(src);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[blob.type] || (new URL(src, location.href).pathname.match(/\.(\w+)$/)?.[1] ?? 'jpg');
+      saveBlob(blob, `${base}.${ext}`);
+    } else { // the mock photo is an SVG: rasterise it to a PNG
+      const svg = $('#photo-box .lb-stage > svg').outerHTML.replace(/^<svg /, '<svg width="1600" height="1200" ');
+      const img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('render failed')); img.src = url; });
+      const cv = document.createElement('canvas'); cv.width = 1600; cv.height = 1200;
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+      saveBlob(await new Promise((res) => cv.toBlob(res, 'image/png')), `${base}.png`);
+    }
+  } catch (err) {
+    if (state.site.live) { window.open(photoBoxSrc(), '_blank', 'noopener'); toast(`Download failed (${err.message}); the photo opened in a new tab instead.`); }
+    else toast(`Download failed: ${err.message}`);
+  } finally { photoBox.busy = false; if ($('#photo-box').open) renderPhotoBox(); }
+}
+$('#photo-box').addEventListener('click', (e) => { if (e.target === e.currentTarget || e.target.classList.contains('lb-stage')) e.currentTarget.close(); });
 $('#cap-sheet').addEventListener('cancel', onCaptureClosed);   // Esc
 $('#cap-sheet').addEventListener('close', onCaptureClosed);
 $('#cap-sheet').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCapture(); });
@@ -1939,8 +2074,9 @@ function issueInspector(i, sel) {
         <div class="img before">${photoSVG(i, 0)}</div><div class="img after">${photoSVG(i, n - 1)}</div><div class="divider"></div>
         <span class="tag l">${fmt.date(first.timestamp)}</span><span class="tag r">${fmt.date(last.timestamp)}</span>
         <input type="range" min="0" max="100" value="50" aria-label="Compare the first and the latest photo">
+        <button class="zoom-btn" data-action="zoom-photo" data-index="${idx}" aria-label="Enlarge the photo of the selected record" title="Enlarge photo">${ZOOM_ICON}</button>
       </div>`
-    : `<div class="photo">${photoSVG(i, 0)}</div>`;
+    : `<button class="photo" data-action="zoom-photo" data-index="0" aria-label="Enlarge photo" title="Enlarge photo">${photoSVG(i, 0)}<span class="zoom-btn" aria-hidden="true">${ZOOM_ICON}</span></button>`;
   return `
   <div class="insp-head">
     <div class="insp-kicker"><span class="mono">${i.issue_id}</span>${statusChip(stNow.status)}<button class="insp-close" data-action="clear-selection" aria-label="Close">×</button></div>
@@ -2507,6 +2643,10 @@ document.addEventListener('click', (e) => {
   else if (a === 'open-issue') app.selectIssue(el.dataset.id, { fly: !el.dataset.nofly, obsIndex: el.dataset.obs != null ? +el.dataset.obs : undefined });
   else if (a === 'select-seg') { e.preventDefault(); app.selectSegment(el.dataset.id); const m = twin?.bySeg.get(el.dataset.id); if (m) { const seg = m.userData.seg, c = seg.min.map((v, k) => (v + seg.max[k]) / 2); if (!twin.anim) twin.controls.target.set(...c); } }
   else if (a === 'select-obs') { state.selection.obsIndex = +el.dataset.index; renderInspector(); twin?.refresh(); }
+  else if (a === 'zoom-photo') { const i = state.site.issues.find((x) => x.issue_id === state.selection?.id); if (i) openPhotoBox(i, +el.dataset.index); }
+  else if (a === 'photo-view') { photoBox.view = el.dataset.view; renderPhotoBox(); }
+  else if (a === 'photo-download') downloadPhotoBox();
+  else if (a === 'photo-close') $('#photo-box').close();
   else if (a === 'fly-obs') {
     const i = state.site.issues.find((x) => x.issue_id === state.selection.id), o = i.observations[state.selection.obsIndex ?? i.observations.length - 1];
     if (!o.camera_pose) return;
@@ -2539,7 +2679,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('tr[data-action]')) e.target.click();
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.cap[data-action]')) { e.preventDefault(); e.target.click(); }
-  if (e.key === 'Escape' && state.tab === 'twin' && state.selection) app.clearSelection();
+  if (e.key === 'Escape' && state.tab === 'twin' && state.selection && !$('#photo-box').open) app.clearSelection();
 });
 let paintRaf = 0;
 document.addEventListener('input', (e) => {

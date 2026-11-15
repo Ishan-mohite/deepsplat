@@ -9,5 +9,9 @@ python -m elevmap --splat gs://my-bucket/maps/unit.ply --out maps/x             
 python -m elevmap --splat https://host/path/splat.ply --out maps/x                                         # any Range-capable URL / signed URL
 ```
 
-Result for the project splat: `maps/auditorium/` (open `elevation_overview.png`, `floor_alignment.png`, `robot_map.png`).
+Result for the project splat: `maps/auditorium/` (open `elevation_overview.png`, `floor_alignment.png`, `robot_map.png`, `floor_map.png`).
+
+`floor_map.png` is the clean plan the console dashboard shows (`floormap.py`): floor, raised levels (darker = higher),
+furniture (darker = taller) and walls in the design-system colours, transparent where nothing was scanned. The backend
+builds it for every new map; `uv run python tools/build_floor_map.py` adds it to maps registered before.
 Details and limitations: `docs/ANALYSIS.md` section 4. `map.yaml` + `map.pgm` load in ROS `map_server` / nav2 as they are.

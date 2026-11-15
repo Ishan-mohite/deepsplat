@@ -60,6 +60,17 @@ def test_site_shape(site):
     assert set(s["camera"]) == {"dir", "center", "box"}
 
 
+def test_floor_map(site):
+    """The dashboard's floor map: built with the map, same pixel convention as the floor plan, issue on it."""
+    _, s = site
+    fm = s["floor_map"]
+    assert s["floor_map_url"].endswith("/floor_map.png") and "floor_map" not in s["floor_plan"]
+    assert fm["width"] > 0 and fm["area_m2"] > 5 and fm["wall_m2"] > 0
+    x, y = s["issues"][0]["floor_xy"]
+    px, py = (x - fm["origin_x"]) / fm["m_per_px"], (fm["origin_y"] - y) / fm["m_per_px"]
+    assert 0 <= px < fm["width"] and 0 <= py < fm["height"]
+
+
 def test_issue_in_viewer_frame(site):
     _, s = site
     iss = s["issues"][0]
