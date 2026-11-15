@@ -15,6 +15,7 @@ final class UploadQueue: ObservableObject {
     private var retryTimer: Task<Void, Never>?
     private var workID: UUID?
     private var activeTask: URLSessionTask?
+    private var archiveProgress: Progress?
     private var activeTransfer: UUID?
     private var restoring = true
     private let monitor = NWPathMonitor()
@@ -88,7 +89,7 @@ final class UploadQueue: ObservableObject {
             records[index].stopUpload()
             message = "Upload stopped, but the stopped state could not be saved: \(error.localizedDescription)"
         }
-        if workID == id { work?.cancel() }
+        if workID == id { archiveProgress?.cancel(); work?.cancel() }
         if activeTransfer == id {
             activeTask?.cancel(); activeTask = nil; activeTransfer = nil
         }
@@ -114,7 +115,9 @@ final class UploadQueue: ObservableObject {
         if record.queued, record.wifiOnly, !wifiAvailable { return "Waiting for Wi-Fi" }
         if record.status == .uploading {
             switch record.stage {
-            case .preparing: return "Preparing archive"
+            case .preparing: return "Preparing archive \(Int(record.progress * 100))%"
+            case .requestingUpload: return "Requesting upload URL"
+            case .savingMock: return "Saving to mock backend"
             case .transferring: return "Uploading \(Int(record.progress * 100))%"
             case .confirming: return "Confirming upload"
             case .waiting: return "Waiting"
@@ -129,10 +132,34 @@ final class UploadQueue: ObservableObject {
     }
     private func buildArchive(_ id: UUID) async throws -> URL {
         let folder = CapturePaths.folder(id), destination = CapturePaths.archive(id)
-        // A capture's contents are immutable after Stop; only the archive is regenerated.
-        try await Task.detached(priority: .userInitiated) {
-            try CaptureWriter.archive(folder: folder, destination: destination)
-        }.value
+        let progress = Progress(totalUnitCount: 0)
+        let reportsUploadProgress = workID == id
+        if reportsUploadProgress { archiveProgress = progress }
+        let observer = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                if reportsUploadProgress, let self,
+                   let index = self.records.firstIndex(where: { $0.id == id }),
+                   self.records[index].status == .uploading, self.records[index].stage == .preparing {
+                    self.records[index].progress = min(0.99, max(0, progress.fractionCompleted))
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+        defer {
+            observer.cancel()
+            if reportsUploadProgress { archiveProgress = nil }
+        }
+        try await withTaskCancellationHandler {
+            try await Task.detached(priority: .userInitiated) {
+                try CaptureWriter.archive(folder: folder, destination: destination, progress: progress)
+            }.value
+            try Task.checkCancellation()
+        } onCancel: {
+            progress.cancel()
+        }
+        if reportsUploadProgress, let index = records.firstIndex(where: { $0.id == id }), records[index].status == .uploading {
+            records[index].progress = 1
+        }
         return destination
     }
     func refreshBackendStatuses() async {
@@ -185,17 +212,19 @@ final class UploadQueue: ObservableObject {
     }
     private func prepare(_ record: UploadRecord) async throws {
         try Task.checkCancellation()
-        try update(record.id) { $0.status = .uploading; $0.stage = .preparing; $0.error = nil; $0.attempts += 1 }
+        try update(record.id) { $0.status = .uploading; $0.stage = .preparing; $0.progress = 0; $0.error = nil; $0.attempts += 1 }
         if record.hasUploadedBytes && !record.mock { try await confirm(record); return }
         let zip = CapturePaths.archive(record.id)
         if !FileManager.default.fileExists(atPath: zip.path) { _ = try await buildArchive(record.id) }
         try Task.checkCancellation()
         if record.mock {
+            try update(record.id) { $0.stage = .savingMock; $0.progress = 1 }
             try await Task.detached { try MockBackendClient().upload(id: record.id, archive: zip) }.value
             try Task.checkCancellation()
             try update(record.id) { $0.status = .uploaded; $0.progress = 1; $0.queued = false; $0.stage = .waiting; $0.hasUploadedBytes = true }
             return
         }
+        try update(record.id) { $0.stage = .requestingUpload; $0.progress = 1 }
         let ticket = try await client(record).ticket(record, zip: zip)
         try Task.checkCancellation()
         let request = try UploadAPI.signedPut(ticket: ticket, wifiOnly: record.wifiOnly)

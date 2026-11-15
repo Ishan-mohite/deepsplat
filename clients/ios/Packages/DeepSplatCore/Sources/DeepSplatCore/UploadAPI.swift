@@ -35,7 +35,7 @@ public struct BackendStatus: Decodable, Sendable {
     public let status: Status
 }
 public enum UploadStatus: String, Codable, Sendable { case saved, uploading, uploaded, failed, stopped }
-public enum UploadStage: String, Codable, Sendable { case waiting, preparing, transferring, confirming }
+public enum UploadStage: String, Codable, Sendable { case waiting, preparing, requestingUpload, savingMock, transferring, confirming }
 public struct UploadRecord: Identifiable, Codable, Sendable {
     public let id: UUID
     public let mapID: String

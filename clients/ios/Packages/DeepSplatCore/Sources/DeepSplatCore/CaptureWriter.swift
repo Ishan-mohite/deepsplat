@@ -1,4 +1,5 @@
 import Foundation
+import ZIPFoundation
 
 /// Confine each writer to the capture's serial queue.
 public final class CaptureWriter {
@@ -58,20 +59,17 @@ public final class CaptureWriter {
             }
         }
     }
-    public static func archive(folder: URL, destination: URL) throws {
+    public static func archive(folder: URL, destination: URL, progress: Progress? = nil) throws {
+        if progress?.isCancelled == true { throw CancellationError() }
         _ = try readManifest(in: folder)
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         let partial = destination.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + ".zip")
         defer { try? FileManager.default.removeItem(at: partial) }
-        let coordinator = NSFileCoordinator(filePresenter: nil)
-        var coordinationError: NSError?
-        var copyError: Error?
-        coordinator.coordinate(readingItemAt: folder, options: .forUploading, error: &coordinationError) { archive in
-            do { try FileManager.default.copyItem(at: archive, to: partial) } catch { copyError = error }
-        }
-        if let coordinationError { throw coordinationError }
-        if let copyError { throw copyError }
-        guard FileManager.default.fileExists(atPath: partial.path) else { throw CaptureError.invalid("The capture could not be zipped.") }
+        // JPEGs are already compressed. Stream them directly into a stored ZIP,
+        // exposing byte-based progress without another temporary archive copy.
+        try FileManager.default.zipItem(at: folder, to: partial, shouldKeepParent: true,
+                                       compressionMethod: .none, progress: progress)
+        if progress?.isCancelled == true { throw CancellationError() }
         if FileManager.default.fileExists(atPath: destination.path) {
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: partial)
         } else { try FileManager.default.moveItem(at: partial, to: destination) }

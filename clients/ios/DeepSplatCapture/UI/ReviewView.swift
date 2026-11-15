@@ -173,7 +173,15 @@ struct ReviewView: View {
                         .font(.footnote).foregroundStyle(Design.muted).lineSpacing(3)
                 }
             }
-            if record.status == .uploading { ProgressView(value: record.progress).tint(Design.blue) }
+            if record.status == .uploading {
+                if record.stage == .preparing || record.stage == .transferring {
+                    ProgressView(value: record.progress).tint(Design.blue)
+                        .accessibilityLabel(record.stage == .preparing ? "Preparing archive" : "Uploading capture")
+                        .accessibilityValue("\(Int(record.progress * 100)) percent")
+                } else {
+                    ProgressView().tint(Design.blue)
+                }
+            }
             if let error = record.error { Text(error).font(.footnote).foregroundStyle(Design.amber) }
         }.captureCard()
     }

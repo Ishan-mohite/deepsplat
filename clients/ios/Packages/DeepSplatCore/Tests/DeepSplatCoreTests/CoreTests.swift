@@ -116,6 +116,44 @@ final class CoreTests: XCTestCase {
         try FileManager.default.removeItem(at: writer.folder.appendingPathComponent("photo.jpg"))
         XCTAssertThrowsError(try writer.finish(manifest))
     }
+    func testArchiveReportsMeasuredProgressThroughCompletion() throws {
+        let (writer, _) = try completedWriter()
+        try Data(repeating: 0xA5, count: 2 * 1024 * 1024)
+            .write(to: writer.folder.appendingPathComponent("frames/000001.jpg"))
+        let progress = Progress(totalUnitCount: 0)
+        var fractions: [Double] = []
+        let observation = progress.observe(\.fractionCompleted, options: [.new]) { value, _ in
+            fractions.append(value.fractionCompleted)
+        }
+        defer { observation.invalidate() }
+        let zip = root.appendingPathComponent("archives/progress.zip")
+        try CaptureWriter.archive(folder: writer.folder, destination: zip, progress: progress)
+        XCTAssertTrue(fractions.contains { $0 > 0 && $0 < 1 })
+        XCTAssertEqual(progress.fractionCompleted, 1, accuracy: 0.0001)
+        XCTAssertGreaterThan(progress.totalUnitCount, 2 * 1024 * 1024)
+        for (before, after) in Swift.zip(fractions, fractions.dropFirst()) {
+            XCTAssertGreaterThanOrEqual(after + 0.000001, before)
+        }
+    }
+    func testCancellingArchiveMidwayPreservesPreviousArchiveAndRemovesPartial() throws {
+        let (writer, _) = try completedWriter()
+        try Data(repeating: 0xA5, count: 2 * 1024 * 1024)
+            .write(to: writer.folder.appendingPathComponent("frames/000001.jpg"))
+        let destination = root.appendingPathComponent("archives/capture.zip")
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let original = Data("previous archive".utf8)
+        try original.write(to: destination)
+        let progress = Progress(totalUnitCount: 0)
+        let observation = progress.observe(\.fractionCompleted, options: [.new]) { value, _ in
+            if value.fractionCompleted > 0.1 { value.cancel() }
+        }
+        defer { observation.invalidate() }
+        XCTAssertThrowsError(try CaptureWriter.archive(folder: writer.folder, destination: destination, progress: progress))
+        XCTAssertTrue(progress.isCancelled)
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: destination.deletingLastPathComponent().path), ["capture.zip"])
+    }
+
     func testArchiveIsARealZIPAndCanBeExportedTwice() throws {
         let (writer, _) = try completedWriter()
         let zip = root.appendingPathComponent("archives/capture.zip")
