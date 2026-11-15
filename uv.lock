@@ -446,6 +446,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "reportlab" },
     { name = "requests" },
+    { name = "scipy" },
     { name = "sqlmodel" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -481,6 +482,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.9" },
     { name = "reportlab", specifier = ">=4.2" },
     { name = "requests", specifier = ">=2.32" },
+    { name = "scipy", specifier = ">=1.13" },
     { name = "sqlmodel", specifier = ">=0.0.22" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]

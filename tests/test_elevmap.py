@@ -45,3 +45,51 @@ def test_grid_marks_box_blocked_and_floor_free():
     assert g["trav"][cell(-2, -2)]
     assert g["occupied"][cell(1.3, 1.3)] and not g["trav"][cell(1.3, 1.3)]
     assert abs(np.nanmedian(g["ground"])) < 0.02
+
+
+def test_floor_map_classes_and_pixel_frame():
+    """Floor light, a 0.4 m platform raised, a table furniture, a 2.4 m wall ink; px follows the floor-plan meta."""
+    import io
+
+    from PIL import Image
+
+    from elevmap import floormap
+
+    rng = np.random.default_rng(2)
+    k = 120_000
+    floor = np.c_[rng.uniform(0, 6, (k, 2)), rng.normal(0, 0.003, k)]
+    floor = floor[~((floor[:, 0] > 4) & (floor[:, 1] > 3))]                       # platform corner
+    plat = np.c_[rng.uniform(4, 6, k // 4), rng.uniform(3, 6, k // 4), rng.normal(0.4, 0.003, k // 4)]
+    table = np.c_[rng.uniform(1, 1.8, (8000, 2)), rng.uniform(0.05, 0.75, 8000)]
+    wall = np.c_[rng.uniform(0, 6, 20_000), np.full(20_000, 6.0), rng.uniform(0, 2.4, 20_000)]
+    p = np.r_[floor, plat, table, wall]
+    png, meta = floormap.make(p, None)
+    img = np.asarray(Image.open(io.BytesIO(png)))
+    assert img.shape == (meta["height"], meta["width"], 4)
+
+    def px(x, y):
+        return img[int((meta["origin_y"] - y) / meta["m_per_px"]), int((x - meta["origin_x"]) / meta["m_per_px"])]
+    assert tuple(px(3, 1.5)) == floormap.CARD + (255,)                             # floor
+    assert px(5, 4.5)[:3].sum() < sum(floormap.CARD) - 20 and px(5, 4.5)[3] == 255  # raised platform, darker
+    assert px(1.4, 1.4)[:3].sum() < px(5, 4.5)[:3].sum()                          # table darker than platform
+    assert px(3, 6.0)[:3].sum() < 300                                             # wall: ink
+    assert img[0, 0, 3] == 0                                                       # margin transparent
+
+
+def test_floor_map_is_cropped_to_the_scan():
+    """No empty frame and no far-away floaters around the plan; meta is plain JSON."""
+    import io
+    import json
+
+    from PIL import Image
+
+    from elevmap import floormap
+
+    rng = np.random.default_rng(3)
+    floor = np.c_[rng.uniform(0, 5, (80_000, 2)), rng.normal(0, 0.003, 80_000)]
+    floater = np.c_[rng.uniform(9, 9.4, (400, 2)), rng.normal(0, 0.003, 400)]   # 0.16 m², 4 m away
+    png, meta = floormap.make(np.r_[floor, floater], None, pad_cells=2)
+    json.dumps(meta)
+    a = np.asarray(Image.open(io.BytesIO(png)))[..., 3] > 0
+    assert a[:7].any() and a[-7:].any() and a[:, :7].any() and a[:, -7:].any()   # tight on every side
+    assert meta["width"] * meta["m_per_px"] < 5.6                                 # floater dropped

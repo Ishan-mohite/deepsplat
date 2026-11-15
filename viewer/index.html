@@ -46,7 +46,7 @@ button { font: inherit; color: inherit; }
 .site-select select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px solid var(--line-2); background: var(--card); padding: 0 34px 0 var(--space-4); border-radius: var(--r-pill); font: var(--text-label); color: var(--ink); cursor: pointer; max-width: 260px; }
 .site-select::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
 .sample-chip { background: var(--amber-soft); border-color: transparent; color: var(--amber); font-weight: 600; }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--paper-2); color: var(--ink); display: grid; place-items: center; font: 600 12px var(--font-display); flex: none; }
+.avatar { height: 34px; padding: 0 var(--space-3); border-radius: var(--r-pill); background: var(--paper-2); color: var(--ink); display: grid; place-items: center; font: 600 12px var(--font-display); flex: none; }
 
 .view { display: none; }
 .view.active { display: block; }
@@ -59,13 +59,15 @@ button { font: inherit; color: inherit; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
 
 /* ---------- dashboard ---------- */
-.dash { padding: var(--space-6); max-width: 1480px; margin: 0 auto; display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr) minmax(0, .98fr); grid-template-areas: "hero kpis side" "hero bars side"; }
+.dash { padding: var(--space-6); display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, .98fr); grid-template-areas: "hero kpis side" "hero bars side"; }
 .hero { grid-area: hero; display: flex; flex-direction: column; }
 .hero-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); }
 .hero .ds-meta { margin-top: var(--space-2); }
-.hero-plan { flex: 1; min-height: 300px; margin: var(--space-3) -8px var(--space-2); display: flex; align-items: center; }
-.hero-plan svg { width: 100%; height: auto; display: block; }
-.plan-empty { margin: 0 8px; color: var(--muted); font: var(--text-body-s); }
+/* The plan box grows with the hero's width (8:5, at most 72% of the window height) and fills any extra height
+   of the hero; the drawing is laid out to the box (live: 1 SVG unit = 1 px, samples: scaled to fit). */
+.hero-plan { flex: 1 0 auto; position: relative; aspect-ratio: 8 / 5; min-height: 300px; max-height: max(300px, 72vh); margin: var(--space-3) -8px var(--space-2); }
+.hero-plan > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.plan-empty { position: absolute; inset: 0; display: flex; align-items: center; margin: 0 8px; color: var(--muted); font: var(--text-body-s); }
 .hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
 .hero-actions .hint { margin-left: auto; }
 .kpis { grid-area: kpis; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
@@ -103,6 +105,8 @@ button { font: inherit; color: inherit; }
 .switch input:checked + span { background: var(--blue); }
 .switch input:checked + span::after { transform: translateX(17px); }
 .switch input:focus-visible + span { box-shadow: var(--focus-ring); }
+.photo3d { display: flex; align-items: end; gap: var(--space-3); margin-top: calc(-1 * var(--space-2)); }
+.photo3d .slider-row { flex: 1; margin-top: 0; }
 .slider-row { display: grid; gap: 6px; margin-top: var(--space-3); font: var(--text-body-s); color: var(--ink-2); }
 input[type="range"] { width: 100%; accent-color: var(--blue); }
 .cls-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -124,6 +128,14 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
 .chip-toggle[aria-pressed="false"] { opacity: .45; }
 .chip-toggle[aria-pressed="false"] .ds-sev::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sev); }
 .check-row { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-3); font: var(--text-label); }
+.debug { padding: 0; background: var(--paper); }
+.debug > summary { list-style: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-5); cursor: pointer; font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--muted); }
+.debug > summary::-webkit-details-marker { display: none; }
+.debug > summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; }
+.debug[open] > summary::before { transform: rotate(45deg); }
+.debug > summary:hover { color: var(--ink-2); }
+.debug > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.debug .psec { border-bottom: 0; border-top: 1px solid var(--line); }
 
 .stage { position: relative; overflow: hidden; min-height: 320px; border-radius: 0; }
 .canvas-host { position: absolute; inset: 0; }
@@ -233,6 +245,30 @@ table.vps-frames tbody tr:hover { background: none; }
 .compare .tag.l { left: 9px; } .compare .tag.r { right: 9px; }
 .photo { border-radius: var(--r-md); overflow: hidden; aspect-ratio: 4 / 3; }
 .photo svg { width: 100%; height: 100%; display: block; }
+button.photo { position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+button.photo:focus-visible, .zoom-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.zoom-btn { position: absolute; right: 9px; bottom: 9px; z-index: 2; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--card); color: var(--ink); cursor: zoom-in; box-shadow: var(--shadow-float); opacity: .9; transition: opacity .12s, transform .12s; }
+.zoom-btn svg { width: 16px; height: 16px; }
+button.photo .zoom-btn { pointer-events: none; }
+button.photo:hover .zoom-btn, .zoom-btn:hover { opacity: 1; transform: scale(1.06); }
+/* Photo lightbox */
+.lightbox { position: fixed; inset: 0; width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; padding: 0; border: 0; background: transparent; color: #fff; }
+.lightbox[open] { display: flex; flex-direction: column; animation: lb-in .15s ease-out; }
+.lightbox::backdrop { background: color-mix(in srgb, #0b1220 95%, transparent); }
+@keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
+.lb-bar { flex: none; display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 12px 16px; }
+.lb-title { min-width: 0; flex: 1; font: var(--text-label); }
+.lb-title b { display: block; font-weight: 600; }
+.lb-title span { opacity: .7; font: var(--text-mono-s); }
+.lb-bar .seg { background: rgba(255, 255, 255, .12); }
+.lb-bar .seg button { color: rgba(255, 255, 255, .8); }
+.lb-bar .seg button[aria-pressed="true"] { background: #fff; color: #0b1220; }
+.lb-close { border: 0; background: rgba(255, 255, 255, .12); color: #fff; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; line-height: 1; cursor: pointer; }
+.lb-close:hover { background: rgba(255, 255, 255, .22); }
+.lb-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; padding: 0 16px 16px; }
+.lb-stage > img { position: absolute; left: 16px; top: 0; width: calc(100% - 32px); height: calc(100% - 16px); object-fit: contain; display: block; }
+.lb-stage > svg { width: min(100%, calc((100dvh - 100px) * 4 / 3)); height: auto; border-radius: var(--r-sm); display: block; }
+.lb-stage .lb-msg { opacity: .75; font: var(--text-body-s); }
 /* Records at one spot: past records blue, the newest open one rust */
 .timeline { list-style: none; margin: 0; padding: 0; position: relative; }
 .timeline::before { content: ""; position: absolute; left: 13px; top: 14px; bottom: 14px; width: 2px; background: var(--blue); }
@@ -371,9 +407,19 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
 }
 @media (max-width: 680px) {
   .dash { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "kpis" "bars" "side"; padding: var(--space-4); }
+  .hero-plan { aspect-ratio: 1 / 1; }
   .page { padding: 18px var(--space-4) var(--space-8); }
   .brand img { height: 24px; }
-  .site-select select { max-width: 150px; }
+  /* Logo, chip and account in the first row, the site picker on its own full-width row, then the tabs:
+     one row needs ~470 px. */
+  .topbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand chip avatar" "site site site" "tabs tabs tabs"; column-gap: var(--space-2); }
+  .brand { grid-area: brand; }
+  .top-right { display: contents; }
+  .top-right .ds-chip { grid-area: chip; }
+  .avatar { grid-area: avatar; }
+  .site-select { grid-area: site; min-width: 0; }
+  .site-select select { max-width: none; width: 100%; text-overflow: ellipsis; }
+  .tabs { grid-area: tabs; }
   .filters input { min-width: 0; flex: 1; }
   .timebar { grid-template-columns: 1fr auto; }
   .timebar .tb-track { grid-column: 1 / -1; grid-row: 2; }
@@ -396,7 +442,7 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
   <div class="top-right">
     <span class="ds-chip sample-chip" title="Sample data generated in the browser. Served by the backend, this page shows its live data.">Sample data</span>
     <label class="site-select"><span class="sr-only">Site</span><select id="site-select"></select></label>
-    <div class="avatar" aria-hidden="true">FZ</div>
+    <div class="avatar" title="Signed in as admin">Admin</div>
   </div>
 </header>
 
@@ -430,6 +476,7 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
   <section id="view-captures" class="view" aria-label="Captures"></section>
 </main>
 <dialog id="cap-sheet" class="sheet" aria-label="Capture details"></dialog>
+<dialog id="photo-box" class="lightbox" aria-label="Photo"></dialog>
 <div id="tip" role="tooltip"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -1094,7 +1141,7 @@ function adaptSite(raw) {
       observations: i.observations.map((o) => {
         const kind = o.source?.kind || 'phone';
         SOURCES[kind] ??= { label: titleCase(kind), device: '' };
-        return { ...o, source: { kind, device_id: o.source?.device_id || '' }, image_url: fileUrl(o.image_url), mask_url: fileUrl(o.mask_url), overlay_url: fileUrl(o.overlay_url) };
+        return { ...o, source: { kind, device_id: o.source?.device_id || '' }, image_url: fileUrl(o.image_url), mask_url: fileUrl(o.mask_url), overlay_url: fileUrl(o.overlay_url), points_url: fileUrl(o.points_url) };
       }),
     };
   });
@@ -1105,12 +1152,12 @@ function adaptSite(raw) {
   if (follow) state.asOf = NOW;
   return {
     ...raw, live: true, issues, captures, segments: [], segById: new Map(),
-    splat_src: fileUrl(raw.viewer_splat_url || raw.splat_url), floor_plan_src: fileUrl(raw.floor_plan_url),
+    splat_src: fileUrl(raw.viewer_splat_url || raw.splat_url), floor_plan_src: fileUrl(raw.floor_plan_url), floor_map_src: fileUrl(raw.floor_map_url),
     splat_lods: (raw.splat_lods || []).map((l) => ({ ...l, url: fileUrl(l.url) })),
     sig: JSON.stringify([
       issues.map((i) => [i.issue_id, i.type, i.severity, i.status, i.repaired_at, i.observations.length, i.position_m]),
       captures.map((c) => [c.capture_id, c.status, c.stage, c.issue_id, c.vps?.confidence, c.vps?.camera_pose?.t]),
-      raw.summary, raw.status, raw.vps_status, raw.viewer_splat_url ? 1 : 0, raw.floor_plan_url ? 1 : 0,
+      raw.summary, raw.status, raw.vps_status, raw.viewer_splat_url ? 1 : 0, raw.floor_plan_url ? 1 : 0, raw.floor_map_url ? 1 : 0,
     ]),
   };
 }
@@ -1144,6 +1191,7 @@ const SURF = {
   plaster: ['#DCD5C8', '#CBC2B1'], concrete: ['#ADA9A1', '#8E8B83'], steel: ['#6E7A78', '#58625F'], wood: ['#9C7350', '#7E5A3C'], tiles: ['#DAD9D4', '#C6C5BF'],
 };
 let svgUid = 0;
+const ZOOM_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
 function photoSVG(issue, obsIdx, labels = true) {
   const uid = `ph${++svgUid}`, W = 320, H = 240, obs = issue.observations[obsIdx];
   if (state.site?.live) { // the capture photo; in the inspector with the detected mask drawn on it
@@ -1214,7 +1262,7 @@ function calloutText(i) {
   if (st === 'repaired') return `${TYPES[i.type].short} · repaired in ${Math.round((ms(i.repaired_at) - ms(i.observations[0].timestamp)) / DAY)} days`;
   return `${TYPES[i.type].short} · ${i.object.short} · ${STATUS[st].label.toLowerCase()}`;
 }
-function pinsAndCallouts(site, toXY, layout, W) {
+function pinsAndCallouts(site, toXY, layout, W, H = 400) {
   const call = pickCallouts(site.issues), set = new Set(call);
   let out = '';
   for (const i of site.issues) {
@@ -1225,8 +1273,8 @@ function pinsAndCallouts(site, toXY, layout, W) {
   const items = call.map((i) => { const [x, y] = toXY(i.position_m, i); const text = calloutText(i); return { i, x, y, text, w: Math.min(206, text.length * 6.25 + 28) }; });
   if (layout === 'left') {
     items.sort((a, b) => a.y - b.y);
-    const n = items.length, top = 48, bottom = 352, gap = n > 1 ? (bottom - top) / (n - 1) : 0;
-    items.forEach((it, k) => { it.px = 12; it.py = n === 1 ? 200 : top + gap * k; });
+    const n = items.length, top = 48, bottom = H - 48, gap = n > 1 ? (bottom - top) / (n - 1) : 0;
+    items.forEach((it, k) => { it.px = 12; it.py = n === 1 ? H / 2 : top + gap * k; });
   } else {
     items.sort((a, b) => a.x - b.x);
     const n = items.length, slot = (W - 24) / n;
@@ -1325,15 +1373,64 @@ function barsSVG(values, flagLast) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Captures per month, December 2025 to November 2026">${g}</svg>`;
 }
 // Floor plan the backend renders top-down from the splat, with the findings pinned on it.
-function livePlanSVG(site) {
-  const W = 640, H = 400, reg = [222, 18, 630, 382], fp = site.floor_plan;
-  if (!site.floor_plan_src || !fp?.width) return `<p class="plan-empty">The backend is still preparing the floor plan of this scan (map status: ${esc(site.status || 'processing')}).</p>`;
-  const sc = Math.min((reg[2] - reg[0]) / fp.width, (reg[3] - reg[1]) / fp.height), w = fp.width * sc, h = fp.height * sc;
-  const ox = reg[0] + (reg[2] - reg[0] - w) / 2, oy = reg[1] + (reg[3] - reg[1] - h) / 2;
-  const toXY = (_p, i) => [+(ox + ((i.floor_xy[0] - fp.origin_x) / fp.m_per_px) * sc).toFixed(1), +(oy + ((fp.origin_y - i.floor_xy[1]) / fp.m_per_px) * sc).toFixed(1)];
+// Floor plans rendered before the backend wrote an alpha channel have a flat (245, 245, 245) background:
+// make it transparent in the browser (cached per URL; the dashboard image gets it once it is ready).
+const planCache = new Map();
+function transparentPlan(src) {
+  if (planCache.has(src)) return planCache.get(src);
+  const p = new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+        const ctx = cv.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i + 3] === 255 && d[i] === 245 && d[i + 1] === 245 && d[i + 2] === 245) { d[i + 3] = 0; n++; }
+        if (!n) { resolve(src); return; }                     // already transparent
+        ctx.putImageData(im, 0, 0);
+        cv.toBlob((b) => resolve(b ? URL.createObjectURL(b) : src), 'image/png');
+      } catch { resolve(src); }                             // canvas blocked (no CORS): keep the original
+    };
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+  planCache.set(src, p);
+  p.then((url) => { planCache.set(src, { url }); document.querySelectorAll(`.hero-plan image[data-src="${CSS.escape(src)}"]`).forEach((el) => el.setAttribute('href', url)); });
+  return p;
+}
+// One download per plan: the <image> stays empty until the transparent copy (or, failing that, the original) is ready.
+const planHref = (src) => { const c = planCache.get(src); if (c?.url) return c.url; transparentPlan(src); return ''; };
+function livePlanSVG(site, W = 640, H = 400) {
+  // The floor map (floor, raised levels, furniture, walls; elevmap/floormap.py) when the backend has built it,
+  // else the top-down render of the splat.
+  const useMap = !!(site.floor_map_src && site.floor_map?.width);
+  const fp = useMap ? site.floor_map : site.floor_plan, src = useMap ? site.floor_map_src : site.floor_plan_src;
+  if (!src || !fp?.width) return `<p class="plan-empty">The backend is still preparing the floor plan of this scan (map status: ${esc(site.status || 'processing')}).</p>`;
   const pinned = { ...site, issues: site.issues.filter((i) => i.floor_xy) };
+  // Long side horizontal: an upright plan is turned 90° clockwise. As large as the field allows: callouts (if
+  // any) in a band on top for a wide plan, in a column on the left for a compact one, whichever leaves more.
+  const rot = fp.height > fp.width, pw = rot ? fp.height : fp.width, ph = rot ? fp.width : fp.height;
+  const fit = (r) => Math.min((r[2] - r[0]) / pw, (r[3] - r[1]) / ph);
+  const call = pickCallouts(pinned.issues), cw = Math.max(0, ...call.map((i) => Math.min(206, calloutText(i).length * 6.25 + 28)));
+  const regTop = [8, call.length > 1 ? 96 : 52, W - 8, H - 6], regLeft = [cw + 24, 6, W - 8, H - 6];
+  const layout = !pinned.issues.length ? 'none' : fit(regLeft) > fit(regTop) ? 'left' : 'top';
+  const reg = { none: [8, 6, W - 8, H - 6], top: regTop, left: regLeft }[layout];
+  const sc = fit(reg), w = pw * sc, h = ph * sc;
+  const ox = reg[0] + (reg[2] - reg[0] - w) / 2, oy = reg[1] + (reg[3] - reg[1] - h) / 2;
+  const toXY = (_p, i) => {
+    const px = (i.floor_xy[0] - fp.origin_x) / fp.m_per_px, py = (fp.origin_y - i.floor_xy[1]) / fp.m_per_px;
+    const [x, y] = rot ? [fp.height - py, px] : [px, py];
+    return [+(ox + x * sc).toFixed(1), +(oy + y * sc).toFixed(1)];
+  };
+  const img = rot
+    ? `<image href="${esc(planHref(src))}" data-src="${esc(src)}" width="${(fp.width * sc).toFixed(1)}" height="${(fp.height * sc).toFixed(1)}" preserveAspectRatio="none" transform="translate(${(ox + w).toFixed(1)} ${oy.toFixed(1)}) rotate(90)"/>`
+    : `<image href="${esc(planHref(src))}" data-src="${esc(src)}" x="${ox.toFixed(1)}" y="${oy.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" preserveAspectRatio="none"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Floor plan of ${esc(site.name)} with open findings">
-    <image href="${esc(site.floor_plan_src)}" x="${ox.toFixed(1)}" y="${oy.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" preserveAspectRatio="none"/>${pinsAndCallouts(pinned, toXY, 'left', W)}</svg>`;
+    ${img}${layout === 'none' ? '' : pinsAndCallouts(pinned, toXY, layout, W, H)}</svg>`;
 }
 function donutSVG(open, repaired) {
   const total = open + repaired, R = 46, C = TAU * R, gap = total > 0 && open && repaired ? 3 : 0;
@@ -1359,7 +1456,9 @@ const state = {
   overlay: true, overlayAlpha: 0.5,
   hiddenClasses: new Set(), hiddenSegs: new Set(),
   sevFilter: new Set(Object.keys(SEV)), showRepaired: true,
-  showVps: true, vpsLow: true, // VPS layer: camera poses of all localized captures, also those below the threshold
+  showVps: false, vpsLow: true, // VPS layer (debug): camera poses of all localized captures, also those below the threshold
+  photoAlpha: 0, // the selected record's photo in the 3D scan (0 = hidden)
+  debugOpen: false, // the collapsed "Debug" group at the bottom of the twin's layer panel
   asOf: NOW, issueFilter: { q: '', sev: '', status: '' },
 };
 
@@ -1372,12 +1471,12 @@ function renderDashboard() {
       <p class="ds-eyebrow">${esc(s.category)}</p>
       <div class="hero-head"><h1 class="ds-h2">${esc(s.name)}</h1><span class="ds-chip ds-chip--live">Scan active</span></div>
       <div class="ds-meta">${esc(s.location)} · scanned <span class="mono">${fmt.date(s.scanned_at)}</span></div>
-      <div class="hero-plan">${s.live ? livePlanSVG(s) : s.plan ? floorPlanSVG(s) : elevationSVG(s)}</div>
+      <div class="hero-plan">${s.live ? '' : s.plan ? floorPlanSVG(s) : elevationSVG(s)}</div>
       <div class="hero-actions">
         <button class="ds-btn ds-btn--dark" data-action="goto-tab" data-tab="twin">Open 3D twin</button>
         ${s.live ? `<a class="ds-btn ds-btn--secondary" href="${esc(`${API}/maps/${encodeURIComponent(s.id)}/report.pdf`)}" target="_blank" rel="noopener">Export PDF</a>`
     : `<button class="ds-btn ds-btn--secondary" data-action="toast" data-msg="PDF export arrives with the backend. Nothing was exported.">Export PDF</button>`}
-        <span class="hint">${s.live ? 'Floor plan rendered from the scan' : `${s.plan ? 'Floor plan' : 'Side elevation'} drawn from the scan`} · click a label to open the issue</span>
+        <span class="hint">${s.live ? (s.floor_map_src && s.floor_map?.width ? 'Floor map built from the scan' : 'Floor plan rendered from the scan') : `${s.plan ? 'Floor plan' : 'Side elevation'} drawn from the scan`} · click a label to open the issue</span>
       </div>
     </article>
     <div class="kpis">
@@ -1410,7 +1509,19 @@ function renderDashboard() {
       </article>
     </div>
   </div>`;
+  if (s.live) { drawLivePlan(); planObserver.disconnect(); planObserver.observe($('#view-dashboard .hero-plan')); }
 }
+// The live plan is laid out to the size of its box, so it fills the hero on every screen; redrawn when the box
+// changes size (window resize, dashboard tab shown again). Its children are absolutely positioned, so drawing
+// never changes the box itself.
+function drawLivePlan() {
+  const box = $('#view-dashboard .hero-plan');
+  if (!box || !state.site?.live) return;
+  const { width, height } = box.getBoundingClientRect();
+  if (width < 50 || height < 50) return;                    // dashboard tab hidden
+  box.innerHTML = livePlanSVG(state.site, Math.round(width), Math.round(height));
+}
+const planObserver = new ResizeObserver(drawLivePlan);
 
 function issueRows() {
   const f = state.issueFilter, q = f.q.trim().toLowerCase();
@@ -1772,6 +1883,71 @@ function onCaptureClosed() {
   app.writeHash();
 }
 const closeCapture = () => { const dlg = $('#cap-sheet'); if (dlg.open) dlg.close(); onCaptureClosed(); };
+
+/* ---------- photo lightbox: one record's photo, full size, with a download ---------- */
+const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>';
+const photoBox = { issue: null, k: 0, view: 'detections', busy: false };
+function photoBoxSrc() { // live only: the URL shown, following the Detections / Original toggle
+  const o = photoBox.issue.observations[photoBox.k];
+  return (photoBox.view === 'detections' && o.overlay_url) || o.image_url || o.overlay_url || null;
+}
+function renderPhotoBox() {
+  const { issue: i, k } = photoBox, o = i.observations[k], live = state.site.live;
+  const both = live && o.overlay_url && o.image_url && o.overlay_url !== o.image_url;
+  const src = live ? photoBoxSrc() : null;
+  const stage = live
+    ? (src ? `<img src="${esc(src)}" alt="Photo of ${esc(i.issue_id)}, ${fmt.date(o.timestamp)}">` : '<div class="lb-msg">No photo stored for this record.</div>')
+    : photoSVG(i, k);
+  $('#photo-box').innerHTML = `
+    <div class="lb-bar">
+      <div class="lb-title"><b>${esc(issueTitle(i))}</b><span>${esc(i.issue_id)} · ${esc(o.obs_id)} · ${fmt.dt(o.timestamp)} UTC</span></div>
+      ${both ? `<div class="seg" role="group" aria-label="Photo view">
+        <button data-action="photo-view" data-view="detections" aria-pressed="${photoBox.view === 'detections'}">SAM 3 detections</button>
+        <button data-action="photo-view" data-view="original" aria-pressed="${photoBox.view === 'original'}">Original</button>
+      </div>` : ''}
+      <button class="ds-btn ds-btn--sm" style="background:#fff;color:#0b1220" data-action="photo-download" ${live && !src ? 'disabled' : ''}>${DOWNLOAD_ICON} ${photoBox.busy ? 'Downloading…' : 'Download'}</button>
+      <button class="lb-close" data-action="photo-close" aria-label="Close">×</button>
+    </div>
+    <div class="lb-stage">${stage}</div>`;
+}
+function openPhotoBox(issue, k) {
+  Object.assign(photoBox, { issue, k, view: 'detections', busy: false });
+  renderPhotoBox();
+  const dlg = $('#photo-box');
+  if (!dlg.open) dlg.showModal();
+  dlg.querySelector('[data-action="photo-download"]')?.focus();
+}
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function downloadPhotoBox() {
+  if (photoBox.busy) return;
+  const { issue: i, k } = photoBox, o = i.observations[k];
+  const base = `${i.issue_id}_${o.obs_id}${photoBox.view === 'detections' && o.overlay_url ? '_detections' : ''}`.replace(/[^\w.-]+/g, '-');
+  photoBox.busy = true; renderPhotoBox();
+  try {
+    if (state.site.live) {
+      const src = photoBoxSrc(), r = await fetch(src);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[blob.type] || (new URL(src, location.href).pathname.match(/\.(\w+)$/)?.[1] ?? 'jpg');
+      saveBlob(blob, `${base}.${ext}`);
+    } else { // the mock photo is an SVG: rasterise it to a PNG
+      const svg = $('#photo-box .lb-stage > svg').outerHTML.replace(/^<svg /, '<svg width="1600" height="1200" ');
+      const img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('render failed')); img.src = url; });
+      const cv = document.createElement('canvas'); cv.width = 1600; cv.height = 1200;
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+      saveBlob(await new Promise((res) => cv.toBlob(res, 'image/png')), `${base}.png`);
+    }
+  } catch (err) {
+    if (state.site.live) { window.open(photoBoxSrc(), '_blank', 'noopener'); toast(`Download failed (${err.message}); the photo opened in a new tab instead.`); }
+    else toast(`Download failed: ${err.message}`);
+  } finally { photoBox.busy = false; if ($('#photo-box').open) renderPhotoBox(); }
+}
+$('#photo-box').addEventListener('click', (e) => { if (e.target === e.currentTarget || e.target.classList.contains('lb-stage')) e.currentTarget.close(); });
 $('#cap-sheet').addEventListener('cancel', onCaptureClosed);   // Esc
 $('#cap-sheet').addEventListener('close', onCaptureClosed);
 $('#cap-sheet').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCapture(); });
@@ -1806,12 +1982,15 @@ function renderLayers() {
     <div class="eyebrow">Scan</div>
     <b>${esc(s.name)}</b>
     <div class="hint">${fmt.num(s.gaussians)} Gaussians · scanned ${fmt.date(s.scanned_at)}</div>
-    <div class="hint">Map <span class="mono">${esc(s.map_id)}</span> · ${esc(s.status || 'ready')} · localization ${esc(s.vps_status || 'not set up')}</div>
   </div>
   <div class="psec">
     <div class="eyebrow">Segmentation</div>
-    <div class="hint">This scan has no object labels yet, so there are no layers to switch. Findings are shown as pins.</div>
-  </div>${pinFilters}${vpsSec}`;
+    <div class="hint">This scan has no object labels yet. Findings are shown as pins, with their SAM 3 mask on the scanned surface in the severity colour.</div>
+  </div>${pinFilters}${debugHTML(`
+  <div class="psec">
+    <div class="eyebrow">Map</div>
+    <div class="hint">Map <span class="mono">${esc(s.map_id)}</span> · ${esc(s.status || 'ready')} · localization ${esc(s.vps_status || 'not set up')}</div>
+  </div>${vpsSec}`)}`;
     return;
   }
   $('#layers').innerHTML = `
@@ -1834,8 +2013,13 @@ function renderLayers() {
       </details></li>`;
     }).join('')}</ul>
   </div>
-  ${pinFilters}${vpsSec}`;
+  ${pinFilters}${debugHTML(vpsSec)}`;
 }
+// Developer-facing sections (map ids, VPS poses) live in one collapsed group so the panel stays about the scan.
+const debugHTML = (inner) => `
+  <details class="psec debug" id="layers-debug" ${state.debugOpen ? 'open' : ''}>
+    <summary>Debug</summary>${inner}
+  </details>`;
 const vpsPass = (v) => v?.camera_pose && v.confidence != null && v.confidence >= v.threshold;
 const vpsShort = (id) => (id.length > 12 ? id.slice(0, 8) : id);
 function vpsLayerHTML(s) {
@@ -1858,7 +2042,7 @@ function vpsLayerHTML(s) {
       };
       return `<label class="vps-pick"><span class="sr-only">Capture</span>
         <span class="vps-dot${col ? '' : ' none'}" style="--c:${col}" aria-hidden="true"></span>
-        <select id="vps-select" ${state.showVps ? '' : 'disabled'}>
+        <select id="vps-select">
           <option value="" ${selId ? '' : 'selected'}>Select a capture (${caps.length})…</option>
           ${caps.map(opt).join('')}
         </select></label>`;
@@ -1945,8 +2129,9 @@ function issueInspector(i, sel) {
         <div class="img before">${photoSVG(i, 0)}</div><div class="img after">${photoSVG(i, n - 1)}</div><div class="divider"></div>
         <span class="tag l">${fmt.date(first.timestamp)}</span><span class="tag r">${fmt.date(last.timestamp)}</span>
         <input type="range" min="0" max="100" value="50" aria-label="Compare the first and the latest photo">
+        <button class="zoom-btn" data-action="zoom-photo" data-index="${idx}" aria-label="Enlarge the photo of the selected record" title="Enlarge photo">${ZOOM_ICON}</button>
       </div>`
-    : `<div class="photo">${photoSVG(i, 0)}</div>`;
+    : `<button class="photo" data-action="zoom-photo" data-index="0" aria-label="Enlarge photo" title="Enlarge photo">${photoSVG(i, 0)}<span class="zoom-btn" aria-hidden="true">${ZOOM_ICON}</span></button>`;
   return `
   <div class="insp-head">
     <div class="insp-kicker"><span class="mono">${i.issue_id}</span>${statusChip(stNow.status)}<button class="insp-close" data-action="clear-selection" aria-label="Close">×</button></div>
@@ -1960,6 +2145,10 @@ function issueInspector(i, sel) {
       <div><span>Records</span><b>${n}</b></div>
     </div>
     ${visual}
+    ${state.site.live && o.camera_pose && (o.overlay_url || o.image_url) ? `<div class="photo3d">
+      <label class="slider-row">Photo in the scan <input type="range" id="photo-alpha" min="0" max="1" step="0.05" value="${state.photoAlpha}" aria-label="Fade the photo in the 3D scan in and out"></label>
+      <button class="ds-btn ds-btn--secondary ds-btn--sm" data-action="view-photo">View from the photo</button>
+    </div>` : ''}
     <div>
       <div class="eyebrow" style="margin-bottom:8px">Records at this spot</div>
       <ol class="timeline">
@@ -2142,6 +2331,7 @@ class Twin {
     this.vpsGroup = new THREE.Group();
     this.scene.add(this.splatRoot, this.helpers, this.vpsGroup);
     this.vpsMarks = []; this.vpsKey = null;
+    this.masks = new Map(); // `${issue_id}|${obs_id}` -> SplatMesh of the damage mask lifted onto the scan
     this.meshes = [];
     this.bySeg = new Map();
     this.raycaster = new THREE.Raycaster();
@@ -2164,6 +2354,8 @@ class Twin {
     for (const m of this.meshes) { this.splatRoot.remove(m); m.dispose?.(); }
     this.meshes = []; this.bySeg.clear();
     if (this.scan) { this.splatRoot.remove(this.scan); this.scan.dispose?.(); this.scan = null; }
+    for (const m of this.masks.values()) if (m.mesh) { this.splatRoot.remove(m.mesh); m.mesh.dispose?.(); }
+    this.masks.clear();
     this.helpers.clear();
     this.clearVps();
     this.pinLayer.innerHTML = ''; this.pins = []; this.vpsMarks = [];
@@ -2289,6 +2481,7 @@ class Twin {
       p.el.classList.toggle('selected', state.selection?.kind === 'issue' && state.selection.id === p.issue.issue_id);
       p.el.querySelector('.pin-status').textContent = st ? STATUS[st.status].label.toLowerCase() : '';
     }
+    this.syncMasks();
     this.showObservation();
     this.drawVps();
   }
@@ -2366,6 +2559,62 @@ class Twin {
     const eye = through ? t.clone().addScaledVector(fwd, 0.02) : t.clone().addScaledVector(fwd, -1.1).addScaledVector(up, 0.45);
     this.flyTo(eye.toArray(), t.clone().addScaledVector(fwd, through ? 1.5 : 1.2).toArray());
   }
+  // The observation whose mask an issue shows: the one picked in the inspector, else the latest as of the time bar.
+  maskObs(issue) {
+    const sel = state.selection;
+    if (sel?.kind === 'issue' && sel.id === issue.issue_id && sel.obsIndex != null) return issue.observations[sel.obsIndex];
+    return statusAt(issue, state.asOf)?.obs.at(-1);
+  }
+  // Damage masks on the scan: the SAM 3 mask's gaussians (lifted by the backend, map frame) as small
+  // discs on the surface, tinted with the severity colour; shown with the issue's pin.
+  syncMasks() {
+    if (!this.site?.live) return;
+    const want = new Map();
+    for (const issue of this.site.issues) {
+      const o = this.maskObs(issue);
+      if (o?.points_url && this.issueVisible(issue)) want.set(`${issue.issue_id}|${o.obs_id}`, { issue, o });
+    }
+    for (const [key, { issue, o }] of want) if (!this.masks.has(key)) this.loadMask(key, issue, o);
+    const selId = state.selection?.kind === 'issue' ? state.selection.id : null;
+    for (const [key, m] of this.masks) {
+      if (!m.mesh) continue;
+      const w = want.get(key);
+      m.mesh.visible = !!w;
+      if (!w) continue;
+      m.mesh.recolor = new THREE.Color(SEV[w.issue.severity].color);
+      m.mesh.opacity = selId === w.issue.issue_id ? 1 : 0.8;
+    }
+  }
+  async loadMask(key, issue, o) {
+    const site = this.site, entry = { mesh: null };
+    this.masks.set(key, entry);
+    let raw;
+    try {
+      const r = await fetch(o.points_url, { cache: 'force-cache' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      raw = await r.json();
+    } catch (e) { console.warn(`Mask points of ${o.obs_id}:`, e); return; }
+    if (this.site?.id !== site.id || this.masks.get(key) !== entry || !raw?.length) return;
+    const M = new THREE.Matrix4().set(...site.splat_to_viewer.flat());
+    const n = new THREE.Vector3(...(o.normal || issue.normal || [0, 0, 1]));
+    if (n.lengthSq() < 1e-6) n.set(0, 0, 1);
+    n.normalize();
+    // Flat discs facing the surface normal, lifted 5 mm towards the camera so they don't z-fight the scan.
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), off = n.clone().multiplyScalar(0.005);
+    const spacing = Math.sqrt((o.area_m2 || 0.0004 * raw.length) / raw.length);
+    const r = clamp(spacing * 0.7, 0.003, 0.03), scale = new THREE.Vector3(r, r, 0.0015), white = new THREE.Color(1, 1, 1);
+    const mesh = new Spark.SplatMesh({
+      constructSplats: (packed) => {
+        for (const p of raw) packed.pushSplat(_c.set(p[0], p[1], p[2]).applyMatrix4(M).add(off), scale, q, 0.9, white);
+      },
+    });
+    mesh.userData.mask = { issueId: issue.issue_id, obsId: o.obs_id };
+    await mesh.initialized;
+    if (this.site?.id !== site.id || this.masks.get(key) !== entry) { mesh.dispose?.(); return; }
+    entry.mesh = mesh;
+    this.splatRoot.add(mesh);
+    this.syncMasks();
+  }
   buildPins() {
     this.pins = this.site.issues.map((issue) => {
       const el = document.createElement('button');
@@ -2378,19 +2627,57 @@ class Twin {
       return { issue, el, pos: [issue.position_m[0] + n[0] * 0.03, issue.position_m[1] + n[1] * 0.03, issue.position_m[2] + n[2] * 0.03], visible: true };
     });
   }
-  showObservation() {
-    this.helpers.clear();
+  selectedObs() {
     const sel = state.selection;
-    if (sel?.kind !== 'issue') return;
-    const issue = this.site.issues.find((i) => i.issue_id === sel.id);
-    if (!issue) return;
-    const o = issue.observations[sel.obsIndex ?? issue.observations.length - 1];
-    if (!o?.camera_pose) return;
-    const fov = THREE.MathUtils.degToRad(62), asp = 4 / 3, d = 0.4, hh = Math.tan(fov / 2) * d, hw = hh * asp;
+    if (sel?.kind !== 'issue') return null;
+    const issue = this.site?.issues.find((i) => i.issue_id === sel.id);
+    const o = issue?.observations[sel.obsIndex ?? issue.observations.length - 1];
+    return o?.camera_pose ? { issue, o } : null;
+  }
+  // The capture photo as a plane inside its camera frustum, at the depth of the damage: seen from the
+  // photo's pose it lies exactly over the scan ("Photo in the scan" slider fades it in and out).
+  photoTexture(url) {
+    this.photoTex ??= new Map();
+    if (!this.photoTex.has(url)) {
+      const loader = new THREE.TextureLoader();
+      loader.setCrossOrigin('anonymous');
+      const tex = loader.load(url, () => { if (this.selectedObs()) this.showObservation(); }, undefined, (e) => console.warn(`Photo ${url}:`, e));
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.photoTex.set(url, tex);
+    }
+    return this.photoTex.get(url);
+  }
+  viewFromPhoto() {
+    const s = this.selectedObs();
+    if (s) this.viewCapture({ vps: { camera_pose: s.o.camera_pose } }, true);
+  }
+  showObservation() {
+    this.helpers.traverse((x) => { if (x !== this.helpers) { x.geometry?.dispose(); x.material?.dispose(); } });
+    this.helpers.clear();
+    const s = this.selectedObs();
+    if (!s) return;
+    const { issue, o } = s;
+    const q = new THREE.Quaternion(...o.camera_pose.q), t = new THREE.Vector3(...o.camera_pose.t);
+    const vps = this.site.captures.find((c) => c.capture_id === o.capture_id)?.vps;
+    const src = this.site.live && (o.overlay_url || o.image_url), tex = src && state.photoAlpha > 0 ? this.photoTexture(src) : null;
+    const img = tex?.image, loaded = img && img.width > 0;
+    const fov = THREE.MathUtils.degToRad(vps?.fov_y || 62), asp = loaded ? img.width / img.height : vps?.aspect || 4 / 3;
+    // depth of the damage along the camera's view axis; the frustum reaches the photo plane while it is shown
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+    const dIssue = clamp(new THREE.Vector3(...issue.position_m).sub(t).dot(fwd), 0.3, 15);
+    const d = loaded ? dIssue : 0.4, hh = Math.tan(fov / 2) * d, hw = hh * asp;
     const corners = [[0, 0, 0], [-hw, -hh, -d], [hw, -hh, -d], [hw, hh, -d], [-hw, hh, -d], [0, hh * 1.5, -d]];
     const idx = [0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1, 3, 5, 5, 4];
-    const q = new THREE.Quaternion(...o.camera_pose.q), t = new THREE.Vector3(...o.camera_pose.t);
     const pts = idx.map((k) => new THREE.Vector3(...corners[k]).applyQuaternion(q).add(t));
+    if (loaded) {
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(2 * hw, 2 * hh), new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, opacity: state.photoAlpha, depthTest: false, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      plane.quaternion.copy(q);
+      plane.position.copy(t).addScaledVector(fwd, d);
+      plane.renderOrder = 997;
+      plane.userData.photo = true;
+      this.helpers.add(plane);
+    }
     const frustum = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(COLOR.pick), depthTest: false, transparent: true }));
     const ray = new THREE.Line(new THREE.BufferGeometry().setFromPoints([t, new THREE.Vector3(...issue.position_m)]), new THREE.LineDashedMaterial({ color: new THREE.Color(COLOR.pick), dashSize: 0.06, gapSize: 0.05, depthTest: false, transparent: true, opacity: 0.8 }));
     ray.computeLineDistances();
@@ -2534,6 +2821,7 @@ const app = {
     if (tab !== 'captures') closeCapture();
     document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${tab}`));
+    if (tab === 'dashboard') drawLivePlan();       // its box had no size while the tab was hidden
     if (twin) twin.active = tab === 'twin';
     if (tab === 'twin') await this.ensureTwin();
     this.writeHash();
@@ -2575,7 +2863,7 @@ const app = {
   async selectCapture(id, { fly = true } = {}) {
     const c = state.site.captures.find((x) => x.capture_id === id);
     if (!c?.vps) return;
-    if (!state.showVps) state.showVps = true;
+    state.showVps = true; state.debugOpen = true;
     state.selection = { kind: 'capture', id };
     if (state.tab !== 'twin') await this.setTab('twin');
     if (twinLoading) await twinLoading;
@@ -2623,6 +2911,11 @@ document.addEventListener('click', (e) => {
   else if (a === 'open-issue') app.selectIssue(el.dataset.id, { fly: !el.dataset.nofly, obsIndex: el.dataset.obs != null ? +el.dataset.obs : undefined });
   else if (a === 'select-seg') { e.preventDefault(); app.selectSegment(el.dataset.id); const m = twin?.bySeg.get(el.dataset.id); if (m) { const seg = m.userData.seg, c = seg.min.map((v, k) => (v + seg.max[k]) / 2); if (!twin.anim) twin.controls.target.set(...c); } }
   else if (a === 'select-obs') { state.selection.obsIndex = +el.dataset.index; renderInspector(); twin?.refresh(); }
+  else if (a === 'view-photo') twin?.viewFromPhoto();
+  else if (a === 'zoom-photo') { const i = state.site.issues.find((x) => x.issue_id === state.selection?.id); if (i) openPhotoBox(i, +el.dataset.index); }
+  else if (a === 'photo-view') { photoBox.view = el.dataset.view; renderPhotoBox(); }
+  else if (a === 'photo-download') downloadPhotoBox();
+  else if (a === 'photo-close') $('#photo-box').close();
   else if (a === 'fly-obs') {
     const i = state.site.issues.find((x) => x.issue_id === state.selection.id), o = i.observations[state.selection.obsIndex ?? i.observations.length - 1];
     if (!o.camera_pose) return;
@@ -2655,12 +2948,18 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target.matches('tr[data-action]')) e.target.click();
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.cap[data-action]')) { e.preventDefault(); e.target.click(); }
-  if (e.key === 'Escape' && state.tab === 'twin' && state.selection) app.clearSelection();
+  if (e.key === 'Escape' && state.tab === 'twin' && state.selection && !$('#photo-box').open) app.clearSelection();
 });
 let paintRaf = 0;
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.id === 'ovl-alpha') { state.overlayAlpha = +t.value; cancelAnimationFrame(paintRaf); paintRaf = requestAnimationFrame(() => twin?.refresh()); }
+  if (t.id === 'photo-alpha') {
+    const was = state.photoAlpha > 0, plane = twin?.helpers.children.find((x) => x.userData.photo);
+    state.photoAlpha = +t.value;
+    if (plane && state.photoAlpha > 0) plane.material.opacity = state.photoAlpha;
+    else if (was !== state.photoAlpha > 0 || !plane) twin?.showObservation();
+  }
+  else if (t.id === 'ovl-alpha') { state.overlayAlpha = +t.value; cancelAnimationFrame(paintRaf); paintRaf = requestAnimationFrame(() => twin?.refresh()); }
   else if (t.id === 'asof') {
     const [start] = issueDateRange();
     state.asOf = new Date(start + +t.value * DAY + DAY - 1000);
@@ -2683,6 +2982,7 @@ document.addEventListener('change', (e) => {
   else if (t.id === 'f-sev') { state.issueFilter.sev = t.value; renderIssueTable(); }
   else if (t.id === 'f-status') { state.issueFilter.status = t.value; renderIssueTable(); }
 });
+document.addEventListener('toggle', (e) => { if (e.target.id === 'layers-debug') state.debugOpen = e.target.open; }, true);
 const tipEl = $('#tip');
 document.addEventListener('pointerover', (e) => {
   const el = e.target.closest?.('[data-tip]');

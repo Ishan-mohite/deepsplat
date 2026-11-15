@@ -8,7 +8,7 @@ property managers (`design/ux-layouts/imoscan_product_visuals.pdf` on `ux-design
 capture ─► quality gate ─► detect (SAM 3) ─► localize in the splat ─► lift to 3D ─► match issues ─► store
                                              │
                                              ├─ client already localized (robot / glasses): camera_to_map
-                                             ├─ VPS on 4–6 video frames, carried to the photo via ARKit poses
+                                             ├─ VPS on up to 12 video frames, carried to the photo via ARKit poses
                                              └─ VPS on the photo itself
 ```
 
@@ -102,7 +102,7 @@ without an API:
    comes from the splat (gaussian centers projected into the view give its depth).
 2. **Query:** SIFT on the new image → nearest neighbours in the index → ratio test across distinct 3D
    points → 2D-3D matches → PnP + RANSAC → pose in the splat.
-3. **Multi-frame:** 4–6 frames are localized; their ARKit poses give one robust ARKit→map transform,
+3. **Multi-frame:** up to 12 frames are localized; the largest group that agrees with the ARKit motion (outlier frames are dropped) gives one robust ARKit→map transform,
    which places the close-up photo (a plain wall alone is often not localizable).
 
 On the rendered test room: new viewpoints localized to < 3 cm / < 0.5°, ~1 s per frame on a laptop
@@ -123,7 +123,7 @@ view has seen.
 
 The backend applies section 13 itself: raw sensor-orientation images are rotated upright, intrinsics
 and ARKit poses converted (`localization/cameras.py`, tested against the plan's check). It keeps
-4–6 frames (tracking normal, ≥ 0.5 s apart, spread over the capture) for localization.
+up to 12 frames (tracking normal, ≥ 0.5 s apart, spread over the capture) for localization.
 
 ### `POST /inspect` (one image; robots, glasses, tests)
 
@@ -199,10 +199,10 @@ Conventions: map coordinates in meters (splat frame); `camera_pose.q` = camera�
 | 5 Match | same type, and centroids within 15 cm or one centroid within 15 cm of the other finding's 3D extent (keeps a growing crack linked), same object if known → observation; > 20 % growth → `worsening`; open issue visible in a confident view without a finding → `repair_suggested` (human confirms) |
 | 6 Store | issues + observations, masks, overlays, 3D points and gaussian indices |
 
-Damage classes (`inspection/classes.py`), labels as in the UX: Crack, Mould, Stain, Scratch, Peeling
-paint, Hole, Corrosion are enabled (crack / mould / stain / peeling paint / rust prompts checked on real
-photos; scratch and hole barely tested). Dent, exposed wiring and obstruction/spill are disabled;
-"missing part" cannot be found with a text prompt.
+Damage classes (`inspection/classes.py`), labels as in the UX: for now only Crack is enabled and sent to
+SAM 3 (prompt `crack`). Mould, Stain, Scratch, Peeling paint, Hole, Corrosion, Dent, exposed wiring and
+obstruction/spill stay defined but disabled (set `enabled: True` to bring one back); "missing part"
+cannot be found with a text prompt.
 
 ## External VPS (e.g. MultiSet)
 

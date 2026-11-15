@@ -52,8 +52,10 @@ def test_floor_plan_render():
     img = np.asarray(Image.open(io.BytesIO(png)))
     assert img.shape[1] == meta["width"] and abs(meta["width"] * 0.02 - 6.6) < 0.05
     u, v = floorplan.to_px([3.0, 2.0], meta)
-    assert img[int(v), int(u)].sum() < 100            # the wall is drawn dark, seen from above
-    assert img[int(v), int(u) + 20].sum() > 500       # floor next to it is light
+    assert img[int(v), int(u), :3].sum() < 100        # the wall is drawn dark, seen from above
+    assert img[int(v), int(u) + 20, :3].sum() > 500   # floor next to it is light
+    assert img.shape[2] == 4 and img[0, 0, 3] == 0 and img[int(v), int(u), 3] == 255   # margin transparent
+    assert tuple(np.asarray(Image.open(io.BytesIO(png)).convert("RGB"))[0, 0]) == (245, 245, 245)  # RGB readers
 
 
 def test_viewer_splat_copy(tmp_path):

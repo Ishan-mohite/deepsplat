@@ -428,6 +428,10 @@ def process_map(map_id: str) -> None:
                 m.floor_plan = meta
             except Exception:
                 log.exception("floor plan failed for %s", map_id)
+            try:
+                build_floor_map(m, pts)
+            except Exception:
+                log.exception("floor map failed for %s", map_id)
             m.status, m.error = MapStatus.ready, None
         except Exception as e:
             log.exception("map processing failed for %s", map_id)
@@ -474,6 +478,27 @@ def ensure_viewer_lods() -> int:
         except Exception:
             log.exception("could not add viewer detail levels to map %s", mid)
     return len(ids)
+
+
+def build_floor_map(m: Map, pts: np.ndarray | None = None) -> None:
+    """Floor map for the dashboard (elevmap/floormap.py): floor, raised levels, furniture and walls of the
+    splat, in the map's floor-plane coordinates. Its meta is kept in m.floor_plan["floor_map"]."""
+    from elevmap import floormap, source
+
+    path = storage.local_path(m.splat_key)
+    try:          # 3DGS: the gaussians' normals tell the floor from walls and table tops
+        d = source.load_splat(str(path), MIN_OPACITY, log=lambda s: None)
+        xyz, nrm = d["xyz"], floormap.normals_or_none(d["scale"], d["quat"])
+    except ValueError:                  # plain point cloud
+        if pts is None:
+            xyz, opacity = read_ply_points(path)
+            pts = xyz if opacity is None else xyz[opacity >= MIN_OPACITY]
+        xyz, nrm = pts, None
+    p = to_zup(xyz, m.up_axis) - [0.0, 0.0, m.floor_z or 0.0]
+    png, meta = floormap.make(p, None if nrm is None else to_zup(nrm, m.up_axis))
+    key = f"maps/{m.id}/floor_map.png"
+    storage.put_bytes(key, png, "image/png")
+    m.floor_plan = {**(m.floor_plan or {}), "floor_map": {**meta, "key": key}}
 
 
 def build_vps_index(map_id: str) -> None:

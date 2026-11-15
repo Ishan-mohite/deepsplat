@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from localization import sift_vps  # noqa: E402
 from localization.alignment import alignment_from_frame_poses  # noqa: E402
 from localization.cameras import Frame  # noqa: E402
+from localization.vps import multi_frame_confidence  # noqa: E402
 from localization.map_views import load_views  # noqa: E402
 
 OK_POS, OK_ROT = 0.25, 5.0       # "correct" = within 25 cm and 5 degrees
@@ -83,6 +84,12 @@ def main():
     ap.add_argument("--index-features", type=int, default=2000)
     ap.add_argument("--variants", default="baseline", help="comma list: baseline,ratio09,feat8000,ratio09_feat8000")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--outlier-rate", type=float, default=0.25,
+                    help="multi-frame test: share of localized frames given a gross wrong pose (real phone frames do this)")
+    ap.add_argument("--rot-noise-deg", type=float, default=0.7, help="multi-frame test: device tracking rotation noise")
+    ap.add_argument("--repeats", type=int, default=8, help="multi-frame test: random re-draws of world transform / noise / outliers")
+    ap.add_argument("--report-name", default="report.json")
+    ap.add_argument("--reuse-index", action="store_true", help="skip rebuilding the held-out index if it exists")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(a.seed)
@@ -103,13 +110,16 @@ def main():
           f"| removed margin {len(views) - len(index_views) - len(held)}", flush=True)
 
     tmp = a.out / "_subset"
-    write_subset(a.colmap, {v.name for v in index_views}, tmp)
     sift_vps.MAX_FEATURES_INDEX = a.index_features
     vps = sift_vps.SiftVPS(a.out / "_index")
-    t0 = time.time()
-    xyz = np.load(a.proj)["xyz"].astype(np.float64)
-    info = vps.build_index("eval", tmp, map_xyz=xyz)
-    print(f"index built in {time.time() - t0:.0f}s: {info}", flush=True)
+    if a.reuse_index and vps.has_index("eval"):
+        print("reusing existing held-out index", flush=True)
+    else:
+        write_subset(a.colmap, {v.name for v in index_views}, tmp)
+        t0 = time.time()
+        xyz = np.load(a.proj)["xyz"].astype(np.float64)
+        info = vps.build_index("eval", tmp, map_xyz=xyz)
+        print(f"index built in {time.time() - t0:.0f}s: {info}", flush=True)
 
     defaults = dict(RATIO=sift_vps.RATIO, MAX_FEATURES_QUERY=sift_vps.MAX_FEATURES_QUERY)
     variants = {"baseline": {}, "ratio09": {"RATIO": 0.9}, "feat8000": {"MAX_FEATURES_QUERY": 8000},
@@ -155,60 +165,66 @@ def main():
         }
         print(json.dumps(single, indent=1), flush=True)
 
-        # ---- multi-frame simulation (left camera, 6 frames, 0.5 s apart)
+        # ---- multi-frame simulation (left camera, 6 frames, 0.5 s apart), repeated with random draws
         by_name = {v.name: (v, r) for v, r in zip(held, res)}
+
+        def rand_rot(deg):
+            ax = rng.normal(size=3); ax /= np.linalg.norm(ax)
+            th = np.radians(deg)
+            K = np.array([[0, -ax[2], ax[1]], [ax[2], 0, -ax[0]], [-ax[1], ax[0], 0]])
+            return np.eye(3) + np.sin(th) * K + (1 - np.cos(th)) * K @ K
+
         sims = []
         for blk in blocks:
             seq = [v for t in blk for v in held if ts_of(v.name) == t and v.name.startswith("left")]
-            for i in range(0, len(seq) - 5, 2):
+            for i in range(0, len(seq) - 5):
                 grp = seq[i:i + 6]
-                yaw = rng.uniform(0, 2 * np.pi)
-                D = np.eye(4)
-                D[:3, :3] = np.array([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
-                D[:3, 3] = rng.uniform(-5, 5, 3)
-                dev, mp, rs = [], [], []
-                for v in grp:
-                    noise = np.eye(4)
-                    noise[:3, 3] = rng.normal(0, 0.01, 3)       # 1 cm tracking noise
-                    dev.append(D @ v.c2w @ noise)
-                    r = by_name[v.name][1]
-                    if r is not None:
-                        mp.append(r.c2w)
-                        rs.append(r)
-                row = {"n_localized": len(rs)}
-                if rs:
-                    ok_idx = [k for k, v in enumerate(grp) if by_name[v.name][1] is not None]
-                    al = alignment_from_frame_poses([dev[k] for k in ok_idx], mp)
-                    T = np.asarray(al["matrix"])
-                    last = grp[-1]
-                    pred = T @ dev[-1]
-                    pe, re = pose_err(pred, last.c2w)
-                    mean_conf = float(np.mean([r.confidence for r in rs]))
-                    row |= {"pos_m": pe, "rot_deg": re, "agree": al["confidence"], "n_inl": al["n_inliers"],
-                            "median_inliers": float(np.median([r.num_inliers for r in rs])),
-                            "conf_backend": al["confidence"] * mean_conf, "correct": pe < OK_POS and re < OK_ROT}
-                sims.append(row)
-        got = [s for s in sims if "correct" in s]
-        multi = {"groups": len(sims), "groups_with_any_localized_frame": len(got)}
+                for _ in range(a.repeats):
+                    yaw = rng.uniform(0, 2 * np.pi)
+                    D = np.eye(4)
+                    D[:3, :3] = np.array([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
+                    D[:3, 3] = rng.uniform(-5, 5, 3)
+                    dev, mp, rs, ok_idx = [], [], [], []
+                    for k, v in enumerate(grp):
+                        noise = np.eye(4)
+                        noise[:3, 3] = rng.normal(0, 0.01, 3)            # 1 cm tracking noise
+                        noise[:3, :3] = rand_rot(abs(rng.normal(0, a.rot_noise_deg)))
+                        dev.append(D @ v.c2w @ noise)
+                        r = by_name[v.name][1]
+                        if r is None:
+                            continue
+                        c2w = r.c2w.copy()
+                        if rng.random() < a.outlier_rate:                  # a confident wrong frame
+                            c2w[:3, 3] += rng.normal(size=3) / 1.7 * rng.uniform(1.5, 4.0)
+                            c2w[:3, :3] = rand_rot(rng.uniform(10, 30)) @ c2w[:3, :3]
+                        mp.append(c2w); rs.append(r); ok_idx.append(k)
+                    row = {"n_localized": len(rs)}
+                    if rs:
+                        al = alignment_from_frame_poses([dev[k] for k in ok_idx], mp)
+                        T = np.asarray(al["matrix"])
+                        last = grp[-1]
+                        pe, re = pose_err(T @ dev[-1], last.c2w)
+                        row |= {"pos_m": pe, "rot_deg": re, "agree": al["confidence"], "n_inl": al["n_inliers"],
+                                "median_inliers": float(np.median([r.num_inliers for r in rs])),
+                                "correct": pe < OK_POS and re < OK_ROT}
+                        row["conf_backend"] = multi_frame_confidence(al["confidence"], [r.num_inliers for r in rs])
+                    sims.append(row)
+        got = [s_ for s_ in sims if "correct" in s_]
+        multi = {"groups": len(sims), "groups_with_any_localized_frame": len(got),
+                 "outlier_rate": a.outlier_rate, "rot_noise_deg": a.rot_noise_deg}
         if got:
-            c = np.array([s["correct"] for s in got])
-            agree = np.array([s["agree"] for s in got])
-            cb = np.array([s["conf_backend"] for s in got])
-            med = np.array([s["median_inliers"] for s in got])
-            alt = agree * np.minimum(1.0, med / 40.0)
+            c = np.array([s_["correct"] for s_ in got])
+            cb = np.array([s_["conf_backend"] for s_ in got])
             multi |= {"correct_rate_of_all_groups": round(float(c.sum()) / len(sims), 3),
                       "wrong_but_returned": int((~c).sum()),
-                      "pos_err_m_pct50_90_99": [pct(np.array([s["pos_m"] for s in got])[c], q) for q in (50, 90, 99)] if c.any() else None,
-                      "backend_confidence (agree x mean(inliers/150)) at 0.5": confusion(c, cb, 0.5),
-                      "backend_confidence at 0.35": confusion(c, cb, 0.35),
-                      "agreement_only >=1.0": confusion(c, agree, 1.0),
-                      "agreement x min(1,median_inliers/40) at 0.5": confusion(c, alt, 0.5),
-                      "agreement x min(1,median_inliers/40) at 0.8": confusion(c, alt, 0.8)}
+                      "pos_err_m_pct50_90_99": [pct(np.array([s_["pos_m"] for s_ in got])[c], q) for q in (50, 90, 99)] if c.any() else None,
+                      "confidence>=0.5 (what the backend accepts)": confusion(c, cb, 0.5),
+                      "confidence>=0.35": confusion(c, cb, 0.35)}
         print(json.dumps(multi, indent=1), flush=True)
         report["variants"][vname] = {"single_frame": single, "multi_frame": multi, "rows": rows}
 
-    (a.out / "report.json").write_text(json.dumps(report, indent=1, default=float))
-    print(f"\nwrote {a.out / 'report.json'}", flush=True)
+    (a.out / a.report_name).write_text(json.dumps(report, indent=1, default=float))
+    print(f"\nwrote {a.out / a.report_name}", flush=True)
 
 
 if __name__ == "__main__":

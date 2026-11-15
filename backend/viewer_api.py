@@ -6,8 +6,9 @@ MockApi, so the viewer can switch from mock data to the backend by replacing two
 
 Coordinates are converted to the viewer's three.js frame (y up, cameras looking along -z).
 The splat itself stays in the map frame: apply `splat_to_viewer` (4x4) to the splat mesh.
-The procedural mock geometry (segments, plan, elevation) is replaced by `splat_url` and
-`floor_plan_url`.
+The procedural mock geometry (segments, plan, elevation) is replaced by `splat_url`,
+`floor_plan_url` (top-down render of the splat) and `floor_map_url` (floor / furniture / walls plan
+from elevmap/floormap.py, shown on the dashboard).
 """
 
 import numpy as np
@@ -186,6 +187,9 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
                 "image_url": storage.url(o.image_key) if o.image_key else None,
                 "mask_url": storage.url(o.mask_key) if o.mask_key else None,
                 "overlay_url": storage.url(o.overlay_key) if o.overlay_key else None,
+                # the mask lifted onto the scan: JSON [[x,y,z], ...] in the map frame (apply splat_to_viewer)
+                "points_url": storage.url(o.points_key) if o.points_key else None,
+                "normal": _v(M, o.normal) if o.normal else None,
                 "length_m": o.length_m, "area_m2": o.area_m2, "detector_confidence": o.detector_confidence,
                 "reviewed_by": o.reviewed_by, "capture_id": o.capture_id,
                 "recorder": o.recorder, "event_kind": o.event_kind, "record_hash": o.record_hash,
@@ -195,6 +199,7 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
     caps = s.exec(select(Capture).where(Capture.map_id == map_id).order_by(Capture.created_at.desc())).all()
     splat_to_viewer = np.eye(4)
     splat_to_viewer[:3, :3] = M
+    fm = (m.floor_plan or {}).get("floor_map")
     return {
         "id": m.id, "map_id": m.id, "name": m.name, "option": f"{m.name} · {ctx.get('category', 'Unit')}",
         "kind": ctx.get("kind", "interior"), "category": ctx.get("category", "Unit"),
@@ -206,7 +211,10 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
         # detail levels, largest first; the viewer picks one for the device (see viewer: splat quality)
         "splat_lods": [{"name": l["name"], "url": storage.url(l["key"]), "gaussians": l["gaussians"],
                         "mb": round(l["bytes"] / 1e6, 1)} for l in (m.stats or {}).get("viewer_lods", [])],
-        "floor_plan_url": storage.url(m.floor_plan_key) if m.floor_plan_key else None, "floor_plan": m.floor_plan,
+        "floor_plan_url": storage.url(m.floor_plan_key) if m.floor_plan_key else None,
+        "floor_plan": {k: v for k, v in (m.floor_plan or {}).items() if k != "floor_map"},
+        "floor_map_url": storage.url(fm["key"]) if fm else None,
+        "floor_map": {k: v for k, v in fm.items() if k != "key"} if fm else None,
         "rooms": m.rooms, "gaussians": m.stats.get("n_gaussians"),
         "camera": {"dir": [0.0, 0.707, 0.707], "center": center,
                    "box": [[round(float(v), 3) for v in bmin], [round(float(v), 3) for v in bmax]]},
