@@ -1,6 +1,6 @@
 # Capture upload contract
 
-This client follows section 10 of `docs/PLAN.md`. The API is proposed and not implemented here. Configure its HTTPS base URL and a static bearer token in the app. Paths are relative to that base URL.
+This client follows section 10 of `docs/PLAN.md`. The API is implemented in [`backend/`](../../backend/README.md); `scripts/start-backend.sh --tunnel` starts it with an HTTPS address and prints the URL and token. Configure that HTTPS base URL and the static bearer token in the app. Paths are relative to that base URL.
 
 ## Create/recover an upload
 

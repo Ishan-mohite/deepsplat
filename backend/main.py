@@ -12,7 +12,8 @@ from typing import Annotated
 import numpy as np
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel, ValidationError
 from sqlmodel import Session, select
@@ -829,3 +830,15 @@ def get_file(key: str):
 from .viewer_api import router as viewer_router  # noqa: E402
 
 app.include_router(viewer_router)
+
+# The web viewer itself, when it lies next to the backend (repository checkout): open
+# http://<host>:8000/ and it reads GET /viewer/sites from this server. Registered after the
+# viewer router, so /viewer/sites keeps going to the API.
+_REPO = Path(__file__).resolve().parent.parent
+if (_REPO / "viewer" / "index.html").is_file() and (_REPO / "design").is_dir():
+    app.mount("/viewer", StaticFiles(directory=_REPO / "viewer", html=True), name="viewer-app")
+    app.mount("/design", StaticFiles(directory=_REPO / "design"), name="design")
+
+    @app.get("/", include_in_schema=False)
+    def viewer_home():
+        return RedirectResponse("/viewer/")

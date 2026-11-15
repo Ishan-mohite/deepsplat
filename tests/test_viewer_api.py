@@ -83,3 +83,14 @@ def test_captures_pipeline_stage(site):
     failed = by_status["failed"]
     assert failed["stage"] == 1 and failed["reason"]                      # stopped at "Localized (VPS)"
     assert by_status["done"]["size_mb"] is not None
+
+
+def test_backend_serves_the_viewer_page(site):
+    """The backend hosts viewer/index.html (live mode) next to the /viewer API."""
+    with TestClient(app) as c:
+        home = c.get("/", follow_redirects=False)
+        assert home.status_code in (302, 307) and home.headers["location"] == "/viewer/"
+        page = c.get("/viewer/")
+        assert page.status_code == 200 and "LiveApi" in page.text
+        assert c.get("/design/system/tokens.css").status_code == 200
+        assert isinstance(c.get("/viewer/sites").json(), list)        # the API is not shadowed

@@ -26,9 +26,12 @@ capture ─► quality gate ─► detect (SAM 3) ─► localize in the splat �
 uv sync
 cp backend/.env.example .env           # set ROBOFLOW_API_KEY, or DETECTOR=fake
 uv run uvicorn backend.main:app --reload
-# API docs: http://localhost:8000/docs
+# viewer: http://localhost:8000/   API docs: http://localhost:8000/docs
 uv run pytest
 ```
+
+For a test with the iOS app use `scripts/start-backend.sh --tunnel` (see the main README): the app
+only accepts https addresses, so the script opens a tunnel and sets `PUBLIC_BASE_URL` and `API_TOKEN`.
 
 ## imoscan UX → API
 
@@ -49,10 +52,12 @@ Places: every issue gets `room` (rooms drawn as floor-plane polygons via `PATCH 
 counts), `surface` (`floor`, `ceiling`, `north wall`, ... from the surface normal and the map's
 `north`), `height_m` above the floor (`floor_z`, estimated from the splat), `floor_xy`/`floor_plan_px`.
 
-## Web viewer (branch `web-viewer`)
+## Web viewer
 
-The viewer prototype (`viewer/index.html`) runs on mock data from `MockApi`. The backend serves the
-same shape, so switching is two calls:
+The backend serves the viewer at `/` (`viewer/index.html`, with `design/` for its styles). Opened
+there, the viewer reads the two endpoints below and polls the current site every 4 s; without a
+backend, or with `?mock`, it shows its sample data from `MockApi`. A viewer served elsewhere can
+point at a backend with `?api=http://host:8000`.
 
 | `MockApi` | Backend |
 |---|---|

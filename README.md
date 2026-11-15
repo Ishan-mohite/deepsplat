@@ -13,6 +13,76 @@ deepsplat turns an indoor space into a photo-real Gaussian splat, labels everyth
 
 ---
 
+## Run it
+
+Everything is on `main`: backend, web viewer, iOS capture app, design system and the elevation map.
+
+| Folder | What it is | Docs |
+|---|---|---|
+| `backend/`, `inspection/`, `localization/` | FastAPI backend: capture upload, own VPS, SAM 3 damage detection, 3D lifting, issue log | [backend/README.md](backend/README.md) |
+| `viewer/` | Web viewer (dashboard, 3D twin, issues, captures). Served by the backend, reads its data live | [viewer/index.html](viewer/index.html) |
+| `clients/ios/` | iPhone capture app | [clients/ios/README.md](clients/ios/README.md) |
+| `elevmap/`, `maps/` | Elevation and traversability map from a splat | [elevmap/README.md](elevmap/README.md) |
+| `design/`, `DESIGN.md` | Design system | below |
+| `scripts/` | Start the backend, register a splat as a map | below |
+
+### 1. Start the backend (on the machine that has the splat)
+
+Needs [uv](https://docs.astral.sh/uv/) and, for the iOS app, `cloudflared` (macOS: `brew install uv cloudflared`).
+
+```bash
+git checkout main && git pull
+scripts/start-backend.sh --tunnel
+```
+
+The script installs the Python packages, creates `.env` from `backend/.env.example` if there is none
+(set `ROBOFLOW_API_KEY` there for SAM 3, or `DETECTOR=fake` for a dry run), makes sure an API token is
+set, and prints the three values the app needs. Data stays in `./data` (ignored by git), so a map that
+was registered in this folder before is still there.
+
+`--tunnel` publishes the server under a temporary `https://….trycloudflare.com` address. The iOS app
+only accepts https addresses, and a laptop on the local network has none. The address changes with
+every start. Without `--tunnel` the viewer and API run on `http://localhost:8000` and the local network only.
+
+### 2. Register the splat (once per map)
+
+```bash
+scripts/register-map.sh auditorium /path/to/splat_30000.ply /path/to/views.zip "Auditorium"
+```
+
+`views.zip` holds the training images with their poses (nerfstudio `transforms.json` or a COLMAP text
+model). The backend needs it to localize captures; without it the map only shows up in the viewer.
+The backend then writes a lighter copy of the splat for the browser, a floor plan and the
+localization index. Details and metadata (`up_axis`, rooms, …): [backend/README.md](backend/README.md).
+
+### 3. Open the viewer
+
+`http://localhost:8000/` on the backend machine (or the tunnel address from anywhere). It shows the
+registered maps and refreshes every few seconds: a capture from the app appears under **Captures**,
+moves through the steps and ends as a pin in the 3D twin. `viewer/index.html?mock` or opening the
+page without a backend shows the sample data.
+
+### 4. Record with the app
+
+Build and install as described in [clients/ios/README.md](clients/ios/README.md). In the app's
+Settings switch **Mock backend** off and enter the values the start script printed:
+
+| Setting | Value |
+|---|---|
+| Backend URL | the `https://….trycloudflare.com` address |
+| Token | the token from the script (also `API_TOKEN` in `.env`) |
+| Map ID | the id used in step 2, e.g. `auditorium` |
+
+Then **Record defect** → sweep → crack photo → **Upload capture**.
+
+### Tests
+
+```bash
+uv run pytest        # backend, viewer API, VPS, elevation map; about 30 s
+```
+
+---
+
 ## Design system
 
 Everything you need to build deepsplat screens, documents and slides. The rules are in [DESIGN.md](DESIGN.md), the tokens in
@@ -247,15 +317,18 @@ Keep the scope to one room or corridor and prove the full loop.
 - **Privacy** on sites with workers; blur people and faces before storing images
 - **Map drift** when equipment moves; needs periodic rescans
 
-## Proposed repository structure
+## Repository structure
 
 ```
 deepsplat/
-├── mapping/        # splat training, scale alignment, segmentation lifting
-├── localization/   # VPS index build + /localize service
-├── inspection/     # damage detection, 3D lifting, issue matching
-├── backend/        # FastAPI app, database models, storage
-├── viewer/         # Three.js splat viewer with issue pins
-├── clients/        # mobile / glasses / robot capture clients
-└── data/           # sample scans and test images (not committed if large)
+├── localization/   # own VPS (SIFT) + hloc VPS, camera conventions, frame-pose alignment
+├── inspection/     # damage detection (SAM 3), 3D lifting, severity, issue matching
+├── backend/        # FastAPI app, database models, storage, deployment
+├── viewer/         # Three.js + Spark splat viewer with issue pins
+├── clients/ios/    # iPhone capture app
+├── elevmap/        # elevation / traversability map from a splat (results in maps/)
+├── design/         # design system and brand files
+├── scripts/        # start the backend, register a map
+├── tests/          # backend, VPS and elevation map tests
+└── data/           # database, splats, captures of a local backend (not committed)
 ```
