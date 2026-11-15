@@ -24,3 +24,14 @@ def test_change():
     assert change("crack", 0.30, 0.40) == "worsening"
     assert change("crack", 0.05, 0.065) == "stable"      # +30 % but only 1.5 cm
     assert change("stain", 0.010, 0.020) == "worsening"
+
+
+def test_growing_crack_stays_linked():
+    """A 0.5 m crack grows to 1.4 m in one direction: its centroid moves 0.45 m and is 0.2 m
+    outside the old extent; only the old centroid inside the new extent links them."""
+    old = OpenIssue(1, "crack", [0.25, 0, 1.0], bbox_min=[0.0, -0.01, 1.0], bbox_max=[0.5, 0.01, 1.0])
+    assert find_match("crack", [0.7, 0, 1.0], None, [old]) is None                    # without the new extent: miss
+    assert find_match("crack", [0.7, 0, 1.0], None, [old],
+                      bbox_min=[0.0, -0.01, 1.0], bbox_max=[1.4, 0.01, 1.0]).key == 1   # with it: linked
+    far = OpenIssue(2, "crack", [3.0, 0, 1.0], bbox_min=[2.8, 0, 1.0], bbox_max=[3.2, 0, 1.0])
+    assert find_match("crack", [0.7, 0, 1.0], None, [far], bbox_min=[0.0, 0, 1.0], bbox_max=[1.4, 0, 1.0]) is None

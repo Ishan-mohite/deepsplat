@@ -18,7 +18,7 @@ import numpy as np
 from PIL import Image
 from sqlmodel import Session, select
 
-from inspection import evidence, floorplan, quality, render
+from inspection import evidence, floorplan, quality, render, splatfile
 from inspection.classes import enabled_classes
 from inspection.detection import get_detector
 from inspection.issues import OpenIssue, change, find_match, size_of
@@ -268,7 +268,8 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
     place_kw = {"up_axis": m.up_axis, "north": m.north, "floor_z": m.floor_z, "rooms": m.rooms}
 
     open_issues = s.exec(select(Issue).where(Issue.map_id == m.id, Issue.status.in_(OPEN_STATUSES))).all()
-    cands = [OpenIssue(i.seq, i.damage_class, i.position, i.object_id) for i in open_issues]
+    cands = [OpenIssue(i.seq, i.damage_class, i.position, i.object_id, i.bbox_min or None, i.bbox_max or None)
+             for i in open_issues]
     matched: set[int] = set()
 
     for d in s.exec(select(Detection).where(Detection.capture_id == cap.id)
@@ -278,7 +279,7 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
             continue
         size = size_of(d.damage_class, lf.length_m, lf.area_m2)
         pl = place(lf.centroid, lf.normal, **place_kw)
-        hit = find_match(d.damage_class, lf.centroid, None, cands)
+        hit = find_match(d.damage_class, lf.centroid, None, cands, bbox_min=lf.bbox_min, bbox_max=lf.bbox_max)
         if hit is not None:
             issue = s.get(Issue, hit.key)
             ch = change(d.damage_class, issue.size, size)
@@ -287,6 +288,10 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
                 issue.severity = max_severity(issue.severity,
                                               severity(d.damage_class, lf.length_m, lf.area_m2, issue.object_label))
             issue.size = size
+            issue.bbox_min, issue.bbox_max = lf.bbox_min, lf.bbox_max
+            for c in cands:
+                if c.key == issue.seq:
+                    c.bbox_min, c.bbox_max = lf.bbox_min, lf.bbox_max
             issue.last_seen = max(aware(issue.last_seen), ts)
             issue.repair_suggested = False
         else:
@@ -294,10 +299,11 @@ def _lift_and_match(s: Session, cap: Capture, m: Map, loc: dict) -> None:
             issue = Issue(map_id=m.id, damage_class=d.damage_class, status=IssueStatus.new,
                           severity=severity(d.damage_class, lf.length_m, lf.area_m2),
                           position=lf.centroid, normal=lf.normal, size=size, first_seen=ts, last_seen=ts,
-                          room=pl["room"], surface=pl["surface"], height_m=pl["height_m"], floor_xy=pl["floor_xy"])
+                          room=pl["room"], surface=pl["surface"], height_m=pl["height_m"], floor_xy=pl["floor_xy"],
+                          bbox_min=lf.bbox_min, bbox_max=lf.bbox_max)
             s.add(issue)
             s.flush()
-            cands.append(OpenIssue(issue.seq, issue.damage_class, issue.position, None))
+            cands.append(OpenIssue(issue.seq, issue.damage_class, issue.position, None, lf.bbox_min, lf.bbox_max))
         matched.add(issue.seq)
         s.add(issue)
 
@@ -357,6 +363,16 @@ def process_map(map_id: str) -> None:
                        "bounds_min": np.round(lo, 3).tolist(), "bounds_max": np.round(hi, 3).tolist()}
             if m.floor_z is None:
                 m.floor_z = round(float(np.percentile(to_zup(pts, m.up_axis)[:, 2], 2)), 3)
+            try:
+                tmp = settings.data_dir / "tmp" / f"{m.id}_viewer.ply"
+                tmp.parent.mkdir(parents=True, exist_ok=True)
+                m.stats = {**m.stats, "viewer_splat": splatfile.viewer_copy(storage.local_path(m.splat_key), tmp)}
+                m.viewer_splat_key = f"maps/{m.id}/splat_viewer.ply"
+                with open(tmp, "rb") as fh:
+                    storage.put_file(m.viewer_splat_key, fh, "application/octet-stream")
+                tmp.unlink()
+            except ValueError as e:      # plain point cloud: the viewer uses the original
+                log.info("no viewer splat for %s: %s", map_id, e)
             try:
                 rgb = floorplan.read_ply_colors(storage.local_path(m.splat_key))
                 png, meta = floorplan.render(pts, rgb[keep] if rgb is not None else None,

@@ -54,3 +54,18 @@ def test_floor_plan_render():
     u, v = floorplan.to_px([3.0, 2.0], meta)
     assert img[int(v), int(u)].sum() < 100            # the wall is drawn dark, seen from above
     assert img[int(v), int(u) + 20].sum() > 500       # floor next to it is light
+
+
+def test_viewer_splat_copy(tmp_path):
+    from inspection.splatfile import VIEWER_FIELDS, read_vertices, viewer_copy
+
+    from .conftest import write_3dgs_ply
+    xyz = np.random.default_rng(0).normal(size=(1000, 3))
+    logit = np.full(1000, 3.0)
+    logit[:100] = -8.0                                     # floaters
+    write_3dgs_ply(tmp_path / "s.ply", xyz, logit)
+    st = viewer_copy(tmp_path / "s.ply", tmp_path / "v.ply")
+    v = read_vertices(tmp_path / "v.ply")
+    assert list(v.dtype.names) == VIEWER_FIELDS and st["n_out"] == 900 == len(v)
+    assert "nx" in st["dropped_fields"]
+    assert np.allclose(v["x"], xyz[100:, 0], atol=1e-6)

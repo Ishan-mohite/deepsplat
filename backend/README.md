@@ -60,8 +60,10 @@ same shape, so switching is two calls:
 | `getSite(id)` → site with `summary`, `monthly`, `issues` (README record), `captures` | `GET /viewer/sites/{id}` |
 
 Differences to the mock:
-* Geometry: instead of the procedural `segments` / `plan`, the site has `splat_url` (load with Spark)
-  and `splat_to_viewer` (4x4, apply to the splat mesh), plus `floor_plan_url` / `floor_plan`.
+* Geometry: instead of the procedural `segments` / `plan`, the site has `viewer_splat_url` (load with
+  Spark; falls back to `splat_url`) and `splat_to_viewer` (4x4, apply to the splat mesh), plus
+  `floor_plan_url` / `floor_plan`. `viewer_splat_url` is a copy without the higher SH bands and
+  transparent gaussians (the 708 MB project splat becomes 139 MB).
 * Positions, normals and `camera_pose` are already in the viewer frame (y up, three.js cameras).
 * `types`: the backend's damage types in the viewer's `TYPES` format (merge it; `stain` → `leak`,
   `coating_damage` → `coating`; `hole` etc. are new keys).
@@ -81,7 +83,8 @@ Differences to the mock:
 | `views` | optional zip of the training images + poses (`transforms.json` from nerfstudio, or a COLMAP text model). Needed for the VPS. |
 | `metadata` | optional JSON `{"property", "floor_label", "scanned_at", "up_axis": "z", "north": [0, 1], "rooms": [...], "views_to_map": 4x4, "context": {...}}`. `views_to_map` if the view poses are not in the splat's frame (e.g. nerfstudio dataparser normalization). |
 
-In the background the backend extracts the opaque gaussian centers (opacity ≥ 0.2) for lifting,
+In the background the backend writes a lighter viewer copy of the splat (opaque gaussians, base color
+only), extracts the opaque gaussian centers (opacity ≥ 0.2) for lifting,
 estimates the floor height, renders a top-down floor plan from the splat colors (dollhouse cut,
 2 cm/px) and builds the VPS index from the views (`vps_status`). Rebuild: `POST /maps/{id}/index`.
 
@@ -188,7 +191,7 @@ Conventions: map coordinates in meters (splat frame); `camera_pose.q` = camera�
 | 3 Detect | SAM 3 via Roboflow, one request with all prompts of the enabled classes, per-class thresholds, cross-class dedupe |
 | 3 Severity | base by type + size steps (cracks: 0.5 / 1.5 m, areas: 0.1 / 0.5 m²) + structural object label |
 | 4 Lift | opaque gaussian centers projected into the photo with a coarse z-buffer; points inside the mask → centroid (median), normal, area (m²), length (main axis, m) |
-| 5 Match | same type within 15 cm (and same object if known) → observation; > 20 % growth → `worsening`; open issue visible in a confident view without a finding → `repair_suggested` (human confirms) |
+| 5 Match | same type, and centroids within 15 cm or one centroid within 15 cm of the other finding's 3D extent (keeps a growing crack linked), same object if known → observation; > 20 % growth → `worsening`; open issue visible in a confident view without a finding → `repair_suggested` (human confirms) |
 | 6 Store | issues + observations, masks, overlays, 3D points and gaussian indices |
 
 Damage classes (`inspection/classes.py`), labels as in the UX: Crack, Mould, Stain, Scratch, Peeling
@@ -218,7 +221,7 @@ Large splats: Cloud Run accepts at most 32 MB per request, so use
 
 ## Status
 
-Tested (31 tests): viewer adapter (shape, frame conversion, pipeline stages); splat upload via signed URLs, VPS index surviving a container restart; the imoscan flow on a rendered room (unit with rooms → record → move-out handover
+Tested (33 tests, plus a run with the real 3M-gaussian project splat and the viewer prototype): viewer adapter (shape, frame conversion, pipeline stages); splat upload via signed URLs, VPS index surviving a container restart; the imoscan flow on a rendered room (unit with rooms → record → move-out handover
 linked to the move-in record → live in-view → type correction → repaired → rooms renamed → PDF →
 tampered record detected), places (rooms, compass walls, height), floor plan, hash chain; camera conversions against the app plan's check, lifting (area, length, occlusion),
 frame-pose alignment with outliers, severity and matching, end-to-end `/inspect` (new → worsening →

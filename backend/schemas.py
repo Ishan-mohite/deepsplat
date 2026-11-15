@@ -300,7 +300,8 @@ class MapOut(BaseModel):
     floor_plan_url: str | None = Field(description="top-down image rendered from the splat")
     floor_plan: dict = Field(description="px = (x - origin_x) / m_per_px, py = (origin_y - y) / m_per_px")
     context: dict
-    splat_url: str = Field(description="the trained splat (.ply), load this in the viewer")
+    splat_url: str = Field(description="the trained splat (.ply) as uploaded")
+    viewer_splat_url: str | None = Field(description="lighter copy for browsers (opaque gaussians, base color)")
     vps_status: str
     vps_info: dict
     stats: dict
@@ -493,7 +494,7 @@ def map_out(m: Map) -> MapOut:
     return MapOut(id=m.id, name=m.name, property=m.property, floor_label=m.floor_label, scanned_at=m.scanned_at,
                   status=m.status, error=m.error, created_at=m.created_at, up_axis=m.up_axis, north=m.north,
                   floor_z=m.floor_z, rooms=m.rooms, floor_plan_url=_url(m.floor_plan_key), floor_plan=m.floor_plan,
-                  context=m.context, splat_url=_url(m.splat_key), vps_status=m.vps_status, vps_info=m.vps_info,
+                  context=m.context, splat_url=_url(m.splat_key), viewer_splat_url=_url(m.viewer_splat_key), vps_status=m.vps_status, vps_info=m.vps_info,
                   stats=m.stats)
 
 

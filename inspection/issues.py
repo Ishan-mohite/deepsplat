@@ -21,11 +21,25 @@ class OpenIssue:
     damage_class: str
     position: list[float]
     object_id: str | None = None
+    bbox_min: list[float] | None = None     # 3D extent of the latest observation
+    bbox_max: list[float] | None = None
+
+
+def _dist_to_box(p: np.ndarray, lo, hi) -> float:
+    if lo is None or hi is None:
+        return np.inf
+    lo, hi = np.asarray(lo, dtype=np.float64), np.asarray(hi, dtype=np.float64)
+    return float(np.linalg.norm(np.maximum(0, np.maximum(lo - p, p - hi))))
 
 
 def find_match(damage_class: str, position, object_id: str | None, open_issues: list[OpenIssue],
-               radius: float = MATCH_RADIUS_M) -> OpenIssue | None:
-    """Closest open issue of the same type within `radius` (and on the same object, if both known)."""
+               radius: float = MATCH_RADIUS_M, bbox_min=None, bbox_max=None) -> OpenIssue | None:
+    """Closest open issue of the same type (and on the same object, if both known).
+
+    Close means: centroids within `radius`, or one centroid within `radius` of the other
+    finding's 3D extent. The second rule keeps a growing crack linked: when it doubles in length
+    its centroid moves by a quarter of its length, but the old centroid stays inside the new extent.
+    """
     best, best_d = None, radius
     p = np.asarray(position, dtype=np.float64)
     for iss in open_issues:
@@ -33,7 +47,9 @@ def find_match(damage_class: str, position, object_id: str | None, open_issues: 
             continue
         if object_id and iss.object_id and object_id != iss.object_id:
             continue
-        d = float(np.linalg.norm(p - np.asarray(iss.position, dtype=np.float64)))
+        q = np.asarray(iss.position, dtype=np.float64)
+        d = min(float(np.linalg.norm(p - q)), _dist_to_box(p, iss.bbox_min, iss.bbox_max),
+                _dist_to_box(q, bbox_min, bbox_max))
         if d <= best_d:
             best, best_d = iss, d
     return best

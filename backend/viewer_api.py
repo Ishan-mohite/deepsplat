@@ -120,9 +120,9 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
         place = place_of(i)
         issues.append({
             "issue_id": i.issue_id, "type": VIEWER_TYPE.get(i.damage_class, i.damage_class), "severity": i.severity,
-            "status": i.status, "surface": i.surface, "where": i.room or place,
+            "status": i.status, "surface": i.surface, "where": i.room,
             "object": {"id": i.object_id or f"{i.room or 'unit'}-{i.surface or 'surface'}".replace(" ", "-").lower(),
-                       "label": i.object_label or place, "short": i.object_label or place},
+                       "label": i.object_label or i.surface or place, "short": i.object_label or i.surface or place},
             "position_m": _v(M, i.position), "normal": _v(M, i.normal) if i.normal else None,
             "height_m": i.height_m, "floor_xy": i.floor_xy,
             "repaired_at": i.closed_at.isoformat() if i.status == IssueStatus.repaired and i.closed_at else None,
@@ -149,9 +149,10 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
         "id": m.id, "map_id": m.id, "name": m.name, "option": f"{m.name} · {ctx.get('category', 'Unit')}",
         "kind": ctx.get("kind", "interior"), "category": ctx.get("category", "Unit"),
         "location": ", ".join(x for x in (m.property, m.floor_label) if x) or ctx.get("location"),
-        "scanned_at": m.scanned_at.isoformat() if m.scanned_at else None,
+        "scanned_at": (m.scanned_at or m.created_at).isoformat(),      # viewer shows 1970 for null
         "status": m.status, "vps_status": m.vps_status,
         "splat_url": storage.url(m.splat_key), "splat_to_viewer": splat_to_viewer.tolist(),
+        "viewer_splat_url": storage.url(m.viewer_splat_key) if m.viewer_splat_key else None,
         "floor_plan_url": storage.url(m.floor_plan_key) if m.floor_plan_key else None, "floor_plan": m.floor_plan,
         "rooms": m.rooms, "gaussians": m.stats.get("n_gaussians"),
         "camera": {"dir": [0.0, 0.707, 0.707], "center": center,

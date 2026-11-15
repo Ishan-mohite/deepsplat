@@ -44,7 +44,8 @@ class Map(SQLModel, table=True):
     floor_plan_key: str | None = None
     floor_plan: dict = Field(default_factory=dict, sa_column=Column(JSON))   # pixel <-> floor meta
     context: dict = Field(default_factory=dict, sa_column=Column(JSON))
-    splat_key: str                               # 3DGS .ply, also what the viewer loads
+    splat_key: str                               # 3DGS .ply as uploaded
+    viewer_splat_key: str | None = None          # lighter copy for browsers (opaque, base color only)
     proj_key: str | None = None                  # opaque gaussian centers (+ indices) for lifting
     views_key: str | None = None                 # zip of training views for the VPS index
     views_to_map: list | None = Field(default=None, sa_column=Column(JSON))
@@ -157,6 +158,8 @@ class Issue(SQLModel, table=True):
     surface: str | None = None                   # floor | ceiling | north wall | ...
     height_m: float | None = None                # above floor
     floor_xy: list = Field(default_factory=list, sa_column=Column(JSON))
+    bbox_min: list = Field(default_factory=list, sa_column=Column(JSON))   # extent of the latest observation
+    bbox_max: list = Field(default_factory=list, sa_column=Column(JSON))
     type_manual: bool = False                    # type corrected by a person
     size: float | None = None                    # last length (m) or area (m²), see classes.size_metric
     first_seen: datetime = Field(default_factory=now)
