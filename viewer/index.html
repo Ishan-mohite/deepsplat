@@ -147,6 +147,14 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
 .pin-label .mono { color: var(--ink-2); font-weight: 400; font-size: 11px; }
 .pin:hover .pin-label, .pin:focus-visible .pin-label, .pin.selected .pin-label { display: inline-flex; }
 .pin.selected { z-index: 2; }
+/* VPS layer: one diamond per localized capture (green = above the pose threshold, amber = below) */
+.vps-mark { --m: var(--seg-3); position: absolute; left: 0; top: 0; pointer-events: auto; border: 0; background: none; padding: 0; cursor: pointer; display: flex; align-items: center; gap: 6px; will-change: transform; border-radius: var(--r-pill); }
+.vps-mark.low { --m: var(--seg-4); }
+.vps-mark i { width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 3px; background: var(--vp); border: 2px solid var(--m); transform: rotate(45deg); flex: none; }
+.vps-mark span { margin-top: -6px; display: none; padding: 3px 9px; border-radius: var(--r-pill); background: var(--vp-2); color: var(--vp-ink); border: 1px solid var(--vp-line); font: var(--text-mono-s); white-space: nowrap; }
+.vps-mark:hover span, .vps-mark:focus-visible span, .vps-mark.selected span { display: inline-block; }
+.vps-mark.selected { z-index: 2; }
+.vps-mark.selected i { background: var(--m); box-shadow: 0 0 0 6px color-mix(in srgb, var(--m) 30%, transparent); }
 .pin.selected .pin-dot { box-shadow: 0 0 0 2px var(--vp), 0 0 0 8px color-mix(in srgb, var(--pin) 28%, transparent); }
 @keyframes ping { from { transform: scale(.6); opacity: .8; } to { transform: scale(1.5); opacity: 0; } }
 /* Pick reticle: 2 px --pick ring, four short ticks, centre dot */
@@ -188,6 +196,26 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
 .insp-close { margin-left: auto; border: 0; background: none; cursor: pointer; color: var(--ink-2); font-size: 18px; line-height: 1; padding: 4px 6px; border-radius: 6px; }
 .insp-close:hover { background: var(--paper); color: var(--ink); }
 .insp-body { padding: var(--space-4) var(--space-5) var(--space-6); display: grid; gap: var(--space-4); }
+.vps-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: 4px; max-height: 240px; overflow-y: auto; }
+.vps-list button { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--card); cursor: pointer; text-align: left; font: var(--text-body-s); }
+.vps-list button:hover { border-color: var(--ink-2); }
+.vps-list button.on { border-color: var(--blue); background: var(--blue-soft); }
+.vps-list .sub { color: var(--ink-2); font-size: 11px; }
+.vps-list .conf { font: var(--text-mono-s); }
+.vps-list .conf.low { color: var(--amber); font-weight: 600; }
+.vps-dot { width: 9px; height: 9px; margin: 0 2px; border-radius: 2px; transform: rotate(45deg); background: var(--c); flex: none; }
+.vps-dot.none { background: none; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.vps-legend { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: 4px; font-size: 12px; color: var(--ink-2); }
+.vps-legend li { display: flex; align-items: center; gap: 8px; }
+.vps-legend .ln { width: 16px; border-top: 2px solid var(--c); flex: none; }
+.vps-legend .pt { width: 7px; height: 7px; margin: 0 4.5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1px var(--ink-2); flex: none; }
+table.vps-frames { font: var(--text-body-s); }
+table.vps-frames th { padding: 6px; font-size: 10px; letter-spacing: .06em; }
+table.vps-frames td { padding: 5px 6px; }
+table.vps-frames tbody tr { cursor: default; }
+table.vps-frames tbody tr:hover { background: none; }
+.ok { color: var(--green); font-weight: 600; } .bad { color: var(--rust); font-weight: 600; }
+.vps-why { margin: 0; font: var(--text-body-s); color: var(--ink-2); background: var(--paper); border-radius: var(--r-sm); padding: 9px 11px; }
 .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
 .metrics div { background: var(--paper); border-radius: var(--r-sm); padding: 9px 11px; }
 .metrics span { display: block; font-size: 11px; color: var(--ink-2); }
@@ -420,7 +448,9 @@ const ms = (d) => +new Date(d);
 // Colours come from design/system/tokens.css (loaded before this module runs).
 const rootStyle = getComputedStyle(document.documentElement);
 const tok = (name) => rootStyle.getPropertyValue(name).trim();
-const COLOR = Object.fromEntries(['blue', 'rust', 'ink', 'ink-2', 'muted', 'card', 'line-2', 'vp', 'pick'].map((n) => [n, tok(`--${n}`)]));
+const COLOR = Object.fromEntries(['blue', 'rust', 'ink', 'ink-2', 'muted', 'card', 'line-2', 'vp', 'pick', 'vp-ink', 'vp-rust', 'seg-1', 'seg-3', 'seg-4'].map((n) => [n, tok(`--${n}`)]));
+// VPS layer colours (dark viewport): placed above the pose threshold, below it, video frames, VPS per frame
+const VPS_COL = { pass: COLOR['seg-3'], low: COLOR['seg-4'], path: COLOR['seg-1'], vps: COLOR['vp-ink'], outlier: COLOR['vp-rust'], sel: COLOR.pick };
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -1011,7 +1041,8 @@ function expandSite(def) {
   });
   const captures = [];
   for (const iss of issues) for (const o of iss.observations) {
-    captures.push({ capture_id: o.capture_id, created: new Date(ms(o.timestamp) + 70000).toISOString(), source: o.source.kind, status: 'done', stage: 5, frames: 80 + Math.floor(r() * 21), size_mb: +(28 + r() * 10).toFixed(1), obs_id: o.obs_id, issue_id: iss.issue_id, pose_confidence: o.pose_confidence });
+    captures.push({ capture_id: o.capture_id, created: new Date(ms(o.timestamp) + 70000).toISOString(), source: o.source.kind, status: 'done', stage: 5, frames: 80 + Math.floor(r() * 21), size_mb: +(28 + r() * 10).toFixed(1), obs_id: o.obs_id, issue_id: iss.issue_id, pose_confidence: o.pose_confidence,
+      vps: { method: 'vps_frames', confidence: o.pose_confidence, threshold: 0.6, camera_pose: o.camera_pose, fov_y: 50, aspect: 4 / 3, room: iss.where, frames: [], frames_failed: [] } });
   }
   for (const c of def.extraCaptures) captures.push({ frames: 80 + Math.floor(r() * 21), size_mb: +(28 + r() * 10).toFixed(1), ...c });
   captures.sort((a, b) => ms(b.created) - ms(a.created));
@@ -1074,7 +1105,7 @@ function adaptSite(raw) {
     splat_src: fileUrl(raw.viewer_splat_url || raw.splat_url), floor_plan_src: fileUrl(raw.floor_plan_url),
     sig: JSON.stringify([
       issues.map((i) => [i.issue_id, i.type, i.severity, i.status, i.repaired_at, i.observations.length, i.position_m]),
-      captures.map((c) => [c.capture_id, c.status, c.stage, c.issue_id]),
+      captures.map((c) => [c.capture_id, c.status, c.stage, c.issue_id, c.vps?.confidence, c.vps?.camera_pose?.t]),
       raw.summary, raw.status, raw.vps_status, raw.viewer_splat_url ? 1 : 0, raw.floor_plan_url ? 1 : 0,
     ]),
   };
@@ -1324,6 +1355,7 @@ const state = {
   overlay: true, overlayAlpha: 0.5,
   hiddenClasses: new Set(), hiddenSegs: new Set(),
   sevFilter: new Set(Object.keys(SEV)), showRepaired: true,
+  showVps: true, vpsLow: true, // VPS layer: camera poses of all localized captures, also those below the threshold
   asOf: NOW, issueFilter: { q: '', sev: '', status: '' },
 };
 
@@ -1635,7 +1667,7 @@ function renderCaptureSheet() {
           <button data-action="cap-mode" data-mode="photo" aria-pressed="${capView.frame == null && capView.mode === 'photo'}">Damage photo</button>
           <button data-action="cap-mode" data-mode="detections" aria-pressed="${capView.frame == null && capView.mode === 'detections'}" ${canDet ? '' : 'disabled'}>SAM 3 detections${nDet ? ` (${nDet})` : ''}</button>
         </div>
-        ${state.site.live && origUrl ? `<a class="ds-btn ds-btn--secondary ds-btn--sm" href="${esc(origUrl)}" target="_blank" rel="noopener">Open full size</a>` : ''}
+        <div class="insp-actions">${c.vps?.camera_pose || c.vps ? `<button class="ds-btn ds-btn--secondary ds-btn--sm" data-action="select-capture" data-id="${esc(d.id)}">VPS result in 3D</button>` : ''}${state.site.live && origUrl ? `<a class="ds-btn ds-btn--secondary ds-btn--sm" href="${esc(origUrl)}" target="_blank" rel="noopener">Open full size</a>` : ''}</div>
       </div>
     </section>
 
@@ -1757,6 +1789,7 @@ function renderLayers() {
   const order = [...groups.keys()].sort((a, b) => (CLASSES[a].slot ?? 99) - (CLASSES[b].slot ?? 99));
   const nInst = [...groups.values()].reduce((n, g) => n + g.length, 0);
   const selId = state.selection?.kind === 'segment' ? state.selection.id : null;
+  const vpsSec = vpsLayerHTML(s);
   const pinFilters = `
   <div class="psec">
     <div class="eyebrow">Issue pins</div>
@@ -1774,7 +1807,7 @@ function renderLayers() {
   <div class="psec">
     <div class="eyebrow">Segmentation</div>
     <div class="hint">This scan has no object labels yet, so there are no layers to switch. Findings are shown as pins.</div>
-  </div>${pinFilters}`;
+  </div>${pinFilters}${vpsSec}`;
     return;
   }
   $('#layers').innerHTML = `
@@ -1797,13 +1830,42 @@ function renderLayers() {
       </details></li>`;
     }).join('')}</ul>
   </div>
-  ${pinFilters}`;
+  ${pinFilters}${vpsSec}`;
+}
+const vpsPass = (v) => v?.camera_pose && v.confidence != null && v.confidence >= v.threshold;
+const vpsShort = (id) => (id.length > 12 ? id.slice(0, 8) : id);
+function vpsLayerHTML(s) {
+  const caps = s.captures.filter((c) => c.vps), posed = caps.filter((c) => c.vps.camera_pose), pass = posed.filter((c) => vpsPass(c.vps));
+  const thr = caps[0]?.vps.threshold, selId = state.selection?.kind === 'capture' ? state.selection.id : null;
+  return `
+  <div class="psec">
+    <div class="eyebrow">Localization (VPS)</div>
+    <div class="row-between">
+      <div><b>Capture poses</b><div class="hint">${posed.length} of ${s.captures.length} captures placed${thr != null ? ` · ${pass.length} at or above ${fmt.f2(thr)}` : ''}</div></div>
+      <label class="switch"><input type="checkbox" id="show-vps" ${state.showVps ? 'checked' : ''} aria-label="Show VPS results in 3D"><span></span></label>
+    </div>
+    <label class="check-row">Below threshold <span class="switch"><input type="checkbox" id="vps-low" ${state.vpsLow ? 'checked' : ''} ${state.showVps ? '' : 'disabled'}><span></span></span></label>
+    ${caps.length ? `<ul class="vps-list">${caps.map((c) => {
+      const v = c.vps, col = !v.camera_pose ? '' : vpsPass(v) ? VPS_COL.pass : VPS_COL.low;
+      return `<li><button class="${c.capture_id === selId ? 'on' : ''}" data-action="select-capture" data-id="${esc(c.capture_id)}">
+        <span class="vps-dot${col ? '' : ' none'}" style="--c:${col}"></span>
+        <span><span class="mono">${esc(vpsShort(c.capture_id))}</span> <span class="sub">${fmt.dateShort(c.created)}, ${fmt.time(c.created)}${v.camera_pose ? '' : ' · not placed'}</span></span>
+        <span class="conf${v.camera_pose && !vpsPass(v) ? ' low' : ''}">${fmt.f2(v.confidence)}</span></button></li>`;
+    }).join('')}</ul>` : '<p class="hint" style="margin:var(--space-3) 0 0">No capture has been localized yet.</p>'}
+    <ul class="vps-legend">
+      <li><span class="vps-dot" style="--c:${VPS_COL.pass}"></span>Photo pose, confidence at or above the threshold</li>
+      <li><span class="vps-dot" style="--c:${VPS_COL.low}"></span>Photo pose below the threshold (needs review)</li>
+      <li><span class="ln" style="--c:${VPS_COL.path}"></span>Selected: video frames placed by the alignment</li>
+      <li><span class="pt" style="--c:${VPS_COL.vps}"></span>Selected: each frame's own VPS result <span class="ln" style="--c:${VPS_COL.outlier}"></span>outlier</li>
+    </ul>
+  </div>`;
 }
 
 function renderInspector() {
   const el = $('#inspector'), s = state.site, sel = state.selection;
   if (sel?.kind === 'issue') { const i = s.issues.find((x) => x.issue_id === sel.id); if (i) { el.innerHTML = issueInspector(i, sel); return; } }
   if (sel?.kind === 'segment') { const seg = s.segById.get(sel.id); if (seg) { el.innerHTML = segmentInspector(seg, sel.point); return; } }
+  if (sel?.kind === 'capture') { const c = s.captures.find((x) => x.capture_id === sel.id); if (c?.vps) { el.innerHTML = captureInspector(c); return; } }
   const open = s.issues.filter(isOpen).sort((a, b) => SEV[b.severity].rank - SEV[a.severity].rank);
   el.innerHTML = `<div class="insp-empty">
     <div class="reticle-icon" aria-hidden="true"></div>
@@ -1811,6 +1873,55 @@ function renderInspector() {
     <p>${s.live ? '' : 'A surface shows what SAM 3 labelled it and which issues sit on it. '}A pin opens the issue with every record, photo and timestamp.</p>
     <div class="eyebrow" style="margin-bottom:10px">Open issues</div>
     <ul class="issue-list">${open.map((i) => `<li><button data-action="open-issue" data-id="${i.issue_id}"><span class="grow"><span class="ds-row__title">${esc(issueTitle(i))}</span><span class="ds-row__meta mono">${i.issue_id}</span></span>${sevChip(i.severity)}</button></li>`).join('')}</ul>
+  </div>`;
+}
+const VPS_METHOD = { client: 'Pose sent by the device', vps_frames: 'VPS on the video frames', vps_photo: 'VPS on the photo', frame_poses: 'External frame poses', camera_to_map: 'Camera-to-map transform', device_to_map: 'Device-to-map transform' };
+const dist3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+function captureInspector(c) {
+  const v = c.vps, placed = !!v.camera_pose, pass = vpsPass(v), al = v.alignment, fr = v.frames || [];
+  const t0 = Math.min(...fr.map((f) => f.t ?? Infinity));
+  const nLoc = fr.filter((f) => f.localized).length, inl = fr.filter((f) => f.inliers != null).map((f) => f.inliers).sort((a, b) => a - b);
+  const med = inl.length ? (inl.length % 2 ? inl[(inl.length - 1) / 2] : (inl[inl.length / 2 - 1] + inl[inl.length / 2]) / 2) : null;
+  const chip = !placed ? '<span class="ds-chip"><span class="sw" style="--c:var(--rust)"></span>Not placed</span>'
+    : pass ? `<span class="ds-chip"><span class="sw" style="--c:${VPS_COL.pass}"></span>Placed</span>` : `<span class="ds-chip"><span class="sw" style="--c:${VPS_COL.low}"></span>Below threshold</span>`;
+  let why = '';
+  if (v.method === 'vps_frames' && al && v.inliers_full) {
+    const agree = al.confidence ?? 0, floor = med != null ? Math.min(1, med / v.inliers_full) : null;
+    why = `<p class="vps-why">Confidence = frame agreement <b class="mono">${fmt.f2(agree)}</b> × inlier factor <b class="mono">${floor != null ? fmt.f2(floor) : '–'}</b> (median ${med ?? '–'} inliers, full at ${v.inliers_full})${placed && Math.abs(agree * (floor ?? 0) - v.confidence) > 0.02 ? `. The stored ${fmt.f2(v.confidence)} does not match this formula: the capture was processed by an older backend version.` : '.'}</p>`;
+  }
+  const rows = fr.map((f) => {
+    const res = f.aligned_pose && f.vps_pose ? dist3(f.aligned_pose.t, f.vps_pose.t) : null;
+    return `<tr><td class="mono">${esc(f.name)}</td><td class="mono">${f.t != null && Number.isFinite(t0) ? (f.t - t0).toFixed(1) : '–'} s</td>
+      <td>${f.localized === false ? '<span class="bad">failed</span>' : f.localized ? `<span class="mono">${f.inliers}</span>` : '–'}</td>
+      <td>${f.consistent == null ? '–' : f.consistent ? '<span class="ok">yes</span>' : '<span class="bad">outlier</span>'}</td>
+      <td class="mono">${res != null ? `${(res * 100).toFixed(1)} cm` : '–'}</td></tr>`;
+  }).join('');
+  return `
+  <div class="insp-head">
+    <div class="insp-kicker"><span class="mono" title="${esc(c.capture_id)}">${esc(vpsShort(c.capture_id))}</span>${chip}<button class="insp-close" data-action="clear-selection" aria-label="Close">×</button></div>
+    <h3>VPS result · ${fmt.dt(c.created)} UTC</h3>
+    <div class="chips"><span class="ds-chip">${esc(VPS_METHOD[v.method] || v.method || 'No method')}</span>${v.room ? `<span class="ds-chip">${esc(v.room)}</span>` : ''}</div>
+  </div>
+  <div class="insp-body">
+    <div class="metrics">
+      <div><span>Pose confidence</span><b class="${placed && !pass ? 'up' : ''}">${fmt.f2(v.confidence)}</b><span>threshold ${fmt.f2(v.threshold)}</span></div>
+      <div><span>Frames localized</span><b>${fr.length ? `${nLoc} / ${fr.length}` : '–'}</b>${v.frames_failed?.length ? `<span>${v.frames_failed.length} failed</span>` : ''}</div>
+      <div><span title="Largest deviation of a frame from the consensus, outliers included">Max frame deviation</span><b>${al?.max_dev_m != null ? `${(al.max_dev_m * 100).toFixed(1)} cm` : '–'}</b>${al?.max_dev_deg != null ? `<span>${(+al.max_dev_deg).toFixed(1)}° · ${al.n_inliers}/${al.n_frames} agree</span>` : ''}</div>
+    </div>
+    ${v.error ? `<p class="vps-why" style="color:var(--rust)">${esc(v.error)}</p>` : ''}
+    ${why}
+    ${fr.length ? `<div><div class="eyebrow" style="margin-bottom:6px">Video frames</div><div class="table-scroll"><table class="vps-frames"><thead><tr><th>Frame</th><th>Time</th><th>Inliers</th><th>Agrees</th><th>VPS offset</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="hint" style="margin-top:6px">VPS offset: distance between the frame placed by the alignment and its own VPS result.${fr.some((f) => f.localized && !f.vps_pose) ? ' Per-frame VPS poses are only stored for captures processed after this update.' : ''}</div></div>` : ''}
+    <dl class="facts">
+      <dt>Capture</dt><dd class="mono small" title="${esc(c.capture_id)}">${esc(c.capture_id)}</dd>
+      <dt>Camera position</dt><dd class="mono">${placed ? `${fmt.xyz(v.camera_pose.t)} m` : 'Not placed'}</dd>
+      ${v.num_inliers != null ? `<dt>Photo inliers</dt><dd class="mono">${v.num_inliers}</dd>` : ''}
+      <dt>Processing</dt><dd>${c.status === 'failed' ? esc(c.reason || 'Stopped') : c.issue_id ? `${esc(c.obs_id)} on ${esc(c.issue_id)}` : esc(c.result || titleCase(c.status))}</dd>
+    </dl>
+    <div class="insp-actions">
+      ${placed ? '<button class="ds-btn ds-btn--dark ds-btn--sm" data-action="look-capture">Look through this camera</button>' : ''}
+      <button class="ds-btn ds-btn--secondary ds-btn--sm" data-action="capture-details" data-id="${esc(c.capture_id)}">Photos and details</button>
+    </div>
   </div>`;
 }
 function issueInspector(i, sel) {
@@ -1916,6 +2027,15 @@ function renderTimebar() {
 let Spark = null;
 const _c = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion(), _col = new THREE.Color(), _p = new THREE.Vector3();
 
+// Camera frustum (viewer pose: three.js camera looking along -z) as line-segment points; the small
+// triangle on top marks "up" in the image.
+function frustumPoints(pose, d, fovY, aspect) {
+  const fov = THREE.MathUtils.degToRad(fovY || 62), asp = aspect || 4 / 3, hh = Math.tan(fov / 2) * d, hw = hh * asp;
+  const corners = [[0, 0, 0], [-hw, -hh, -d], [hw, -hh, -d], [hw, hh, -d], [-hw, hh, -d], [0, hh * 1.4, -d]];
+  const idx = [0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1, 3, 5, 5, 4];
+  const q = new THREE.Quaternion(...pose.q), t = new THREE.Vector3(...pose.t);
+  return idx.map((k) => new THREE.Vector3(...corners[k]).applyQuaternion(q).add(t));
+}
 class Twin {
   constructor(stage) {
     this.stage = stage;
@@ -1936,7 +2056,9 @@ class Twin {
     this.controls.addEventListener('start', () => { this.anim = null; });
     this.splatRoot = new THREE.Group();
     this.helpers = new THREE.Group();
-    this.scene.add(this.splatRoot, this.helpers);
+    this.vpsGroup = new THREE.Group();
+    this.scene.add(this.splatRoot, this.helpers, this.vpsGroup);
+    this.vpsMarks = []; this.vpsKey = null;
     this.meshes = [];
     this.bySeg = new Map();
     this.raycaster = new THREE.Raycaster();
@@ -1960,7 +2082,8 @@ class Twin {
     this.meshes = []; this.bySeg.clear();
     if (this.scan) { this.splatRoot.remove(this.scan); this.scan.dispose?.(); this.scan = null; }
     this.helpers.clear();
-    this.pinLayer.innerHTML = ''; this.pins = [];
+    this.clearVps();
+    this.pinLayer.innerHTML = ''; this.pins = []; this.vpsMarks = [];
   }
   async load(site) {
     this.clear();
@@ -1997,6 +2120,7 @@ class Twin {
     this.resize();
     this.homeView(true);
     this.buildPins();
+    this.buildVpsMarks();
     this.refresh();
   }
   overlayFor(seg) {
@@ -2046,13 +2170,81 @@ class Twin {
       p.el.querySelector('.pin-status').textContent = st ? STATUS[st.status].label.toLowerCase() : '';
     }
     this.showObservation();
+    this.drawVps();
   }
   // New data for the site that is already on screen (live polling): keep the splat, redo the pins.
   update(site) {
     this.site = site;
     this.pinLayer.innerHTML = '';
     this.buildPins();
+    this.vpsKey = null;
+    this.buildVpsMarks();
     this.refresh();
+  }
+  vpsShown(c) { return state.showVps && !!c.vps?.camera_pose && (state.vpsLow || vpsPass(c.vps) || (state.selection?.kind === 'capture' && state.selection.id === c.capture_id)); }
+  buildVpsMarks() {
+    this.vpsMarks = this.site.captures.filter((c) => c.vps?.camera_pose).map((c) => {
+      const el = document.createElement('button');
+      el.className = `vps-mark${vpsPass(c.vps) ? '' : ' low'}`;
+      el.dataset.action = 'select-capture'; el.dataset.id = c.capture_id; el.dataset.nofly = '1';
+      el.setAttribute('aria-label', `Capture ${c.capture_id}, pose confidence ${fmt.f2(c.vps.confidence)}`);
+      el.innerHTML = `<i></i><span>${esc(vpsShort(c.capture_id))} · ${fmt.time(c.created)} · ${fmt.f2(c.vps.confidence)}</span>`;
+      this.pinLayer.appendChild(el);
+      return { c, el, pos: c.vps.camera_pose.t, visible: true };
+    });
+  }
+  clearVps() {
+    this.vpsGroup.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+    this.vpsGroup.clear();
+  }
+  drawVps() {
+    const selId = state.selection?.kind === 'capture' ? state.selection.id : null;
+    for (const m of this.vpsMarks) {
+      m.visible = this.vpsShown(m.c);
+      m.el.classList.toggle('selected', m.c.capture_id === selId);
+    }
+    const key = JSON.stringify([state.showVps, state.vpsLow, selId, this.site.sig || this.site.id]);
+    if (key === this.vpsKey) return;
+    this.vpsKey = key;
+    this.clearVps();
+    if (!state.showVps) return;
+    const lines = (pts, color, opt = {}) => {
+      const g = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = opt.dashed ? new THREE.LineDashedMaterial({ color: new THREE.Color(color), dashSize: 0.04, gapSize: 0.03, depthTest: false, transparent: true, opacity: opt.opacity ?? 0.95 })
+        : new THREE.LineBasicMaterial({ color: new THREE.Color(color), depthTest: false, transparent: true, opacity: opt.opacity ?? 0.95 });
+      const l = opt.strip ? new THREE.Line(g, mat) : new THREE.LineSegments(g, mat);
+      if (opt.dashed) l.computeLineDistances();
+      l.renderOrder = 998;
+      this.vpsGroup.add(l);
+    };
+    for (const c of this.site.captures) {
+      if (!this.vpsShown(c)) continue;
+      const v = c.vps, sel = c.capture_id === selId;
+      lines(frustumPoints(v.camera_pose, sel ? 0.32 : 0.22, v.fov_y, v.aspect), sel ? VPS_COL.sel : vpsPass(v) ? VPS_COL.pass : VPS_COL.low, { opacity: selId && !sel ? 0.45 : 0.95 });
+      if (!sel) continue;
+      const fr = v.frames || [], aligned = fr.filter((f) => f.aligned_pose);
+      if (aligned.length > 1) lines(aligned.map((f) => new THREE.Vector3(...f.aligned_pose.t)), VPS_COL.path, { strip: true });
+      for (const f of aligned) lines(frustumPoints(f.aligned_pose, 0.07, v.fov_y, v.aspect), VPS_COL.path, { opacity: 0.8 });
+      const withVps = fr.filter((f) => f.vps_pose);
+      if (withVps.length) {
+        const g = new THREE.BufferGeometry().setFromPoints(withVps.map((f) => new THREE.Vector3(...f.vps_pose.t)));
+        const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: new THREE.Color(VPS_COL.vps), size: 7, sizeAttenuation: false, depthTest: false, transparent: true }));
+        pts.renderOrder = 999;
+        this.vpsGroup.add(pts);
+        for (const f of withVps) {
+          if (f.aligned_pose) lines([new THREE.Vector3(...f.aligned_pose.t), new THREE.Vector3(...f.vps_pose.t)], f.consistent === false ? VPS_COL.outlier : VPS_COL.vps, { dashed: f.consistent !== false, opacity: 0.85 });
+          lines(frustumPoints(f.vps_pose, 0.05, v.fov_y, v.aspect), f.consistent === false ? VPS_COL.outlier : VPS_COL.vps, { opacity: 0.7 });
+        }
+      }
+    }
+  }
+  viewCapture(c, through = false) {
+    const p = c.vps?.camera_pose;
+    if (!p) return;
+    const q = new THREE.Quaternion(...p.q), t = new THREE.Vector3(...p.t);
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q), up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+    const eye = through ? t.clone().addScaledVector(fwd, 0.02) : t.clone().addScaledVector(fwd, -1.1).addScaledVector(up, 0.45);
+    this.flyTo(eye.toArray(), t.clone().addScaledVector(fwd, through ? 1.5 : 1.2).toArray());
   }
   buildPins() {
     this.pins = this.site.issues.map((issue) => {
@@ -2095,6 +2287,11 @@ class Twin {
       const s = this.project(p.pos), show = p.visible && s.ok && s.x > -40 && s.x < w + 40 && s.y > -40 && s.y < h + 40;
       p.el.style.visibility = show ? 'visible' : 'hidden';
       if (show) p.el.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+    }
+    for (const m of this.vpsMarks) {
+      const s = this.project(m.pos), show = m.visible && s.ok && s.x > -40 && s.x < w + 40 && s.y > -40 && s.y < h + 40;
+      m.el.style.visibility = show ? 'visible' : 'hidden';
+      if (show) m.el.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
     }
     const pt = state.selection?.kind === 'segment' ? state.selection.point : null;
     if (pt) {
@@ -2254,6 +2451,18 @@ const app = {
     if (fly && twin) twin.viewIssue(issue);
     this.writeHash();
   },
+  async selectCapture(id, { fly = true } = {}) {
+    const c = state.site.captures.find((x) => x.capture_id === id);
+    if (!c?.vps) return;
+    if (!state.showVps) state.showVps = true;
+    state.selection = { kind: 'capture', id };
+    if (state.tab !== 'twin') await this.setTab('twin');
+    if (twinLoading) await twinLoading;
+    renderInspector(); renderLayers();
+    twin?.refresh();
+    if (fly && twin && c.vps.camera_pose) twin.viewCapture(c);
+    this.writeHash();
+  },
   selectSegment(id, point = null) {
     state.selection = { kind: 'segment', id, point };
     renderInspector(); renderLayers();
@@ -2269,6 +2478,7 @@ const app = {
   writeHash() {
     const parts = [state.tab, state.siteId];
     if (state.tab === 'twin' && state.selection?.kind === 'issue') parts.push(state.selection.id);
+    if (state.tab === 'twin' && state.selection?.kind === 'capture') parts.push(`vps:${state.selection.id}`);
     if (state.tab === 'captures' && capView.id) parts.push(capView.id);
     const h = `#${parts.join('/')}`;
     if (location.hash !== h) history.replaceState(null, '', h);
@@ -2299,6 +2509,9 @@ document.addEventListener('click', (e) => {
     twin?.flyTo(t.map((v, k) => v - dir[k] * 0.35), i.position_m);
   }
   else if (a === 'clear-selection') app.clearSelection();
+  else if (a === 'select-capture') { closeCapture(); app.selectCapture(el.dataset.id, { fly: !el.dataset.nofly }); }
+  else if (a === 'look-capture') { const c = state.site.captures.find((x) => x.capture_id === state.selection?.id); if (c) twin?.viewCapture(c, true); }
+  else if (a === 'capture-details') { app.setTab('captures').then(() => openCapture(el.dataset.id)); }
   else if (a === 'open-capture') openCapture(el.dataset.id);
   else if (a === 'close-capture') closeCapture();
   else if (a === 'cap-mode') { capView.mode = el.dataset.mode; capView.frame = null; renderCaptureSheet(); }
@@ -2343,6 +2556,8 @@ document.addEventListener('change', (e) => {
   if (t.id === 'site-select') app.setSite(t.value);
   else if (t.id === 'ovl') { state.overlay = t.checked; renderLayers(); twin?.refresh(); }
   else if (t.id === 'show-rep') { state.showRepaired = t.checked; twin?.refresh(); }
+  else if (t.id === 'show-vps') { state.showVps = t.checked; renderLayers(); twin?.refresh(); }
+  else if (t.id === 'vps-low') { state.vpsLow = t.checked; twin?.refresh(); }
   else if (t.id === 'f-sev') { state.issueFilter.sev = t.value; renderIssueTable(); }
   else if (t.id === 'f-status') { state.issueFilter.status = t.value; renderIssueTable(); }
 });
@@ -2368,6 +2583,7 @@ async function pollLive() {
     if (prev && site.id === state.siteId && site.sig !== prev.sig) {
       state.site = site;
       if (state.selection?.kind === 'issue' && !site.issues.some((i) => i.issue_id === state.selection.id)) state.selection = null;
+      if (state.selection?.kind === 'capture' && !site.captures.some((c) => c.capture_id === state.selection.id && c.vps)) state.selection = null;
       renderDashboard(); renderCaptures(); renderLayers(); renderInspector(); renderTimebar();
       if (document.activeElement?.id === 'f-q') renderIssueTable(); else renderIssues();
       if (capView.id) openCapture(capView.id, { refresh: true });
@@ -2405,6 +2621,7 @@ async function pollLive() {
   await app.setSite(sites.some((s) => s.id === siteId) ? siteId : fallback);
   await app.setTab(validTab);
   if (itemId && validTab === 'captures') openCapture(itemId);
+  else if (itemId?.startsWith('vps:')) app.selectCapture(itemId.slice(4));
   else if (itemId) app.selectIssue(itemId);
   if (LIVE) setTimeout(pollLive, 4000);
 })();

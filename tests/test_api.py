@@ -161,6 +161,14 @@ def test_v1_upload_localized_through_frames(client):
     assert obs["issue_id"].startswith("ISS-") and np.allclose(obs["position_m"], [0, 0, 3], atol=0.03)
     assert cap["captured_at"].startswith("2026-11-14")
 
+    # VPS layer of the viewer: every kept frame placed by the alignment and by its own VPS pose
+    vps = next(x for x in c.get("/viewer/sites/test-hall").json()["captures"]
+               if x["capture_id"] == "6F1C2A9E-0000-4000-8000-000000000001")["vps"]
+    assert vps["method"] == "vps_frames" and vps["frames"] and vps["frames_failed"] == []
+    for f in vps["frames"]:
+        assert f["localized"] and f["consistent"] and f["inliers"] == 200
+        assert np.allclose(f["aligned_pose"]["t"], f["vps_pose"]["t"], atol=1e-3)   # perfect fake VPS
+
 
 def test_v1_without_vps_then_external_frame_poses(client):
     c = client

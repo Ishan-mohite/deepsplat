@@ -16,7 +16,9 @@ from sqlmodel import Session, select
 
 from inspection.classes import DAMAGE_CLASSES
 from localization.cameras import c2w_to_tq
+from localization.vps import MULTI_FRAME_INLIERS_FULL
 
+from .config import settings
 from .db import get_session
 from .models import Capture, CaptureStatus, Issue, IssueStatus, Map, Observation, now
 from .schemas import live_observations, place_of
@@ -54,6 +56,52 @@ def _pose(M, t, q) -> dict:
     return {"t": tv, "q": qv}
 
 
+def _pose_c2w(M, c2w) -> dict:
+    """4x4 camera->world (OpenCV axes, map frame) -> viewer pose."""
+    c2w = np.asarray(c2w, dtype=np.float64)
+    out = np.eye(4)
+    out[:3, :3], out[:3, 3] = M @ c2w[:3, :3] @ GL_FROM_CV, M @ c2w[:3, 3]
+    tv, qv = c2w_to_tq(out)
+    return {"t": tv, "q": qv}
+
+
+def _vps_entry(M, c: Capture) -> dict | None:
+    """Localization of a capture for the viewer's VPS layer (also without damage): the photo's pose,
+    the video frames placed with the device->map alignment, and each frame's own VPS pose."""
+    loc = c.localization or {}
+    if not loc:
+        return None
+    cam = loc.get("camera")
+    al = loc.get("alignment") or {}
+    A = np.asarray(al["matrix"], dtype=np.float64) if al.get("matrix") else None
+    vps_frames = {f["name"]: (k, f) for k, f in enumerate(loc.get("frames") or [])}
+    inl = set(al.get("inlier_frames") or [])
+    failed = set(loc.get("frames_failed") or [])
+    frames = []
+    for f in c.frames or []:
+        k, v = vps_frames.get(f["name"], (None, None))
+        frames.append({
+            "name": f["name"], "t": f.get("t"),
+            "aligned_pose": _pose_c2w(M, A @ np.asarray(f["c2w"])) if A is not None and f.get("c2w") else None,
+            "vps_pose": _pose_c2w(M, v["c2w"]) if v and v.get("c2w") else None,
+            "inliers": v["num_inliers"] if v else None,
+            "localized": True if v else (False if f["name"] in failed else None),
+            "consistent": (k in inl) if k is not None and al else None,
+        })
+    w, h, fy = (cam or {}).get("width"), (cam or {}).get("height"), (cam or {}).get("fy")
+    return {
+        "method": loc.get("method"), "confidence": loc.get("confidence"), "threshold": settings.min_pose_confidence,
+        "error": loc.get("error"), "room": loc.get("room"),
+        "camera_pose": _pose_c2w(M, cam["matrix"]) if cam else None,
+        "fov_y": round(float(2 * np.degrees(np.arctan(h / 2 / fy))), 2) if w and h and fy else None,
+        "aspect": round(w / h, 4) if w and h else None,
+        "num_inliers": loc.get("num_inliers"),
+        "inliers_full": MULTI_FRAME_INLIERS_FULL if loc.get("method") == "vps_frames" else None,
+        "alignment": {k: al.get(k) for k in ("n_frames", "n_inliers", "max_dev_m", "max_dev_deg", "confidence")} if al else None,
+        "frames": frames, "frames_failed": loc.get("frames_failed") or [],
+    }
+
+
 def _types() -> dict:
     out = {}
     for k, c in DAMAGE_CLASSES.items():
@@ -62,7 +110,7 @@ def _types() -> dict:
     return out
 
 
-def _capture_entry(s: Session, c: Capture) -> dict:
+def _capture_entry(s: Session, c: Capture, M=None) -> dict:
     status = {
         CaptureStatus.awaiting_upload: "processing", CaptureStatus.uploaded: "uploaded",
         CaptureStatus.processing: "processing", CaptureStatus.done: "done",
@@ -73,7 +121,8 @@ def _capture_entry(s: Session, c: Capture) -> dict:
              "source": c.source_kind, "status": status, "stage": c.stage, "frames": c.n_frames,
              "size_mb": round(c.size_bytes / 1e6, 1) if c.size_bytes else None,
              "pose_confidence": (c.localization or {}).get("confidence"),
-             "obs_id": obs.obs_id if obs else None, "issue_id": f"ISS-{obs.issue_seq:04d}" if obs else None}
+             "obs_id": obs.obs_id if obs else None, "issue_id": f"ISS-{obs.issue_seq:04d}" if obs else None,
+             "vps": _vps_entry(M, c) if M is not None else None}
     if status == "failed":
         entry["reason"] = c.error or c.status
     elif status == "done":
@@ -162,7 +211,7 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
         "monthly": [x["count"] for x in dash.records_per_month],
         "types": _types(),
         "issues": issues,
-        "captures": [_capture_entry(s, c) for c in caps],
+        "captures": [_capture_entry(s, c, M) for c in caps],
         "generated_at": now().isoformat(),
     }
 

@@ -94,3 +94,15 @@ def test_backend_serves_the_viewer_page(site):
         assert page.status_code == 200 and "LiveApi" in page.text
         assert c.get("/design/system/tokens.css").status_code == 200
         assert isinstance(c.get("/viewer/sites").json(), list)        # the API is not shadowed
+
+
+def test_captures_carry_vps_result(site):
+    """Every capture with a localization shows up in the VPS layer, also without damage."""
+    _, s = site
+    by_status = {c["status"]: c for c in s["captures"]}
+    v = by_status["done"]["vps"]
+    assert v["method"] == "client" and v["confidence"] == 1.0 and v["threshold"] == 0.5
+    assert np.allclose(v["camera_pose"]["t"], [1.5, 1.4, -1.2], atol=1e-3)          # same frame as observations
+    assert v["fov_y"] and v["aspect"] == pytest.approx(640 / 480, rel=1e-3)
+    failed = by_status["failed"]["vps"]
+    assert failed["camera_pose"] is None and failed["error"]

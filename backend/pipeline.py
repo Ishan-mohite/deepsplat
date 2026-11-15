@@ -173,23 +173,29 @@ def _localize(m: Map | None, photo: Frame, frames: list[Frame], map_pose, map_po
         return {"method": None, "confidence": None, "camera": None,
                 "error": "no VPS index for this map" if vps else "no VPS configured"}
 
-    # multi-frame: localize video frames, carry the result to the photo via the ARKit poses
+    # multi-frame: localize video frames, carry the result to the photo via the ARKit poses.
+    # Each frame's own VPS pose is kept too (viewer: VPS layer, residual to the consensus).
+    failed: list[str] = []
     if frames and photo.c2w is not None:
         res = vps.localize(m.id, frames)
         ok = [(f, r) for f, r in zip(frames, res) if r is not None]
+        failed = [f.name for f, r in zip(frames, res) if r is None]
         if ok:
             al = alignment_from_frame_poses([f.c2w for f, _ in ok], [r.c2w for _, r in ok])
             conf = multi_frame_confidence(al["confidence"], [r.num_inliers for _, r in ok])
             T = np.asarray(al["matrix"])
             return {"method": "vps_frames", "confidence": round(conf, 3),
                     "camera": photo.camera_dict(T @ photo.c2w), "alignment": al,
-                    "frames": [{"name": f.name, "num_inliers": r.num_inliers} for f, r in ok]}
+                    "frames": [{"name": f.name, "num_inliers": r.num_inliers,
+                                "c2w": np.asarray(r.c2w).round(6).tolist()} for f, r in ok],
+                    "frames_failed": failed}
     # single image
     r = vps.localize(m.id, [photo])[0]
+    extra = {"frames_failed": failed} if failed else {}
     if r is None:
-        return {"method": "vps_photo", "confidence": 0.0, "camera": None, "error": "VPS could not localize"}
+        return {"method": "vps_photo", "confidence": 0.0, "camera": None, "error": "VPS could not localize", **extra}
     return {"method": "vps_photo", "confidence": r.confidence, "camera": photo.camera_dict(r.c2w),
-            "num_inliers": r.num_inliers}
+            "num_inliers": r.num_inliers, **extra}
 
 
 def _finish(s: Session, cap: Capture, m: Map | None) -> None:
