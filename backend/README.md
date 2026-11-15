@@ -199,10 +199,10 @@ Conventions: map coordinates in meters (splat frame); `camera_pose.q` = camera�
 | 5 Match | same type, and centroids within 15 cm or one centroid within 15 cm of the other finding's 3D extent (keeps a growing crack linked), same object if known → observation; > 20 % growth → `worsening`; open issue visible in a confident view without a finding → `repair_suggested` (human confirms) |
 | 6 Store | issues + observations, masks, overlays, 3D points and gaussian indices |
 
-Damage classes (`inspection/classes.py`), labels as in the UX: Crack, Mould, Stain, Scratch, Peeling
-paint, Hole, Corrosion are enabled (crack / mould / stain / peeling paint / rust prompts checked on real
-photos; scratch and hole barely tested). Dent, exposed wiring and obstruction/spill are disabled;
-"missing part" cannot be found with a text prompt.
+Damage classes (`inspection/classes.py`), labels as in the UX: for now only Crack is enabled and sent to
+SAM 3 (prompt `crack`). Mould, Stain, Scratch, Peeling paint, Hole, Corrosion, Dent, exposed wiring and
+obstruction/spill stay defined but disabled (set `enabled: True` to bring one back); "missing part"
+cannot be found with a text prompt.
 
 ## External VPS (e.g. MultiSet)
 
