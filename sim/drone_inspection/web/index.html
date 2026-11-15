@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Drone inspection · deepsplat</title>
+  <link rel="stylesheet" href="/design/system/tokens.css">
+  <link rel="stylesheet" href="/design/system/components.css">
+  <link rel="stylesheet" href="/web/style.css">
+  <script src="/web/app.js" defer></script>
+</head>
+<body>
+  <header><img src="/design/brand/logos/deepsplat-wordmark-light.svg" alt="deepsplat" width="180"><span id="connection" role="status">Connecting…</span></header>
+  <main>
+    <h1>Drone inspection</h1>
+    <p id="action" aria-live="polite">Loading scene…</p>
+    <p id="error" role="alert" hidden></p>
+    <section class="ds-card controls" aria-label="Inspection controls">
+      <label>Inspect <select id="mode"><option value="autonomous">All surfaces</option><option value="user-directed">Selected region</option></select></label>
+      <button class="ds-btn ds-btn--primary" data-command="start">Start inspection</button>
+      <button class="ds-btn ds-btn--secondary" data-command="pause">Pause</button>
+      <button class="ds-btn ds-btn--secondary" data-command="resume">Resume</button>
+      <button class="ds-btn ds-btn--secondary" data-command="hover">Hover</button>
+      <button class="ds-btn ds-btn--secondary" data-command="cancel">Cancel</button>
+      <button class="ds-btn ds-btn--secondary" data-command="reset">Reset</button>
+      <button class="ds-btn ds-btn--secondary" data-command="save">Save run</button>
+      <button class="ds-btn stop" data-command="emergency_stop">Emergency stop</button>
+    </section>
+    <section class="metrics" aria-label="Flight status">
+      <div class="ds-card"><span>Inspection state</span><strong id="state">Initializing</strong></div>
+      <div class="ds-card"><span>Surface coverage</span><strong id="coverage">—</strong><progress id="progress" max="1" value="0" aria-label="Surface coverage"></progress></div>
+      <div class="ds-card"><span>Position · meters</span><strong id="position">—</strong></div>
+      <div class="ds-card"><span>Speed · elapsed time</span><strong id="telemetry">—</strong></div>
+    </section>
+    <div class="views">
+      <section class="ds-card">
+        <h2>Onboard camera</h2>
+        <div class="camera"><img id="first" alt="Live onboard camera" src="/api/stream/first.mjpg"></div>
+        <div class="controls">
+          <button id="freeze" class="ds-btn ds-btn--secondary" disabled>Freeze to select</button>
+          <label>Region radius · m <input id="radius" type="number" value="0.65" min="0.1" max="2" step="0.1"></label>
+        </div>
+        <p id="selection">Freeze a frame, then click a surface to preview an inspection region.</p>
+      </section>
+      <section class="ds-card">
+        <h2>Camera pose · third person</h2>
+        <div class="camera"><img alt="Live follow camera" src="/api/stream/third.mjpg"></div>
+        <p>The blue frustum shows the onboard camera’s position, direction, and field of view.</p>
+        <label><input id="manual" type="checkbox" disabled> Enable keyboard flight</label>
+        <p>W / S forward / back · A / D left / right · R / F up / down · Q / E turn. Space to hover. Release keys to hover.</p>
+      </section>
+    </div>
+    <section class="ds-card details">
+      <h2>Inspection progress</h2>
+      <p id="areas">Waiting for scene geometry…</p><p id="saved"></p>
+      <form id="chat-form" class="controls">
+        <label for="message">Inspection command</label>
+        <input class="ds-input" id="message" placeholder="inspect all, hover, pause, resume, save" required maxlength="2000">
+        <button class="ds-btn ds-btn--secondary" id="send" disabled>Send command</button>
+      </form>
+      <div id="chat" aria-live="polite"></div>
+    </section>
+  </main>
+</body>
+</html>

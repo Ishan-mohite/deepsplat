@@ -1,0 +1,28 @@
+{
+  "scene": "assets/scenes/TEEsavR23oF.glb",
+  "source_up": "Z",
+  "scale_to_meters": 1.0,
+  "renderer": "habitat",
+  "initial_position": [
+    -8.047001457214355,
+    0.8451709747314453,
+    1.869441032409668
+  ],
+  "initial_quaternion_xyzw": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "target_bounds": null,
+  "distance_range": [
+    0.4,
+    3.0
+  ],
+  "max_view_angle": 70,
+  "minimum_pixels_per_meter": 60,
+  "coverage_threshold": 0.98,
+  "surface_samples": 2500,
+  "grid_resolution": 0.4,
+  "max_grid_cells": 150000
+}

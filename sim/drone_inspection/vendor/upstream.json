@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/learnsyslab/gym-pybullet-drones",
+  "revision": "410c2395947fb850cfcdf7a2b7f17be0eac44a7e",
+  "license": "MIT",
+  "sha256": {
+    "LICENSE": "d49cdc3020dfe0615515277ff96e2f5ca471750248a7505c9bb288be84af4591",
+    "gym_pybullet_drones/control/BaseControl.py": "b5d0a9a814274d01e02835856b1b2348f9507bbf950cc4002aff8352c317317d",
+    "gym_pybullet_drones/control/DSLPIDControl.py": "aaf793db525b46ff0992285fbba6476f54bfb9e1a27a6c80cf3d3bc34b28d0db",
+    "gym_pybullet_drones/utils/enums.py": "68929a15e5ae31d89bbbe26cf4cb9db18fccc40203915328e4c33ac73cf87ea6",
+    "gym_pybullet_drones/assets/cf2x.urdf": "81494018056df2995351da62b9365d2ef4e1512112feaf73e88f9203e20c884b",
+    "gym_pybullet_drones/assets/cf2.dae": "8db98d6393bbf672f01a8d3af6ff5ac42b9e85f6ee3e3e2d2c53801e823b3a35"
+  }
+}
