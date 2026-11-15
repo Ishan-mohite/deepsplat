@@ -58,6 +58,11 @@ enum CapturePaths {
     static var archives: URL { documents.appendingPathComponent("archives", isDirectory: true) }
     static var mockUploads: URL { documents.appendingPathComponent("mock-uploads", isDirectory: true) }
     static var queue: URL { FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("upload-queue.json") }
+    static var uploadLogs: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("upload-logs", isDirectory: true)
+    }
+    static func uploadLog(_ id: UUID) -> URL { uploadLogs.appendingPathComponent(id.uuidString + ".json") }
     static func folder(_ id: UUID) -> URL { captures.appendingPathComponent(id.uuidString, isDirectory: true) }
     static func archive(_ id: UUID) -> URL { archives.appendingPathComponent(id.uuidString + ".zip") }
 }

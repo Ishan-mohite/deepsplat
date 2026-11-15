@@ -14,6 +14,8 @@ struct ReviewView: View {
     @State private var share: SharedArchive?
     @State private var confirmDiscard = false
     @State private var loadError: String?
+    @State private var showUploadLog = false
+    private var logEntries: [UploadLogEntry] { uploads.logs[id] ?? [] }
     private var record: UploadRecord? { uploads.records.first { $0.id == id } }
 
     var body: some View {
@@ -44,6 +46,7 @@ struct ReviewView: View {
                         .background(Design.viewportSurface, in: Capsule()).padding(14)
                 }.clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Design.viewportLine, lineWidth: 1))
+                captureIdentity
                 if let manifest {
                     HStack(spacing: 18) {
                         Metric(value: "\(manifest.video.frames.count)", label: "Frames")
@@ -52,6 +55,7 @@ struct ReviewView: View {
                     }.captureCard()
                 }
                 if let record { deliveryCard(record) }
+                uploadLogPanel
                 if record?.status == .uploaded {
                     VStack(alignment: .leading, spacing: 12) {
                         Eyebrow(text: "Backend processing")
@@ -128,6 +132,7 @@ struct ReviewView: View {
         .task {
             defer { loading = false }
             uploads.refreshFiles()
+            uploads.loadLog(id)
             do {
                 let folder = CapturePaths.folder(id)
                 manifest = try await Task.detached { try CaptureWriter.readManifest(in: folder) }.value
@@ -149,6 +154,88 @@ struct ReviewView: View {
         .alert("Capture", isPresented: Binding(get: { loadError != nil }, set: { if !$0 { loadError = nil } })) {
             Button("OK") { loadError = nil }
         } message: { Text(loadError ?? "") }
+    }
+
+    private var captureIdentity: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Eyebrow(text: "Video capture")
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = id.uuidString
+                } label: { Label("Copy ID", systemImage: "doc.on.doc").font(.caption.weight(.semibold)) }
+                    .buttonStyle(.borderless).frame(minHeight: 44)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Capture ID").font(.caption).foregroundStyle(Design.muted)
+                Text(id.uuidString).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Upload filename").font(.caption).foregroundStyle(Design.muted)
+                Text(CapturePaths.archive(id).lastPathComponent)
+                    .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+            }
+            if let manifest {
+                Text("\(manifest.video.frames.count) video frames · \(manifest.photo.file)")
+                    .font(.caption).foregroundStyle(Design.muted)
+            }
+        }.captureCard()
+    }
+
+    private var uploadLogPanel: some View {
+        DisclosureGroup(isExpanded: $showUploadLog) {
+            VStack(alignment: .leading, spacing: 12) {
+                if logEntries.isEmpty {
+                    Text("Upload events appear here when you start an upload. Earlier uploads have no detailed log.")
+                        .font(.footnote).foregroundStyle(Design.muted)
+                } else {
+                    HStack {
+                        Text("Latest \(UploadDiagnostics.maximumEntries) events retained")
+                            .font(.caption).foregroundStyle(Design.muted)
+                        Spacer()
+                        ShareLink(item: uploadLogText) {
+                            Label("Share log", systemImage: "square.and.arrow.up").font(.caption.weight(.semibold))
+                        }
+                    }
+                    if record?.status == .uploading {
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                            Text(String(format: "Current phase · %.1f s", uploads.phaseElapsed(id)))
+                                .font(.system(.caption, design: .monospaced)).foregroundStyle(Design.blue)
+                        }
+                    }
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 16) {
+                            ForEach(logEntries) { entry in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text(entry.timestamp, format: .dateTime.hour().minute().second().secondFraction(.fractional(3)))
+                                        Text("· attempt \(entry.attempt)")
+                                        Spacer(minLength: 0)
+                                        if let duration = entry.duration { Text(String(format: "%.3f s", duration)) }
+                                    }.font(.system(.caption2, design: .monospaced)).foregroundStyle(Design.muted)
+                                    Text(entry.message).font(.system(.caption, design: .monospaced))
+                                        .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                                }
+                            }
+                        }.padding(12)
+                    }.frame(height: 300)
+                        .background(Design.background, in: RoundedRectangle(cornerRadius: 9))
+                }
+            }.padding(.top, 16)
+        } label: {
+            HStack {
+                Label("Upload log", systemImage: "list.bullet.rectangle").font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(logEntries.count)").font(.system(.caption, design: .monospaced)).foregroundStyle(Design.muted)
+            }.foregroundStyle(Design.ink)
+        }.tint(Design.blue).captureCard()
+    }
+    private var uploadLogText: String {
+        let header = "Capture: \(id.uuidString)\nFile: \(CapturePaths.archive(id).lastPathComponent)\n"
+        return header + logEntries.map { entry in
+            let duration = entry.duration.map { String(format: " · %.3f s", $0) } ?? ""
+            return "\(entry.timestamp.ISO8601Format()) · attempt \(entry.attempt)\(duration) · \(entry.message)"
+        }.joined(separator: "\n")
     }
 
     private var processingTitle: String {
@@ -181,6 +268,10 @@ struct ReviewView: View {
                 } else {
                     ProgressView().tint(Design.blue)
                 }
+            }
+            if record.status == .uploading, record.stage == .requestingUpload {
+                Text("Waiting for the backend. This request times out after 20 seconds.")
+                    .font(.footnote).foregroundStyle(Design.muted)
             }
             if let error = record.error { Text(error).font(.footnote).foregroundStyle(Design.amber) }
         }.captureCard()

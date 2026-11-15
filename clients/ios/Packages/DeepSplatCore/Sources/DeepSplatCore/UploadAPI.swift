@@ -90,3 +90,40 @@ public enum UploadAPI {
         return request
     }
 }
+
+/// Local upload diagnostics, separate from the immutable capture dataset.
+public struct UploadLogEntry: Identifiable, Codable, Sendable {
+    public let id: UUID
+    public let timestamp: Date
+    public let attempt: Int
+    public let message: String
+    public let duration: TimeInterval?
+    public init(message: String, attempt: Int, duration: TimeInterval? = nil) {
+        id = UUID(); timestamp = Date(); self.attempt = attempt
+        self.message = message; self.duration = duration
+    }
+}
+
+public enum UploadDiagnostics {
+    public static let maximumEntries = 300
+    public static func redacted(_ text: String, token: String = "") -> String {
+        var result = token.isEmpty ? text : text.replacingOccurrences(of: token, with: "[redacted]")
+        // Errors can contain signed URLs: never persist credentials, query or fragment.
+        let pattern = try! NSRegularExpression(pattern: "https?://[^\\s\\\"<>]+", options: .caseInsensitive)
+        for match in pattern.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed() {
+            guard let range = Range(match.range, in: result), var url = URLComponents(string: String(result[range])) else { continue }
+            url.user = nil; url.password = nil; url.query = nil; url.fragment = nil
+            result.replaceSubrange(range, with: url.string ?? "[URL redacted]")
+        }
+        result = result.replacingOccurrences(of: "Bearer\\s+[^\\s,;]+", with: "Bearer [redacted]", options: [.regularExpression, .caseInsensitive])
+        return String(result.prefix(2000))
+    }
+    public static func load(from url: URL) throws -> [UploadLogEntry] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        return Array(try JSONDecoder().decode([UploadLogEntry].self, from: Data(contentsOf: url)).suffix(maximumEntries))
+    }
+    public static func save(_ entries: [UploadLogEntry], to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(Array(entries.suffix(maximumEntries))).write(to: url, options: .atomic)
+    }
+}

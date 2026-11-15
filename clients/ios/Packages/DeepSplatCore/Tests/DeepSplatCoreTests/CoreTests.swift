@@ -208,6 +208,28 @@ final class CoreTests: XCTestCase {
         XCTAssertNil(UploadRecord.next(in: [record]))
     }
 
+    func testUploadDiagnosticsRedactTokensAndSignedURLCredentials() {
+        let text = "Bearer secret-token PUT https://user:password@storage.example.com/file.zip?signature=private#fragment failed"
+        let safe = UploadDiagnostics.redacted(text, token: "secret-token")
+        for secret in ["secret-token", "password", "signature", "private", "fragment", "user:"] {
+            XCTAssertFalse(safe.contains(secret))
+        }
+        XCTAssertTrue(safe.contains("https://storage.example.com/file.zip"))
+        XCTAssertTrue(safe.contains("failed"))
+    }
+    func testUploadDiagnosticsPersistTimesAttemptsAndBoundHistory() throws {
+        let destination = root.appendingPathComponent("logs/upload.json")
+        let entries = (0..<350).map { UploadLogEntry(message: "event \($0)", attempt: 2, duration: 1.25) }
+        try UploadDiagnostics.save(entries, to: destination)
+        let restored = try UploadDiagnostics.load(from: destination)
+        XCTAssertEqual(restored.count, 300)
+        XCTAssertEqual(restored.first?.message, "event 50")
+        XCTAssertEqual(restored.last?.id, entries.last?.id)
+        XCTAssertEqual(restored.last?.timestamp.timeIntervalSince1970 ?? 0, entries.last!.timestamp.timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(restored.last?.duration, 1.25)
+        XCTAssertEqual(restored.last?.attempt, 2)
+    }
+
     func testUploadPayloadUsesStableCaptureID() throws {
         let id = UUID()
         let request = CreateCaptureRequest(id: id, mapID: "room", size: 123, created: 1000)
