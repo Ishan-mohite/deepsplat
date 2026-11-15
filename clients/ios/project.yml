@@ -1,0 +1,64 @@
+name: DeepSplatCapture
+options:
+  minimumXcodeGenVersion: 2.42.0
+  deploymentTarget:
+    iOS: '16.0'
+packages:
+  DeepSplatCore:
+    path: Packages/DeepSplatCore
+configFiles:
+  Debug: Local.xcconfig
+  Release: Local.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: '5.9'
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: '1'
+    SUPPORTS_MACCATALYST: NO
+    SWIFT_STRICT_CONCURRENCY: targeted
+targets:
+  DeepSplatCapture:
+    type: application
+    platform: iOS
+    sources: [DeepSplatCapture]
+    settings:
+      base:
+        TARGETED_DEVICE_FAMILY: '1'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - package: DeepSplatCore
+    info:
+      path: DeepSplatCapture/Info.plist
+      properties:
+        CFBundleDisplayName: deepsplat
+        CFBundleShortVersionString: '0.1.0'
+        CFBundleVersion: '1'
+        NSCameraUsageDescription: Camera is used to record inspection videos and photos.
+        NSLocationWhenInUseUsageDescription: Location is used as a hint to find the right map.
+        NSMotionUsageDescription: Motion measurements are recorded alongside inspection frames.
+        UIRequiredDeviceCapabilities: [arkit]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+  DeepSplatCaptureTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: '17.0'
+    sources: [DeepSplatCaptureTests]
+    dependencies:
+      - target: DeepSplatCapture
+    settings:
+      base:
+        TARGETED_DEVICE_FAMILY: '1'
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.deepsplat.capture.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  DeepSplatCapture:
+    build:
+      targets:
+        DeepSplatCapture: all
+    test:
+      targets: [DeepSplatCaptureTests]

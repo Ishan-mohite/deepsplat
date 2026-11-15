@@ -1,0 +1,3 @@
+// Copy to Local.xcconfig and fill these values for installation on your iPhone.
+DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = com.example.deepsplat.capture
