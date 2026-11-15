@@ -13,6 +13,8 @@ final class UploadQueue: ObservableObject {
     private var session: URLSession!
     private var work: Task<Void, Never>?
     private var retryTimer: Task<Void, Never>?
+    private var workID: UUID?
+    private var activeTask: URLSessionTask?
     private var activeTransfer: UUID?
     private var restoring = true
     private let monitor = NWPathMonitor()
@@ -24,12 +26,12 @@ final class UploadQueue: ObservableObject {
         self.settings = settings
         do { records = try UploadPersistence.load(from: CapturePaths.queue) }
         catch { storageHealthy = false; message = "The upload queue could not be read. Existing files have been preserved: \(error.localizedDescription)" }
-        delegate.onProgress = { [weak self] id, fraction in
-            guard let self, let index = self.records.firstIndex(where: { $0.id == id }), self.records[index].status == .uploading else { return }
+        delegate.onProgress = { [weak self] id, taskID, fraction in
+            guard let self, let index = self.records.firstIndex(where: { $0.id == id }), self.records[index].acceptsTransferCallback(taskID: taskID) else { return }
             // UI progress is in memory; phase boundaries are persisted.
             self.records[index].progress = min(0.99, fraction)
         }
-        delegate.onComplete = { [weak self] id, code, error in self?.transferFinished(id: id, code: code, error: error) }
+        delegate.onComplete = { [weak self] id, taskID, code, error in self?.transferFinished(id: id, taskID: taskID, code: code, error: error) }
         delegate.onEventsFinished = { [weak self] in self?.eventsDrained = true; self?.finishBackgroundEventsIfReady() }
         let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionID)
         configuration.sessionSendsLaunchEvents = true; configuration.isDiscretionary = false
@@ -61,7 +63,7 @@ final class UploadQueue: ObservableObject {
 
     func enqueue(_ id: UUID) {
         guard storageHealthy, let index = records.firstIndex(where: { $0.id == id }), records[index].status != .uploaded else { return }
-        if !records[index].queued {
+        if !records[index].queued && !records[index].hasUploadedBytes {
             if !settings.mockBackend {
                 guard BackendClient.baseURL(settings.backendURL) != nil, !settings.token().isEmpty else {
                     message = "Enter an HTTPS backend URL and token in Settings, or enable Mock backend."; return
@@ -71,12 +73,30 @@ final class UploadQueue: ObservableObject {
             records[index].backendURL = settings.backendURL
             records[index].wifiOnly = settings.wifiOnly
         }
+        if records[index].status == .stopped { records[index].status = .saved }
         records[index].queued = true; records[index].nextAttempt = nil; records[index].error = nil
         do { try persist(); kick() } catch { message = error.localizedDescription }
     }
     func retry(_ id: UUID) { enqueue(id) }
+    func stop(_ id: UUID) {
+        guard let index = records.firstIndex(where: { $0.id == id }),
+              records[index].status != .uploaded,
+              records[index].queued || records[index].status == .uploading else { return }
+        do { try update(id) { $0.stopUpload() } }
+        catch {
+            // Still stop the network request if the queue cannot be written.
+            records[index].stopUpload()
+            message = "Upload stopped, but the stopped state could not be saved: \(error.localizedDescription)"
+        }
+        if workID == id { work?.cancel() }
+        if activeTransfer == id {
+            activeTask?.cancel(); activeTask = nil; activeTransfer = nil
+        }
+        retryTimer?.cancel(); retryTimer = nil
+        kick()
+    }
     func delete(_ id: UUID) {
-        guard let record = records.first(where: { $0.id == id }), record.status != .uploading else {
+        guard let record = records.first(where: { $0.id == id }), record.status != .uploading, workID != id else {
             message = "Wait for the active upload to finish before deleting this capture."; return
         }
         do {
@@ -89,6 +109,7 @@ final class UploadQueue: ObservableObject {
         } catch { message = "Could not delete capture: \(error.localizedDescription)" }
     }
     func statusText(_ record: UploadRecord) -> String {
+        if record.status == .stopped { return "Upload stopped" }
         if record.status == .uploaded { return record.mock ? "Saved to mock backend" : "Uploaded" + (record.backendStatus.map { " · \($0.rawValue)" } ?? "") }
         if record.queued, record.wifiOnly, !wifiAvailable { return "Waiting for Wi-Fi" }
         if record.status == .uploading {
@@ -103,6 +124,10 @@ final class UploadQueue: ObservableObject {
         return record.queued ? "Queued" : "Saved on iPhone"
     }
     func export(_ id: UUID) async throws -> URL {
+        guard workID != id else { throw CaptureError.invalid("Wait for upload preparation to finish before exporting.") }
+        return try await buildArchive(id)
+    }
+    private func buildArchive(_ id: UUID) async throws -> URL {
         let folder = CapturePaths.folder(id), destination = CapturePaths.archive(id)
         // A capture's contents are immutable after Stop; only the archive is regenerated.
         try await Task.detached(priority: .userInitiated) {
@@ -123,8 +148,8 @@ final class UploadQueue: ObservableObject {
         let tasks = await session.allTasks
         var live = Set<UUID>()
         for task in tasks {
-            guard let text = task.taskDescription, let id = UUID(uuidString: text), records.contains(where: { $0.id == id }) else { task.cancel(); continue }
-            live.insert(id); activeTransfer = id
+            guard let text = task.taskDescription, let id = UUID(uuidString: text), records.contains(where: { $0.id == id && $0.acceptsTransferCallback(taskID: task.taskIdentifier) }) else { task.cancel(); continue }
+            live.insert(id); activeTransfer = id; activeTask = task
         }
         for index in records.indices where records[index].status == .uploading && !live.contains(records[index].id) {
             records[index].status = .failed; records[index].backgroundTaskID = nil
@@ -146,28 +171,33 @@ final class UploadQueue: ObservableObject {
             }
             return
         }
+        workID = record.id
         work = Task { [weak self] in
             guard let self else { return }
             let background = UIApplication.shared.beginBackgroundTask(withName: "Prepare DeepSplat upload", expirationHandler: nil)
             defer {
                 if background != .invalid { UIApplication.shared.endBackgroundTask(background) }
-                self.work = nil; self.kick(); self.finishBackgroundEventsIfReady()
+                self.work = nil; self.workID = nil; self.kick(); self.finishBackgroundEventsIfReady()
             }
             do { try await self.prepare(record) }
             catch { self.fail(record.id, error: error) }
         }
     }
     private func prepare(_ record: UploadRecord) async throws {
+        try Task.checkCancellation()
         try update(record.id) { $0.status = .uploading; $0.stage = .preparing; $0.error = nil; $0.attempts += 1 }
         if record.hasUploadedBytes && !record.mock { try await confirm(record); return }
         let zip = CapturePaths.archive(record.id)
-        if !FileManager.default.fileExists(atPath: zip.path) { _ = try await export(record.id) }
+        if !FileManager.default.fileExists(atPath: zip.path) { _ = try await buildArchive(record.id) }
+        try Task.checkCancellation()
         if record.mock {
             try await Task.detached { try MockBackendClient().upload(id: record.id, archive: zip) }.value
+            try Task.checkCancellation()
             try update(record.id) { $0.status = .uploaded; $0.progress = 1; $0.queued = false; $0.stage = .waiting; $0.hasUploadedBytes = true }
             return
         }
         let ticket = try await client(record).ticket(record, zip: zip)
+        try Task.checkCancellation()
         let request = try UploadAPI.signedPut(ticket: ticket, wifiOnly: record.wifiOnly)
         // Never forward the backend bearer token to the signed storage URL.
         let task = session.uploadTask(with: request, fromFile: zip)
@@ -175,12 +205,12 @@ final class UploadQueue: ObservableObject {
         do {
             try update(record.id) { $0.stage = .transferring; $0.backgroundTaskID = task.taskIdentifier; $0.progress = 0 }
         } catch { task.cancel(); throw error }
-        activeTransfer = record.id
+        activeTransfer = record.id; activeTask = task
         task.resume()
     }
-    private func transferFinished(id: UUID, code: Int?, error: String?) {
-        guard records.contains(where: { $0.id == id }) else { return }
-        activeTransfer = nil
+    private func transferFinished(id: UUID, taskID: Int, code: Int?, error: String?) {
+        guard records.contains(where: { $0.id == id && $0.acceptsTransferCallback(taskID: taskID) }) else { return }
+        activeTransfer = nil; activeTask = nil
         if let error {
             fail(id, error: CaptureError.invalid(error)); kick(); return
         }
@@ -190,20 +220,23 @@ final class UploadQueue: ObservableObject {
         do { try update(id) { $0.hasUploadedBytes = true; $0.stage = .confirming; $0.progress = 1; $0.backgroundTaskID = nil } }
         catch { message = error.localizedDescription; return }
         guard let record = records.first(where: { $0.id == id }) else { return }
+        workID = id
         work = Task { [weak self] in
             guard let self else { return }
             let background = UIApplication.shared.beginBackgroundTask(withName: "Confirm DeepSplat upload", expirationHandler: nil)
             defer {
                 if background != .invalid { UIApplication.shared.endBackgroundTask(background) }
-                self.work = nil; self.kick(); self.finishBackgroundEventsIfReady()
+                self.work = nil; self.workID = nil; self.kick(); self.finishBackgroundEventsIfReady()
             }
             do { try await self.confirm(record) }
             catch { self.fail(id, error: error) }
         }
     }
     private func confirm(_ record: UploadRecord) async throws {
+        try Task.checkCancellation()
         try update(record.id) { $0.stage = .confirming }
         let response = try await client(record).complete(record.id)
+        try Task.checkCancellation()
         try update(record.id) {
             $0.status = .uploaded; $0.stage = .waiting; $0.queued = false; $0.progress = 1
             $0.backendStatus = response.status; $0.backgroundTaskID = nil; $0.error = nil
@@ -214,6 +247,7 @@ final class UploadQueue: ObservableObject {
         return BackendClient(base: url, token: settings.token(for: record.backendURL))
     }
     private func fail(_ id: UUID, error: Error) {
+        guard records.contains(where: { $0.id == id && $0.queued && $0.status == .uploading }) else { return }
         do { try update(id) {
             $0.status = .failed; $0.error = error.localizedDescription; $0.backgroundTaskID = nil
             $0.nextAttempt = Date().addingTimeInterval(UploadRecord.retryDelay(attempt: $0.attempts))
@@ -237,18 +271,20 @@ final class UploadQueue: ObservableObject {
 }
 
 private final class TransferDelegate: NSObject, URLSessionTaskDelegate, URLSessionDelegate, @unchecked Sendable {
-    var onProgress: (@MainActor (UUID, Double) -> Void)?
-    var onComplete: (@MainActor (UUID, Int?, String?) -> Void)?
+    var onProgress: (@MainActor (UUID, Int, Double) -> Void)?
+    var onComplete: (@MainActor (UUID, Int, Int?, String?) -> Void)?
     var onEventsFinished: (@MainActor () -> Void)?
     func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64, totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
         guard let text = task.taskDescription, let id = UUID(uuidString: text), totalBytesExpectedToSend > 0 else { return }
         let fraction = Double(totalBytesSent) / Double(totalBytesExpectedToSend)
-        Task { @MainActor in onProgress?(id, fraction) }
+        let taskID = task.taskIdentifier
+        Task { @MainActor in onProgress?(id, taskID, fraction) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let text = task.taskDescription, let id = UUID(uuidString: text) else { return }
         let code = (task.response as? HTTPURLResponse)?.statusCode, message = error?.localizedDescription
-        Task { @MainActor in onComplete?(id, code, message) }
+        let taskID = task.taskIdentifier
+        Task { @MainActor in onComplete?(id, taskID, code, message) }
     }
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) { Task { @MainActor in onEventsFinished?() } }
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {

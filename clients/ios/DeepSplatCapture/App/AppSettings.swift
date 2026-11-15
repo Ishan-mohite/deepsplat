@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import Security
 
 struct CaptureConfiguration: Sendable {
@@ -21,7 +22,8 @@ final class AppSettings: ObservableObject {
     @Published var recordGPS: Bool { didSet { defaults.set(recordGPS, forKey: "recordGPS") } }
     @Published var wifiOnly: Bool { didSet { defaults.set(wifiOnly, forKey: "wifiOnly") } }
     @Published var mockBackend: Bool { didSet { defaults.set(mockBackend, forKey: "mockBackend") } }
-    @Published var tokenError: String?
+    // Owned by the app, not the Settings sheet. Never written to preferences or disk.
+    @Published private var sessionTokens: [String: String] = [:]
     private let defaults = UserDefaults.standard
     init() {
         let d = UserDefaults.standard
@@ -33,6 +35,9 @@ final class AppSettings: ObservableObject {
         jpegQuality = d.object(forKey: "jpegQuality") as? Double ?? 0.9
         recordGPS = d.bool(forKey: "recordGPS"); wifiOnly = d.bool(forKey: "wifiOnly")
         mockBackend = d.object(forKey: "mockBackend") as? Bool ?? true
+        // Earlier versions persisted tokens. Retire those entries for session-only use.
+        SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+                       kSecAttrService as String: "DeepSplatCapture.BackendToken"] as CFDictionary)
     }
     var configuration: CaptureConfiguration {
         .init(mapID: mapID.trimmingCharacters(in: .whitespacesAndNewlines), fps: min(15, max(1, fps)),
@@ -40,41 +45,10 @@ final class AppSettings: ObservableObject {
               jpegQuality: min(1, max(0.5, jpegQuality)), recordGPS: recordGPS)
     }
     func token(for endpoint: String? = nil) -> String {
-        KeychainToken.read(account: endpoint ?? backendURL)
+        sessionTokens[endpoint ?? backendURL] ?? ""
     }
     func setToken(_ token: String) {
-        do { try KeychainToken.write(token, account: backendURL); tokenError = nil }
-        catch { tokenError = error.localizedDescription }
-    }
-}
-
-private enum KeychainToken {
-    static let service = "DeepSplatCapture.BackendToken"
-    static func query(_ account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-    }
-    static func read(account: String) -> String {
-        var query = query(account)
-        query[kSecReturnData as String] = true; query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
-    }
-    static func write(_ value: String, account: String) throws {
-        let query = query(account)
-        if value.isEmpty {
-            let status = SecItemDelete(query as CFDictionary)
-            guard status == errSecSuccess || status == errSecItemNotFound else { throw keychainError(status) }; return
-        }
-        let attributes: [String: Any] = [kSecValueData as String: Data(value.utf8), kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecItemNotFound {
-            let add = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
-            guard add == errSecSuccess else { throw keychainError(add) }
-        } else if status != errSecSuccess { throw keychainError(status) }
-    }
-    static func keychainError(_ code: OSStatus) -> Error {
-        NSError(domain: NSOSStatusErrorDomain, code: Int(code), userInfo: [NSLocalizedDescriptionKey: SecCopyErrorMessageString(code, nil) as String? ?? "Keychain write failed."])
+        sessionTokens[backendURL] = token.isEmpty ? nil : token
     }
 }
 

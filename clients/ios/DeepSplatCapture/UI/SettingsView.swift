@@ -1,10 +1,11 @@
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var uploads: UploadQueue
     @Environment(\.dismiss) private var dismiss
-    @State private var token = ""
+    @State private var showToken = false
     @State private var showAdvanced = false
 
     var body: some View {
@@ -51,16 +52,25 @@ struct SettingsView: View {
                     }.padding(.vertical, 5)
                     VStack(alignment: .leading, spacing: 10) {
                         Text("API token").font(.caption).foregroundStyle(Design.muted)
-                        SecureField("Enter backend token", text: $token).textInputAutocapitalization(.never).autocorrectionDisabled()
-                            .font(.subheadline).onChange(of: token) { settings.setToken($0) }
+                        HStack(spacing: 12) {
+                            SessionTokenField(text: tokenBinding, isVisible: showToken)
+                                .frame(minHeight: 44).privacySensitive()
+                            Button {
+                                showToken.toggle()
+                            } label: {
+                                Label(showToken ? "Hide" : "Show", systemImage: showToken ? "eye.slash" : "eye")
+                                    .font(.caption.weight(.semibold)).frame(minHeight: 44)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(showToken ? "Hide API token" : "Show API token")
+                        }
                     }.padding(.vertical, 5)
                     if !settings.backendURL.isEmpty, BackendClient.baseURL(settings.backendURL) == nil {
                         Label("Use an HTTPS URL without credentials or query parameters.", systemImage: "exclamationmark.circle")
                             .font(.caption).foregroundStyle(Design.amber)
                     }
-                    if let error = settings.tokenError { Text(error).font(.caption).foregroundStyle(Design.amber) }
                 } header: { Eyebrow(text: "Backend connection") } footer: {
-                    Label("Token stored securely in the iPhone Keychain.", systemImage: "lock")
+                    Label("Edit the token at any time. Changes apply to new requests immediately and stay for this app session.", systemImage: "lock")
                         .foregroundStyle(Design.muted)
                 }.listRowBackground(Design.surface)
                 Section {
@@ -93,14 +103,76 @@ struct SettingsView: View {
             .navigationTitle("Settings").navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Design.background, for: .navigationBar)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { uploads.kick(); dismiss() }.foregroundStyle(Design.blue) } }
-            .onAppear { token = settings.token() }
-            .onChange(of: settings.backendURL) { _ in token = settings.token() }
+            .onChange(of: settings.backendURL) { _ in showToken = false }
         }.preferredColorScheme(.light)
+    }
+    private var tokenBinding: Binding<String> {
+        Binding(get: { settings.token() }, set: { settings.setToken($0) })
     }
     private func settingValue(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.subheadline)
             Text(value).font(.system(.caption, design: .monospaced)).foregroundStyle(Design.blue)
         }.padding(.vertical, 3)
+    }
+}
+
+/// Keep one UIKit field alive while masking changes. Replacing SecureField with
+/// TextField can lose the selection, and secure fields can clear on refocus.
+private struct SessionTokenField: UIViewRepresentable {
+    @Binding var text: String
+    let isVisible: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField()
+        field.placeholder = "Enter backend token"
+        field.accessibilityLabel = "API token"
+        field.font = .preferredFont(forTextStyle: .subheadline)
+        field.adjustsFontForContentSizeCategory = true
+        field.textColor = UIColor(Design.ink)
+        field.tintColor = UIColor(Design.blue)
+        field.keyboardType = .asciiCapable
+        field.autocapitalizationType = .none
+        field.autocorrectionType = .no
+        field.spellCheckingType = .no
+        field.smartQuotesType = .no
+        field.smartDashesType = .no
+        field.textContentType = nil
+        field.clearsOnBeginEditing = false
+        field.clearButtonMode = .whileEditing
+        field.returnKeyType = .done
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        field.delegate = context.coordinator
+        field.addTarget(context.coordinator, action: #selector(Coordinator.changed(_:)), for: .editingChanged)
+        return field
+    }
+
+    func updateUIView(_ field: UITextField, context: Context) {
+        context.coordinator.text = $text
+        let selection = field.selectedTextRange.map {
+            (field.offset(from: field.beginningOfDocument, to: $0.start),
+             field.offset(from: field.beginningOfDocument, to: $0.end))
+        }
+        let changedVisibility = field.isSecureTextEntry == isVisible
+        if changedVisibility { field.isSecureTextEntry = !isVisible }
+        // Avoid assigning text on each keystroke: that moves the cursor to the end.
+        if field.text != text || changedVisibility { field.text = text }
+        if changedVisibility, let (start, end) = selection,
+           let from = field.position(from: field.beginningOfDocument, offset: start),
+           let to = field.position(from: field.beginningOfDocument, offset: end) {
+            field.selectedTextRange = field.textRange(from: from, to: to)
+        }
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var text: Binding<String>
+        init(text: Binding<String>) { self.text = text }
+        @objc func changed(_ field: UITextField) { text.wrappedValue = field.text ?? "" }
+        func textFieldShouldReturn(_ field: UITextField) -> Bool {
+            field.resignFirstResponder()
+            return true
+        }
     }
 }

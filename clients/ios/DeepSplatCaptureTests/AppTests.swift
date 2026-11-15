@@ -2,7 +2,7 @@ import XCTest
 import DeepSplatCore
 @testable import DeepSplatCapture
 
-private final class HTTPStub: URLProtocol {
+private final class HTTPStub: URLProtocol { 
     static var handler: ((URLRequest) throws -> (Int, Data))?
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }

@@ -34,7 +34,7 @@ public struct BackendStatus: Decodable, Sendable {
     public enum Status: String, Codable, Sendable { case uploaded, processing, done, failed }
     public let status: Status
 }
-public enum UploadStatus: String, Codable, Sendable { case saved, uploading, uploaded, failed }
+public enum UploadStatus: String, Codable, Sendable { case saved, uploading, uploaded, failed, stopped }
 public enum UploadStage: String, Codable, Sendable { case waiting, preparing, transferring, confirming }
 public struct UploadRecord: Identifiable, Codable, Sendable {
     public let id: UUID
@@ -54,9 +54,18 @@ public struct UploadRecord: Identifiable, Codable, Sendable {
     public var backgroundTaskID: Int?
     public var hasUploadedBytes = false
     public init(id: UUID, mapID: String, createdUnix: Double) { self.id = id; self.mapID = mapID; self.createdUnix = createdUnix }
+    /// Keep the capture and any completed storage PUT, but require an explicit restart.
+    public mutating func stopUpload() {
+        status = .stopped; stage = .waiting; queued = false
+        backgroundTaskID = nil; nextAttempt = nil; progress = 0; error = nil
+    }
+    /// A cancelled transfer may report progress/completion after a new attempt starts.
+    public func acceptsTransferCallback(taskID: Int) -> Bool {
+        queued && status == .uploading && backgroundTaskID == taskID
+    }
     public static func retryDelay(attempt: Int) -> TimeInterval { min(300, 2 * pow(2, Double(min(8, max(0, attempt - 1))))) }
     public static func next(in records: [Self]) -> Self? {
-        records.filter { $0.queued && $0.status != .uploaded }.sorted { $0.createdUnix < $1.createdUnix }.first
+        records.filter { $0.queued && $0.status != .uploaded && $0.status != .stopped }.sorted { $0.createdUnix < $1.createdUnix }.first
     }
 }
 public enum UploadPersistence {

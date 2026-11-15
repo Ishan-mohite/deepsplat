@@ -128,6 +128,48 @@ final class CoreTests: XCTestCase {
         let text = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         XCTAssertTrue(text.contains("capture.json")); XCTAssertTrue(text.contains("imu/accel.csv")); XCTAssertTrue(text.contains("photo.jpg"))
     }
+    func testStoppedUploadPersistsAndDoesNotAutomaticallyRetry() throws {
+        var record = UploadRecord(id: UUID(), mapID: "room", createdUnix: 1)
+        record.status = .uploading; record.stage = .transferring; record.queued = true
+        record.backgroundTaskID = 12; record.progress = 0.4
+        record.nextAttempt = Date(); record.error = "Old transfer error"
+        record.stopUpload()
+        let queue = root.appendingPathComponent("stopped-queue.json")
+        try UploadPersistence.save([record], to: queue)
+        let restored = try XCTUnwrap(UploadPersistence.load(from: queue).first)
+        XCTAssertEqual(restored.status, .stopped)
+        XCTAssertFalse(restored.queued)
+        XCTAssertNil(restored.backgroundTaskID)
+        XCTAssertNil(restored.nextAttempt)
+        XCTAssertNil(restored.error)
+        XCTAssertEqual(restored.progress, 0)
+        XCTAssertNil(UploadRecord.next(in: [restored]))
+        XCTAssertFalse(restored.acceptsTransferCallback(taskID: 12))
+    }
+    func testRestartRejectsOldTransferCallbacksAndAllowsNextCapture() {
+        var first = UploadRecord(id: UUID(), mapID: "room", createdUnix: 1)
+        first.status = .uploading; first.queued = true; first.backgroundTaskID = 12
+        XCTAssertTrue(first.acceptsTransferCallback(taskID: 12))
+        first.stopUpload()
+        var second = UploadRecord(id: UUID(), mapID: "room", createdUnix: 2)
+        second.queued = true
+        XCTAssertEqual(UploadRecord.next(in: [first, second])?.id, second.id)
+        first.status = .uploading; first.queued = true; first.backgroundTaskID = 13
+        XCTAssertFalse(first.acceptsTransferCallback(taskID: 12))
+        XCTAssertTrue(first.acceptsTransferCallback(taskID: 13))
+        first.status = .uploaded
+        XCTAssertFalse(first.acceptsTransferCallback(taskID: 13))
+    }
+    func testStopDuringConfirmationRetainsUploadedBytesForRestart() {
+        var record = UploadRecord(id: UUID(), mapID: "room", createdUnix: 1)
+        record.status = .uploading; record.stage = .confirming; record.queued = true
+        record.hasUploadedBytes = true; record.backendURL = "https://example.com"
+        record.stopUpload()
+        XCTAssertTrue(record.hasUploadedBytes)
+        XCTAssertEqual(record.backendURL, "https://example.com")
+        XCTAssertNil(UploadRecord.next(in: [record]))
+    }
+
     func testUploadPayloadUsesStableCaptureID() throws {
         let id = UUID()
         let request = CreateCaptureRequest(id: id, mapID: "room", size: 123, created: 1000)

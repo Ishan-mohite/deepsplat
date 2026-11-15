@@ -82,10 +82,14 @@ struct ReviewView: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 12) {
-                if let record, record.status == .saved || record.status == .failed {
+                if let record, record.status == .uploading || record.queued {
+                    Button { uploads.stop(id) } label: {
+                        Label("Stop upload", systemImage: "stop.fill")
+                    }.buttonStyle(PrimaryStyle())
+                } else if let record, record.status == .saved || record.status == .failed || record.status == .stopped {
                     Button { uploads.enqueue(id) } label: {
                         HStack {
-                            Text(record.status == .failed ? "Retry upload" : record.queued ? "Queued for upload" : "Upload capture")
+                            Text(record.status == .stopped ? "Restart upload" : record.status == .failed ? "Retry upload" : record.queued ? "Queued for upload" : "Upload capture")
                             Spacer(); Image(systemName: "arrow.up.right")
                         }
                     }.buttonStyle(PrimaryStyle()).disabled(record.queued && record.status == .saved)
@@ -165,7 +169,7 @@ struct ReviewView: View {
                     .font(.title2.weight(.light)).foregroundStyle(record.status == .uploaded ? Design.green : record.status == .failed ? Design.amber : Design.blue)
                 VStack(alignment: .leading, spacing: 7) {
                     Text(uploads.statusText(record)).font(.subheadline.weight(.medium))
-                    Text(record.mock ? (record.status == .uploaded ? "Archive copied to the local mock backend." : "Mock upload stays on this iPhone.") : record.status == .uploaded ? "Your original capture is still saved on this iPhone." : "Frames, photo and motion data travel together.")
+                    Text(record.status == .stopped ? "Your capture is kept on this iPhone. Restart the upload when ready." : record.mock ? (record.status == .uploaded ? "Archive copied to the local mock backend." : "Mock upload stays on this iPhone.") : record.status == .uploaded ? "Your original capture is still saved on this iPhone." : "Frames, photo and motion data travel together.")
                         .font(.footnote).foregroundStyle(Design.muted).lineSpacing(3)
                 }
             }
