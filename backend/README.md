@@ -213,6 +213,14 @@ intrinsics, device pose), localize them and post the result:
 (or `camera_to_map` for the photo, or `device_to_map`). The backend combines the frames, places the
 damages and matches issues.
 
+## Without internet
+
+SAM 3 runs at Roboflow. When it cannot be reached (DNS + TCP check, at most ~3 s, cached 30 s), a
+capture is not failed: it is stored as `detection_pending` with photo, frames and localization, the app
+sees `processing`, the viewer shows it at the SAM 3 step. A background task retries every minute and
+runs detection, lifting and matching once Roboflow is reachable. `GET /health` → `detector_reachable`.
+Everything else in the backend (upload, VPS, lifting, issues, floor plan, PDF, viewer data) is local.
+
 ## Deployment (Google Cloud)
 
 Step by step in [deploy/DEPLOY.md](deploy/DEPLOY.md): Cloud Run (`--no-cpu-throttling`, 2 vCPU / 4 GB),

@@ -1,6 +1,8 @@
 """DeepSplat backend (FastAPI). Endpoints follow the project README (POST /localize, POST /inspect,
 issue log for the viewer) and the iOS app plan (/v1 capture upload)."""
 
+import asyncio
+import logging
 import csv
 import io
 import json
@@ -22,7 +24,7 @@ from inspection import evidence
 from inspection.classes import DAMAGE_CLASSES, label
 from inspection.lifting import Camera, visible_points, is_visible
 from inspection.placement import place
-from inspection.detection import get_detector
+from inspection.detection import detector_available, get_detector
 from inspection.severity import LEVELS
 from localization import vps as vps_mod
 from localization.alignment import alignment_from_frame_poses
@@ -52,12 +54,28 @@ async def lifespan(app: FastAPI):
     # on GCS the VPS indexes are persisted in the bucket (Cloud Run disks are ephemeral)
     sync = StorageIndexSync(storage) if settings.storage == "gcs" else None
     vps_mod.configure(settings.vps, settings.data_dir / "vps", sync)
+    retry = asyncio.create_task(_retry_pending_detections_forever())
     yield
+    retry.cancel()
+
+
+async def _retry_pending_detections_forever(every_s: float = 60.0):
+    """Captures that came in while the detector was unreachable (no internet) are detected as soon
+    as it is reachable again."""
+    while True:
+        await asyncio.sleep(every_s)
+        try:
+            n = await asyncio.to_thread(pipeline.retry_pending_detections)
+            if n:
+                log.info("detected %d capture(s) that waited for the detector", n)
+        except Exception:
+            log.exception("retrying pending detections failed")
 
 
 app = FastAPI(title="DeepSplat Backend", version="0.2.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 SessionDep = Annotated[Session, Depends(get_session)]
+log = logging.getLogger(__name__)
 
 
 def require_token(authorization: Annotated[str | None, Header()] = None) -> None:
@@ -156,7 +174,10 @@ def _issue(s: Session, issue_id: str) -> Issue:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "vps": settings.vps, "detector": settings.detector}
+    """`detector_reachable`: false when the detector is a cloud service and there is no internet;
+    captures are then kept as detection_pending and detected later."""
+    return {"ok": True, "vps": settings.vps, "detector": settings.detector,
+            "detector_reachable": detector_available()}
 
 
 @app.get("/meta/damage-classes")
@@ -448,6 +469,7 @@ def detect(image: Annotated[UploadFile, File()]):
 APP_STATUS = {
     CaptureStatus.awaiting_upload: "uploaded", CaptureStatus.uploaded: "uploaded",
     CaptureStatus.processing: "processing", CaptureStatus.failed: "failed",
+    CaptureStatus.detection_pending: "processing",      # waits for the detector (no internet), not lost
 }
 
 

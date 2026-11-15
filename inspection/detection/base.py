@@ -33,6 +33,11 @@ class DetectionResult:
     raw: dict = field(default_factory=dict)
 
 
+class DetectorUnavailable(RuntimeError):
+    """The detector cannot be reached right now (e.g. no internet for a cloud model). Captures are
+    kept and detected later instead of failing."""
+
+
 class Detector(Protocol):
     name: str
 

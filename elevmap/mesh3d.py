@@ -2,7 +2,7 @@
 
 * ``elevation_mesh.ply``     triangle mesh of the ground surface, per-vertex color = traversable / blocked
 * ``elevation_cloud.pcd``    ASCII PCD (PCL / ROS) with x y z + traversable + obstacle_h + slope fields
-* ``elevation_3d.html``      standalone interactive viewer (three.js from a CDN, data embedded)
+* ``elevation_3d.html``      standalone interactive viewer (three.js r128 and data embedded, works offline)
 Frame: floor-aligned, z up, floor = 0, metres (same as map.yaml).
 """
 
@@ -24,8 +24,7 @@ button.on{background:#0ea5e9;border-color:#0ea5e9}.sw{display:inline-block;width
 <button id=bT class=on>Traversable</button><button id=bH>Height</button><button id=bS>Slope</button><br>
 <span class=sw style="background:#22c55e"></span>robot can drive &nbsp;<span class=sw style="background:#ef4444"></span>blocked<br>
 <label><input type=checkbox id=cw> wireframe</label> &nbsp; <small>drag = rotate, wheel = zoom, right-drag = pan</small></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+__THREE_SCRIPTS__
 <script>
 const D=__DATA__;
 const f32=b=>new Float32Array(Uint8Array.from(atob(b),c=>c.charCodeAt(0)).buffer);
@@ -48,6 +47,14 @@ bT.onclick=()=>show('T',bT);bH.onclick=()=>show('H',bH);bS.onclick=()=>show('S',
 addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();r.setSize(innerWidth,innerHeight)});
 (function a(){requestAnimationFrame(a);r.render(scene,cam)})();
 </script>"""
+
+
+VENDOR = Path(__file__).parent / "vendor"
+
+
+def three_scripts() -> str:
+    """three.js r128 + OrbitControls inlined (elevmap/vendor, MIT), so the file needs no internet."""
+    return "".join(f"<script>\n{(VENDOR / f).read_text()}\n</script>\n" for f in ("three.min.js", "OrbitControls.js"))
 
 
 def _ramp(v, lo, hi):
@@ -118,5 +125,6 @@ def build(npz_path: Path, out: Path, stride: int = 2, max_edge_jump: float = 0.6
             f"· floor = 0 m<br>frame: z up, metres (same as map.yaml)")
     data = {"pos": b64(pos), "idx": b64(tris), "cT": b64(cT), "cH": b64(cH), "cS": b64(cS),
             "center": [float(x.mean()), float(y.mean())], "span": span}
-    (out / "elevation_3d.html").write_text(HTML.replace("__DATA__", json.dumps(data)).replace("__INFO__", info))
+    html = HTML.replace("__DATA__", json.dumps(data)).replace("__INFO__", info)
+    (out / "elevation_3d.html").write_text(html.replace("__THREE_SCRIPTS__", three_scripts()))
     return {"vertices": int(len(pos)), "triangles": int(len(tris)), "html_mb": round((out / "elevation_3d.html").stat().st_size / 1e6, 1)}

@@ -28,11 +28,12 @@ Everything is on `main`: backend, web viewer, iOS capture app, design system and
 
 ### 1. Start the backend (on the machine that has the splat)
 
-Needs [uv](https://docs.astral.sh/uv/) and, for the iOS app, `cloudflared` (macOS: `brew install uv cloudflared`).
+Needs [uv](https://docs.astral.sh/uv/) (macOS: `brew install uv`); `cloudflared` only for `--tunnel`.
 
 ```bash
 git checkout main && git pull
-scripts/start-backend.sh --tunnel
+scripts/start-backend.sh            # local network (phone and backend on the same Wi-Fi)
+scripts/start-backend.sh --tunnel   # or: public https address, needs internet
 ```
 
 The script installs the Python packages, creates `.env` from `backend/.env.example` if there is none
@@ -40,9 +41,10 @@ The script installs the Python packages, creates `.env` from `backend/.env.examp
 set, and prints the three values the app needs. Data stays in `./data` (ignored by git), so a map that
 was registered in this folder before is still there.
 
-`--tunnel` publishes the server under a temporary `https://….trycloudflare.com` address. The iOS app
-only accepts https addresses, and a laptop on the local network has none. The address changes with
-every start. Without `--tunnel` the viewer and API run on `http://localhost:8000` and the local network only.
+Without `--tunnel` the backend is reachable on the local network as `http://<this machine's IP>:8000`;
+the app accepts plain http for private addresses (10.x, 172.16–31.x, 192.168.x, `*.local`).
+`--tunnel` publishes the server under a temporary `https://….trycloudflare.com` address instead (needs
+internet; the address changes with every start; Cloudflare limits uploads to 100 MB per request).
 
 ### 2. Register the splat (once per map)
 
@@ -69,11 +71,24 @@ Settings switch **Mock backend** off and enter the values the start script print
 
 | Setting | Value |
 |---|---|
-| Backend URL | the `https://….trycloudflare.com` address |
+| Backend URL | the address the script printed: `http://<IP>:8000` on the same Wi-Fi, or the tunnel address |
 | Token | the token from the script (also `API_TOKEN` in `.env`) |
 | Map ID | the id used in step 2, e.g. `auditorium` |
 
 Then **Record defect** → sweep → crack photo → **Upload capture**.
+
+### Without internet
+
+Phone, backend and viewer only need the local network. What still needs the internet, and how it behaves:
+
+| Part | Without internet |
+|---|---|
+| Network | Needs a Wi-Fi that keeps running without an uplink, e.g. a travel router. **An iPhone's Personal Hotspot switches off when its mobile data is off**, and devices then hop to other known networks. |
+| Upload, localization (own VPS), lifting, issues, floor plan, PDF | work offline |
+| Web viewer | works offline: three.js, Spark and the fonts are in `viewer/vendor/` |
+| SAM 3 detection | runs at Roboflow (cloud). Captures that arrive offline are kept as `detection_pending` (app: *processing*) with their photo, frames and localization, and are detected automatically within a minute once the backend is online again. `GET /health` shows `detector_reachable`. For a fully offline demo set `DETECTOR=fake`. |
+| `scripts/start-backend.sh` | starts offline (`uv sync --offline` first; packages must have been installed once with internet). Not with `--tunnel`. |
+| One-time setup | `uv sync`, the splat (Git LFS) and building the iOS app need internet once. |
 
 ### Tests
 

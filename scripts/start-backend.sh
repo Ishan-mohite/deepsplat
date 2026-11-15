@@ -26,7 +26,15 @@ while [ $# -gt 0 ]; do
 done
 
 command -v uv >/dev/null || { echo "uv is missing. Install it first: https://docs.astral.sh/uv/getting-started/installation/" >&2; exit 1; }
-[ "$SYNC" = 1 ] && uv sync --quiet
+# Offline first: succeeds without network when everything is installed already (hotspot or router
+# without internet). Only if packages are missing, try with network; with an existing environment,
+# start anyway.
+if [ "$SYNC" = 1 ]; then
+  uv sync --quiet --offline 2>/dev/null || uv sync --quiet || {
+    [ -d .venv ] || { echo "uv sync failed and there is no environment yet: run this once with internet." >&2; exit 1; }
+    echo "Warning: uv sync failed (no internet?). Starting with the existing environment." >&2
+  }
+fi
 
 if [ ! -f .env ]; then
   cp backend/.env.example .env
@@ -59,7 +67,19 @@ if [ "$(setting DETECTOR)" != "fake" ] && [ -z "$(setting ROBOFLOW_API_KEY)" ]; 
   echo "Warning: ROBOFLOW_API_KEY is empty in .env, so SAM 3 detection will fail. Set it, or DETECTOR=fake for a dry run." >&2
 fi
 
-LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || true)
+# This machine's address on the local network (needs no internet, only a route).
+lan_ip() {
+  local ip="" ifc=""
+  if [ "$(uname)" = Darwin ]; then          # macOS: interface of the default route (Wi-Fi is not always en0)
+    ifc=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
+    ip=$(ipconfig getifaddr "${ifc:-en0}" 2>/dev/null || ipconfig getifaddr en0 2>/dev/null || true)
+  fi
+  [ -n "$ip" ] || ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit }}' || true)
+  [ -n "$ip" ] || ip=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+  printf '%s' "$ip"
+}
+LAN_IP=$(lan_ip)
+[ -n "$LAN_IP$HOST" ] || echo "Warning: could not find this machine's IP; clients will get localhost URLs. Pass --host <ip>." >&2
 BASE="http://${HOST:-${LAN_IP:-localhost}}:$PORT"
 
 TUNNEL_PID=""
@@ -117,7 +137,7 @@ for m in maps:
   if [ "$TUNNEL" = 1 ]; then
     echo "    Backend URL:  $BASE"
   else
-    echo "    Backend URL:  $BASE   (plain http: needs the app build from the lan-http-testing branch; use --tunnel for https)"
+    echo "    Backend URL:  $BASE   (plain http works for private IPs; no internet needed on this network)"
   fi
   echo "    Token:        $TOKEN"
   if [ -n "$MAPS" ]; then

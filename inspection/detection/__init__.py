@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 
-from .base import DetectedDamage, DetectionResult, Detector
+from .base import DetectedDamage, DetectionResult, Detector, DetectorUnavailable
 
 _override: Detector | None = None
 
@@ -29,4 +29,14 @@ def get_detector() -> Detector:
     return _default(os.environ.get("DETECTOR", "roboflow_sam3"), os.environ.get("ROBOFLOW_API_KEY", ""))
 
 
-__all__ = ["DetectedDamage", "DetectionResult", "Detector", "get_detector", "set_detector"]
+def detector_available() -> bool:
+    """False if the detector needs a network service that cannot be reached right now."""
+    try:
+        check = getattr(get_detector(), "available", None)
+    except Exception:            # e.g. ROBOFLOW_API_KEY missing: it cannot detect either
+        return False
+    return True if check is None else bool(check())
+
+
+__all__ = ["DetectedDamage", "DetectionResult", "Detector", "DetectorUnavailable", "detector_available",
+           "get_detector", "set_detector"]

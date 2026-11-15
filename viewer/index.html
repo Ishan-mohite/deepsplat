@@ -5,17 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>deepsplat console</title>
 <link rel="icon" type="image/svg+xml" href="../design/brand/logos/deepsplat-icon-16.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Everything below is local (viewer/vendor/, see its README): the viewer must work without internet. -->
+<link rel="stylesheet" href="./vendor/fonts/fonts.css">
 <link rel="stylesheet" href="../design/system/tokens.css">
 <link rel="stylesheet" href="../design/system/components.css">
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/",
-    "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.4.0/dist/spark.module.js"
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/",
+    "@sparkjsdev/spark": "./vendor/spark/spark.module.js"
   }
 }
 </script>
@@ -2441,7 +2440,7 @@ const app = {
     } catch (err) {
       console.error(err);
       loading.hidden = false;
-      $('#loading-text').innerHTML = `The 3D viewer could not start: ${esc(err.message)}<br><span class="hint">It needs WebGL2 and access to cdn.jsdelivr.net.</span>`;
+      $('#loading-text').innerHTML = `The 3D viewer could not start: ${esc(err.message)}<br><span class="hint">It needs WebGL2 (and the files in viewer/vendor/).</span>`;
     }
   },
   async selectIssue(id, { fly = true, obsIndex } = {}) {

@@ -4,6 +4,7 @@
 Writes (data/blobs, served by the backend under /files/):
   where_<id8>.png   floor plan with the camera position + viewing direction (photo = red, frames = blue)
   where_<id8>.html  interactive 3D: the map's splat with the camera frusta drawn on top
+                    (three.js / Spark from the backend's /viewer/vendor/, no internet needed)
 """
 import json
 import sys
@@ -26,7 +27,7 @@ button{margin:2px 4px 2px 0;padding:4px 9px;border-radius:6px;border:1px solid #
 #msg{margin-top:6px;color:#94a3b8}</style>
 <div id=ui><b>__TITLE__</b><br><span style="color:#ef4444">red</span> = photo camera, <span style="color:#38bdf8">blue</span> = frames.<br>
 <button id=bPhoto>View from photo camera</button><button id=bOverview>Overview</button><div id=msg>Loading the splat…</div></div>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/","@sparkjsdev/spark":"https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.4.0/dist/spark.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"/viewer/vendor/three/build/three.module.js","three/addons/":"/viewer/vendor/three/examples/jsm/","@sparkjsdev/spark":"/viewer/vendor/spark/spark.module.js"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';

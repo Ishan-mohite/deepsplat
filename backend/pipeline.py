@@ -20,7 +20,7 @@ from sqlmodel import Session, select
 
 from inspection import evidence, floorplan, quality, render, splatfile
 from inspection.classes import enabled_classes
-from inspection.detection import get_detector
+from inspection.detection import DetectorUnavailable, detector_available, get_detector
 from inspection.issues import OpenIssue, change, find_match, size_of
 from inspection.lifting import Camera, check_aspect, is_visible, lift, read_ply_points, visible_points
 from inspection.placement import place, room_at, to_zup
@@ -112,8 +112,15 @@ def inspect(capture_id: str, photo: Frame, frames: list[Frame] | None = None,
             s.add(cap)
             s.commit()
 
-            # 3. detect (SAM 3) - also when localization failed, the 2D findings are kept
-            _detect(s, cap, photo)
+            # 3. detect (SAM 3) - also when localization failed, the 2D findings are kept.
+            # If the detector is a cloud service and there is no internet, keep the capture (photo,
+            # frames, localization) and detect later instead of failing it.
+            try:
+                _detect(s, cap, photo)
+            except DetectorUnavailable as e:
+                log.warning("detector unavailable for %s: %s", capture_id, e)
+                _set(s, cap, CaptureStatus.detection_pending, str(e))
+                return
             _finish(s, cap, m)
         except Exception as e:
             log.exception("inspection failed for %s", capture_id)
@@ -136,6 +143,38 @@ def relocalize(capture_id: str, loc: dict) -> None:
             log.exception("relocalization failed for %s", capture_id)
             s.rollback()
             _set(s, s.get(Capture, capture_id), CaptureStatus.failed, str(e))
+
+
+def retry_pending_detections(limit: int = 20) -> int:
+    """Detect + lift + match captures that waited for the detector (no internet when they came in).
+    Returns how many were processed. Cheap no-op when nothing waits or the detector is still offline."""
+    with Session(engine) as s:
+        ids = [c.id for c in s.exec(select(Capture).where(Capture.status == CaptureStatus.detection_pending)
+                                    .order_by(Capture.created_at).limit(limit)).all()]
+    if not ids or not detector_available():
+        return 0
+    done = 0
+    for cid in ids:
+        with Session(engine) as s:
+            cap = s.get(Capture, cid)
+            if cap is None or cap.status != CaptureStatus.detection_pending:
+                continue
+            try:
+                cap.status, cap.error = CaptureStatus.processing, None
+                s.add(cap)
+                s.commit()
+                _detect(s, cap, photo_from_capture(cap))
+                _finish(s, cap, s.get(Map, cap.map_id) if cap.map_id else None)
+                done += 1
+            except DetectorUnavailable as e:          # went offline again: keep waiting
+                s.rollback()
+                _set(s, s.get(Capture, cid), CaptureStatus.detection_pending, str(e))
+                break
+            except Exception as e:
+                log.exception("retrying detection failed for %s", cid)
+                s.rollback()
+                _set(s, s.get(Capture, cid), CaptureStatus.failed, str(e))
+    return done
 
 
 # ------------------------------------------------------------------ steps

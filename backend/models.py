@@ -72,6 +72,7 @@ class CaptureStatus(StrEnum):
     uploaded = "uploaded"
     processing = "processing"
     done = "done"                         # fully processed (with or without damage)
+    detection_pending = "detection_pending"     # detector not reachable (no internet); retried automatically
     needs_localization = "needs_localization"   # no pose in the map yet (no VPS / VPS failed)
     needs_review = "needs_review"         # pose confidence or image quality below the gate
     rejected = "rejected"                 # image quality gate (if rejection is enabled)

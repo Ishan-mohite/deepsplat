@@ -114,6 +114,7 @@ def _capture_entry(s: Session, c: Capture, M=None) -> dict:
     status = {
         CaptureStatus.awaiting_upload: "processing", CaptureStatus.uploaded: "uploaded",
         CaptureStatus.processing: "processing", CaptureStatus.done: "done",
+        CaptureStatus.detection_pending: "processing",   # stage 2 "Segmented (SAM 3)" waits for internet
     }.get(c.status, "failed")
     obs = s.exec(select(Observation).where(Observation.capture_id == c.id,
                                            Observation.review != "superseded")).first()
