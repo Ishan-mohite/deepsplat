@@ -1,0 +1,1892 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deepsplat console</title>
+<link rel="icon" type="image/svg+xml" href="../design/brand/logos/deepsplat-icon-16.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design/system/tokens.css">
+<link rel="stylesheet" href="../design/system/components.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/",
+    "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.4.0/dist/spark.module.js"
+  }
+}
+</script>
+<style>
+/* Tokens and ds-* components come from design/system (see DESIGN.md). Only viewer layout lives here. */
+:root {
+  --top-h: 64px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { min-height: 100vh; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.mono { font-family: var(--font-mono); font-size: .92em; letter-spacing: -.01em; }
+.eyebrow { font: var(--text-eyebrow); letter-spacing: var(--tracking-eyebrow); text-transform: uppercase; color: var(--blue); }
+.hint { font: var(--text-body-s); color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- top bar ---------- */
+.topbar { position: sticky; top: 0; z-index: 30; height: var(--top-h); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-4); padding: 0 var(--space-6); background: var(--paper); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; justify-self: start; border-radius: var(--r-sm); }
+.brand img { height: 32px; width: auto; display: block; }
+.tabs { background: var(--paper-2); }
+.tabs .tab:hover { color: var(--ink); }
+.tabs .tab[aria-selected="true"] { background: var(--ink); color: #fff; font-weight: 600; }
+.top-right { justify-self: end; display: flex; align-items: center; gap: var(--space-3); }
+.site-select { position: relative; }
+.site-select select { appearance: none; -webkit-appearance: none; height: 40px; border: 1px solid var(--line-2); background: var(--card); padding: 0 34px 0 var(--space-4); border-radius: var(--r-pill); font: var(--text-label); color: var(--ink); cursor: pointer; max-width: 260px; }
+.site-select::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.sample-chip { background: var(--amber-soft); border-color: transparent; color: var(--amber); font-weight: 600; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--paper-2); color: var(--ink); display: grid; place-items: center; font: 600 12px var(--font-display); flex: none; }
+
+.view { display: none; }
+.view.active { display: block; }
+
+/* ---------- shared bits ---------- */
+.ds-card { min-width: 0; }
+.card-title { font: var(--text-display-s); letter-spacing: -0.01em; margin: 0 0 var(--space-1); }
+.chip-link { cursor: pointer; }
+.chip-link:hover { border-color: var(--ink-2); }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
+
+/* ---------- dashboard ---------- */
+.dash { padding: var(--space-6); max-width: 1480px; margin: 0 auto; display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr) minmax(0, .98fr); grid-template-areas: "hero kpis side" "hero bars side"; }
+.hero { grid-area: hero; display: flex; flex-direction: column; }
+.hero-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); }
+.hero .ds-meta { margin-top: var(--space-2); }
+.hero-plan { flex: 1; min-height: 300px; margin: var(--space-3) -8px var(--space-2); display: flex; align-items: center; }
+.hero-plan svg { width: 100%; height: auto; display: block; }
+.hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+.hero-actions .hint { margin-left: auto; }
+.kpis { grid-area: kpis; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.bars { grid-area: bars; }
+.bars-head { display: flex; justify-content: space-between; align-items: baseline; }
+.bars svg { width: 100%; height: auto; display: block; margin-top: var(--space-2); overflow: visible; }
+.bars .bar { cursor: default; }
+.bars .bar:hover path.mark { opacity: .8; }
+.side { grid-area: side; display: grid; gap: var(--space-4); align-content: start; }
+.donut-wrap { display: flex; align-items: center; gap: var(--space-5); margin-top: var(--space-3); }
+.donut-wrap svg { width: 116px; height: 116px; flex: none; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); font: var(--text-label); }
+.legend li { display: flex; align-items: center; gap: var(--space-2); }
+.legend .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.legend .note { font: var(--text-body-s); color: var(--muted); margin-top: var(--space-1); }
+.records { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-1); }
+.records .ds-row { width: 100%; text-align: left; background: none; border: 0; padding: var(--space-2); border-radius: var(--r-sm); cursor: pointer; }
+.records .ds-row:hover { background: var(--paper); }
+.records .ds-row__title, .records .ds-row__meta { display: block; }
+.ds-row__thumb { overflow: hidden; border: 1px solid var(--line); }
+.ds-row__thumb svg { width: 100%; height: 100%; display: block; }
+
+/* ---------- twin ---------- */
+.twin { display: grid; grid-template-columns: 284px minmax(0, 1fr) 380px; height: calc(100vh - var(--top-h)); }
+.panel { overflow: auto; background: var(--card); border-right: 1px solid var(--line); }
+.inspector { border-right: 0; border-left: 1px solid var(--line); }
+.psec { padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--line); }
+.psec:last-child { border-bottom: 0; }
+.psec .eyebrow { margin-bottom: var(--space-3); }
+.row-between { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
+.switch { position: relative; display: inline-block; width: 40px; height: 23px; flex: none; }
+.switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+.switch span { position: absolute; inset: 0; background: var(--line-2); border-radius: var(--r-pill); transition: background .15s; }
+.switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 17px; height: 17px; border-radius: 50%; background: var(--card); transition: transform .15s; }
+.switch input:checked + span { background: var(--blue); }
+.switch input:checked + span::after { transform: translateX(17px); }
+.switch input:focus-visible + span { box-shadow: var(--focus-ring); }
+.slider-row { display: grid; gap: 6px; margin-top: var(--space-3); font: var(--text-body-s); color: var(--ink-2); }
+input[type="range"] { width: 100%; accent-color: var(--blue); }
+.cls-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cls summary { list-style: none; display: grid; grid-template-columns: 12px 1fr auto 28px; align-items: center; gap: 9px; padding: 6px; border-radius: var(--r-sm); cursor: pointer; font: var(--text-label); }
+.cls summary::-webkit-details-marker { display: none; }
+.cls summary:hover { background: var(--paper); }
+.cls .cnt { color: var(--muted); font-size: 11.5px; }
+.cls.off summary .cls-name, .cls.off summary .cnt { opacity: .45; text-decoration: line-through; }
+.eye { width: 28px; height: 24px; border: 0; background: none; border-radius: 6px; cursor: pointer; display: grid; place-items: center; color: var(--ink-2); }
+.eye:hover { background: var(--paper-2); }
+.eye svg { width: 16px; height: 16px; }
+.inst { list-style: none; margin: 2px 0 6px 21px; padding: 0; border-left: 1px solid var(--line); }
+.inst button { width: 100%; display: flex; justify-content: space-between; gap: var(--space-2); background: none; border: 0; text-align: left; padding: 4px 8px; font: var(--text-body-s); color: var(--ink-2); cursor: pointer; border-radius: 6px; }
+.inst button:hover, .inst button.on { background: var(--paper); color: var(--ink); }
+.inst .mono { color: var(--muted); font-size: 11px; }
+.chip-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-toggle { cursor: pointer; }
+.chip-toggle[aria-pressed="true"] { border-color: var(--ink-2); }
+.chip-toggle[aria-pressed="false"] { opacity: .45; }
+.chip-toggle[aria-pressed="false"] .ds-sev::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sev); }
+.check-row { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-3); font: var(--text-label); }
+
+.stage { position: relative; overflow: hidden; min-height: 320px; border-radius: 0; }
+.canvas-host { position: absolute; inset: 0; }
+.canvas-host canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.stage-top { position: absolute; left: 14px; top: 14px; right: 14px; display: flex; gap: var(--space-2); align-items: center; pointer-events: none; flex-wrap: wrap; }
+.stage-top > * { pointer-events: auto; }
+.glass { background: var(--vp-2); border: 1px solid var(--vp-line); color: var(--vp-ink); border-radius: var(--r-pill); }
+.stage-chip { height: 32px; padding: 0 var(--space-3); font: var(--text-label); display: inline-flex; gap: var(--space-2); align-items: center; }
+.stage-chip .mono { color: var(--vp-muted); }
+.stage-btn { height: 32px; padding: 0 var(--space-3); font: var(--text-label); cursor: pointer; }
+.stage-btn:hover { border-color: var(--vp-muted); }
+.stage-help { position: absolute; left: 16px; bottom: 86px; font-size: 11.5px; color: var(--vp-muted); pointer-events: none; }
+.pin-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* Pins on the viewport: open findings in --vp-rust, everything else in --pick, 2 px --vp ring */
+.pin { --pin: var(--pick); --callout: var(--blue); position: absolute; left: 0; top: 0; pointer-events: auto; border: 0; background: none; padding: 0; cursor: pointer; display: flex; align-items: center; gap: var(--space-2); will-change: transform; border-radius: var(--r-pill); }
+.pin.is-open { --pin: var(--vp-rust); --callout: var(--rust); }
+.pin-dot { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--pin); box-shadow: 0 0 0 2px var(--vp); flex: none; position: relative; }
+.pin.is-worsening .pin-dot::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid var(--pin); opacity: .7; animation: ping 1.8s ease-out infinite; }
+.pin-label { margin-top: -7px; display: none; align-items: center; gap: 6px; height: 30px; padding: 0 var(--space-3); border-radius: var(--r-pill); background: var(--card); color: var(--ink); border: 1.5px solid var(--callout); font: 600 12px/1 var(--font-body); white-space: nowrap; box-shadow: var(--shadow-float); }
+.pin-label .mono { color: var(--ink-2); font-weight: 400; font-size: 11px; }
+.pin:hover .pin-label, .pin:focus-visible .pin-label, .pin.selected .pin-label { display: inline-flex; }
+.pin.selected { z-index: 2; }
+.pin.selected .pin-dot { box-shadow: 0 0 0 2px var(--vp), 0 0 0 8px color-mix(in srgb, var(--pin) 28%, transparent); }
+@keyframes ping { from { transform: scale(.6); opacity: .8; } to { transform: scale(1.5); opacity: 0; } }
+/* Pick reticle: 2 px --pick ring, four short ticks, centre dot */
+.reticle, .reticle-icon { --tick: var(--pick); position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; display: none; }
+.reticle::before, .reticle-icon::before { content: ""; position: absolute; inset: 7px; border-radius: 50%; border: 2px solid var(--tick); }
+.reticle::after, .reticle-icon::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, var(--tick) 0 2px, transparent 2.5px) center / 6px 6px no-repeat, linear-gradient(var(--tick), var(--tick)) center top / 2px 9px no-repeat, linear-gradient(var(--tick), var(--tick)) center bottom / 2px 9px no-repeat, linear-gradient(var(--tick), var(--tick)) left center / 9px 2px no-repeat, linear-gradient(var(--tick), var(--tick)) right center / 9px 2px no-repeat; }
+.reticle-icon { --tick: var(--blue); position: relative; display: block; margin: 0; }
+.hover-tip { position: absolute; left: 0; top: 0; pointer-events: none; display: none; padding: 6px 11px; border-radius: var(--r-sm); background: var(--vp-2); color: var(--vp-ink); font: var(--text-label); white-space: nowrap; border: 1px solid var(--vp-line); }
+.hover-tip .sw { margin-right: 7px; vertical-align: -1px; }
+.hover-tip .k { color: var(--vp-muted); margin-left: 6px; }
+.timebar { position: absolute; left: 14px; right: 14px; bottom: 14px; padding: 10px 16px 12px; border-radius: var(--r-md); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-4); }
+.timebar .eyebrow { color: var(--pick); display: block; margin-bottom: 4px; font-size: 10px; }
+.timebar .date { font: 500 14px var(--font-mono); }
+.timebar input[type="range"] { accent-color: var(--pick); }
+.tb-track { position: relative; padding-top: 2px; }
+.tb-track input { position: relative; z-index: 1; margin: 0; }
+.tb-ticks { position: absolute; left: 8px; right: 8px; top: -6px; height: 8px; pointer-events: none; }
+.tb-ticks i { position: absolute; top: 0; width: 2px; height: 8px; border-radius: 1px; background: var(--c); transform: translateX(-1px); }
+.tb-ends { display: flex; justify-content: space-between; font: var(--text-mono-s); font-weight: 400; color: var(--vp-muted); margin-top: 2px; }
+.stage-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--vp-ink); background: var(--vp); z-index: 5; text-align: center; padding: var(--space-6); font: var(--text-body); }
+.stage-loading[hidden] { display: none; }
+.stage-loading .blob { width: 54px; height: 32px; border-radius: 50%; margin: 0 auto var(--space-4); background: radial-gradient(closest-side, var(--pick), transparent); animation: breathe 1.4s ease-in-out infinite alternate; }
+.stage-loading .hint { color: var(--vp-muted); }
+@keyframes breathe { from { transform: scale(.75) rotate(-25deg); opacity: .6; } to { transform: scale(1.1) rotate(-25deg); opacity: 1; } }
+
+.insp-empty { padding: var(--space-6) var(--space-5); }
+.insp-empty h3 { font: var(--text-display-s); letter-spacing: -0.01em; margin: var(--space-4) 0 var(--space-2); }
+.insp-empty p { color: var(--ink-2); margin: 0 0 var(--space-6); }
+.issue-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.issue-list button { width: 100%; display: flex; align-items: center; gap: var(--space-3); padding: 9px var(--space-3); border-radius: var(--r-sm); background: var(--card); border: 1px solid var(--line); cursor: pointer; text-align: left; }
+.issue-list button:hover { border-color: var(--ink-2); }
+.issue-list .grow { flex: 1; min-width: 0; }
+.issue-list .ds-row__title, .issue-list .ds-row__meta { display: block; }
+.issue-list .ds-row__meta.mono { font-size: 11px; }
+.insp-head { padding: var(--space-5) var(--space-5) var(--space-4); border-bottom: 1px solid var(--line); }
+.insp-kicker { display: flex; align-items: center; gap: var(--space-2); font: var(--text-body-s); color: var(--ink-2); }
+.insp-head h3 { font: var(--text-display-m); letter-spacing: -.015em; margin: var(--space-2) 0 var(--space-3); }
+.insp-head .chips { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.insp-close { margin-left: auto; border: 0; background: none; cursor: pointer; color: var(--ink-2); font-size: 18px; line-height: 1; padding: 4px 6px; border-radius: 6px; }
+.insp-close:hover { background: var(--paper); color: var(--ink); }
+.insp-body { padding: var(--space-4) var(--space-5) var(--space-6); display: grid; gap: var(--space-4); }
+.metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.metrics div { background: var(--paper); border-radius: var(--r-sm); padding: 9px 11px; }
+.metrics span { display: block; font-size: 11px; color: var(--ink-2); }
+.metrics b { font: 600 17px/1.3 var(--font-display); }
+.metrics b.up { color: var(--rust); }
+.compare { position: relative; aspect-ratio: 4 / 3; border-radius: var(--r-md); overflow: hidden; background: var(--paper-2); --pos: 50%; }
+.compare .img { position: absolute; inset: 0; }
+.compare .img svg { width: 100%; height: 100%; display: block; }
+.compare .after { clip-path: inset(0 0 0 var(--pos)); }
+.compare .divider { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; margin-left: -1px; background: var(--blue); pointer-events: none; }
+.compare .divider::after { content: ""; position: absolute; top: 50%; left: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 3px var(--card); }
+.compare input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; margin: 0; }
+.compare .tag { position: absolute; top: 9px; padding: 4px 9px; border-radius: var(--r-pill); background: var(--card); font: var(--text-mono-s); pointer-events: none; }
+.compare .tag.l { left: 9px; } .compare .tag.r { right: 9px; }
+.photo { border-radius: var(--r-md); overflow: hidden; aspect-ratio: 4 / 3; }
+.photo svg { width: 100%; height: 100%; display: block; }
+/* Records at one spot: past records blue, the newest open one rust */
+.timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+.timeline::before { content: ""; position: absolute; left: 13px; top: 14px; bottom: 14px; width: 2px; background: var(--blue); }
+.timeline button { position: relative; width: 100%; display: grid; grid-template-columns: 28px 1fr auto; gap: 6px; align-items: center; text-align: left; background: none; border: 0; padding: 7px 8px 7px 0; border-radius: var(--r-sm); cursor: pointer; }
+.timeline button:hover { background: var(--paper); }
+.timeline li.on button { background: var(--blue-soft); }
+.tl-dot { --dot: var(--blue); width: 12px; height: 12px; margin-left: 8px; border-radius: 50%; background: var(--card); border: 2px solid var(--dot); box-shadow: 0 0 0 2px var(--card); position: relative; z-index: 1; }
+.timeline li.is-open .tl-dot { --dot: var(--rust); }
+.timeline li.on .tl-dot { background: var(--dot); }
+.tl-main b { display: block; font: var(--text-mono); font-weight: 500; font-size: 12.5px; }
+.tl-main span { display: block; font-size: 11.5px; color: var(--ink-2); }
+.tl-val { font-size: 11.5px; color: var(--ink-2); }
+.timeline .rep { display: flex; align-items: center; gap: 10px; padding: 8px 0 4px; font: var(--text-label); font-weight: 600; color: var(--green); }
+.timeline .rep .tl-dot { --dot: var(--green); background: var(--green); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; margin: 0; font: var(--text-body-s); }
+.facts dt { color: var(--ink-2); }
+.facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.facts .small { font-size: 11px; }
+.insp-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* ---------- pages (issues, captures) ---------- */
+.page { padding: var(--space-6) var(--space-6) var(--space-10); max-width: 1480px; margin: 0 auto; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-5); }
+.page-head h2 { margin-top: var(--space-2); }
+.page-head p { margin: var(--space-2) 0 0; color: var(--ink-2); max-width: 640px; }
+.filters { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.filters input, .filters select { height: 40px; border: 1px solid var(--line-2); background: var(--card); border-radius: var(--r-pill); padding: 0 var(--space-4); font: var(--text-label); color: var(--ink); }
+.filters input::placeholder { color: var(--muted); }
+.filters input { min-width: 220px; }
+.table-card { padding: 0; overflow: hidden; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font: var(--text-label); font-weight: 400; }
+th { text-align: left; font: var(--text-eyebrow); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2); padding: 14px var(--space-4); border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--paper); }
+tbody tr:last-child td { border-bottom: 0; }
+td b { font-weight: 600; }
+td .sub { display: block; color: var(--ink-2); font-size: 12px; }
+.empty-row td { text-align: center; color: var(--ink-2); padding: 30px; cursor: default; }
+.caps { display: grid; gap: var(--space-3); }
+.cap { display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(360px, 2fr) minmax(200px, 1fr); gap: var(--space-5); align-items: center; padding: var(--space-4) var(--space-6); }
+.cap b { font-weight: 600; }
+.cap .meta { color: var(--ink-2); font-size: 12px; margin-top: 2px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-1); }
+.steps li { font-size: 11px; color: var(--muted); }
+.steps li::before { content: ""; display: block; height: 5px; border-radius: 3px; background: var(--paper-2); margin-bottom: 6px; }
+.steps li.done { color: var(--ink-2); }
+.steps li.done::before { background: var(--blue); }
+.steps li.active { color: var(--ink); font-weight: 600; }
+.steps li.active::before { background: linear-gradient(90deg, var(--blue) 0 40%, var(--blue-soft) 40%); background-size: 200% 100%; animation: progress 1.6s linear infinite; }
+.steps li.failed { color: var(--rust); font-weight: 600; }
+.steps li.failed::before { background: var(--rust); }
+@keyframes progress { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.cap-result { font: var(--text-body-s); }
+.cap-result.fail { color: var(--rust); }
+.link-btn { border: 0; background: none; padding: 0; color: var(--blue); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- tooltip + toast ---------- */
+#tip { position: fixed; z-index: 50; pointer-events: none; padding: 6px 10px; border-radius: var(--r-sm); background: var(--ink); color: #fff; font: var(--text-body-s); display: none; white-space: nowrap; box-shadow: var(--shadow-float); }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; z-index: 60; background: var(--ink); color: #fff; padding: 11px 18px; border-radius: var(--r-pill); font: var(--text-label); transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100vw - 32px); box-shadow: var(--shadow-float); }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1180px) {
+  .dash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "hero hero" "kpis side" "bars side"; }
+  .twin { grid-template-columns: 250px minmax(0, 1fr) 330px; }
+  .cap { grid-template-columns: 1fr; gap: var(--space-3); }
+}
+@media (max-width: 900px) {
+  .topbar { grid-template-columns: auto 1fr; height: auto; padding: 10px var(--space-4); row-gap: 10px; }
+  .tabs { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; display: flex; min-width: 0; overflow-x: auto; }
+  .tabs .tab { flex: 1; padding: 9px 10px; }
+  .sample-chip { display: none; }
+  :root { --top-h: 112px; }
+  .twin { grid-template-columns: 1fr; height: auto; }
+  .stage { height: 62vh; order: -1; }
+  .panel, .inspector { border: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+@media (max-width: 680px) {
+  .dash { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "kpis" "bars" "side"; padding: var(--space-4); }
+  .page { padding: 18px var(--space-4) var(--space-8); }
+  .brand img { height: 24px; }
+  .site-select select { max-width: 150px; }
+  .filters input { min-width: 0; flex: 1; }
+  .timebar { grid-template-columns: 1fr auto; }
+  .timebar .tb-track { grid-column: 1 / -1; grid-row: 2; }
+  .stage-help { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body class="ds-page">
+<header class="topbar">
+  <a class="brand" href="#dashboard"><picture><source media="(max-width: 680px)" srcset="../design/brand/logos/deepsplat-wordmark-small-light.svg"><img src="../design/brand/logos/deepsplat-wordmark-light.svg" alt="deepsplat"></picture></a>
+  <nav class="tabs ds-nav" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" data-tab="dashboard">Dashboard</button>
+    <button class="tab" role="tab" data-tab="twin">3D twin</button>
+    <button class="tab" role="tab" data-tab="issues">Issues</button>
+    <button class="tab" role="tab" data-tab="captures">Captures</button>
+  </nav>
+  <div class="top-right">
+    <span class="ds-chip sample-chip" title="All data on this page is generated in the browser until the backend API exists.">Sample data</span>
+    <label class="site-select"><span class="sr-only">Site</span><select id="site-select"></select></label>
+    <div class="avatar" aria-hidden="true">FZ</div>
+  </div>
+</header>
+
+<main>
+  <section id="view-dashboard" class="view" aria-label="Dashboard"></section>
+
+  <section id="view-twin" class="view" aria-label="3D twin">
+    <div class="twin">
+      <aside class="panel" id="layers" aria-label="Layers and filters"></aside>
+      <div class="stage ds-viewport" id="stage">
+        <div class="canvas-host"></div>
+        <div class="pin-layer"></div>
+        <div class="reticle"></div>
+        <div class="hover-tip"></div>
+        <div class="stage-top">
+          <span class="glass stage-chip" id="stage-site"></span>
+          <button class="glass stage-btn" data-action="reset-view">Reset view</button>
+          <button class="glass stage-btn" data-action="top-view">Top view</button>
+        </div>
+        <div class="stage-help">Drag to orbit · right-drag to pan · scroll to zoom · click a surface to inspect it</div>
+        <div class="timebar glass" id="timebar"></div>
+        <div class="stage-loading" id="stage-loading"><div><div class="blob"></div><div id="loading-text">Loading the 3D scan…</div></div></div>
+      </div>
+      <aside class="panel inspector" id="inspector" aria-label="Inspector" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section id="view-issues" class="view" aria-label="Issues"></section>
+  <section id="view-captures" class="view" aria-label="Captures"></section>
+</main>
+<div id="tip" role="tooltip"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* =====================================================================
+   Utilities
+   ===================================================================== */
+const NOW = new Date('2026-11-14T18:00:00Z');
+const DAY = 86400000;
+const TAU = Math.PI * 2;
+const $ = (s, el = document) => el.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ms = (d) => +new Date(d);
+// Colours come from design/system/tokens.css (loaded before this module runs).
+const rootStyle = getComputedStyle(document.documentElement);
+const tok = (name) => rootStyle.getPropertyValue(name).trim();
+const COLOR = Object.fromEntries(['blue', 'rust', 'ink', 'ink-2', 'muted', 'card', 'line-2', 'vp', 'pick'].map((n) => [n, tok(`--${n}`)]));
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+const hex2rgb = (h) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
+const dayStart = (d) => { const x = new Date(d); x.setUTCHours(0, 0, 0, 0); return +x; };
+const fmt = {
+  date: (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).replace('Sept', 'Sep'), // DESIGN.md: 14 Mar 2026
+  dateShort: (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).replace('Sept', 'Sep'),
+  time: (d) => new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+  dt: (d) => `${fmt.date(d)}, ${fmt.time(d)}`,
+  rel(d) {
+    const days = Math.round((dayStart(NOW) - dayStart(d)) / DAY);
+    if (days === 0) return `today ${fmt.time(d)}`;
+    if (days === 1) return `yesterday ${fmt.time(d)}`;
+    if (days < 7) return `${days} days ago`;
+    return fmt.date(d);
+  },
+  num: (n) => n.toLocaleString('en-GB'),
+  xyz: (p) => p.map((v) => v.toFixed(2)).join('  '),
+};
+
+/* =====================================================================
+   Domain vocabulary
+   ===================================================================== */
+const SEV = {
+  low: { label: 'Low', color: tok('--sev-low'), rank: 1 },
+  medium: { label: 'Medium', color: tok('--sev-medium'), rank: 2 },
+  high: { label: 'High', color: tok('--sev-high'), rank: 3 },
+  critical: { label: 'Critical', color: tok('--sev-critical'), rank: 4 },
+};
+const STATUS = {
+  new: { label: 'New' },
+  worsening: { label: 'Worsening' },
+  stable: { label: 'Stable' },
+  repaired: { label: 'Repaired' },
+};
+const TYPES = {
+  crack: { label: 'Crack', short: 'Crack', prompt: 'crack', metric: 'length' },
+  corrosion: { label: 'Corrosion', short: 'Corrosion', prompt: 'rust', metric: 'area' },
+  spalling: { label: 'Spalling', short: 'Spalling', prompt: 'concrete spalling', metric: 'area' },
+  leak: { label: 'Leak / stain', short: 'Leak stain', prompt: 'water stain', metric: 'area' },
+  mould: { label: 'Mould', short: 'Mould', prompt: 'mould', metric: 'area' },
+  coating: { label: 'Coating damage', short: 'Coating', prompt: 'peeling paint', metric: 'area' },
+  scratch: { label: 'Scratch', short: 'Scratch', prompt: 'scratch', metric: 'length' },
+};
+const SOURCES = {
+  robot: { label: 'Robot patrol', device: 'patrol-02' },
+  phone: { label: 'Phone', device: 'iphone-15-pro-a' },
+  glasses: { label: 'Smart glasses', device: 'glasses-01' },
+};
+const PIPELINE = ['Uploaded', 'Localized (VPS)', 'Segmented (SAM 3)', 'Placed in 3D', 'Matched to issues'];
+const PIPELINE_ACTIVE = ['Uploading', 'Localizing in the 3D scan', 'Running SAM 3', 'Placing in 3D', 'Matching to known issues'];
+// Segmentation classes in fixed order (--seg-1 … --seg-7), stepped for the dark viewport.
+const SLOTS = [1, 2, 3, 4, 5, 6, 7].map((k) => tok(`--seg-${k}`));
+const CLASSES = {
+  wall: { label: 'Wall', prompt: 'wall', slot: 0 },
+  floor: { label: 'Floor', prompt: 'floor', slot: 1 },
+  door: { label: 'Door', prompt: 'door', slot: 2 },
+  window: { label: 'Window', prompt: 'window', slot: 3 },
+  furniture: { label: 'Furniture', prompt: 'table, desk, sofa, cabinet', slot: 4 },
+  column: { label: 'Column', prompt: 'column', slot: 5 },
+  fixture: { label: 'Fixture', prompt: 'bathtub, kitchen counter, toilet', slot: 6 },
+  deck: { label: 'Deck slab', prompt: 'bridge deck', slot: 0 },
+  girder: { label: 'Girder', prompt: 'steel girder', slot: 1 },
+  pier: { label: 'Pier', prompt: 'bridge pier', slot: 2 },
+  abutment: { label: 'Abutment', prompt: 'bridge abutment', slot: 3 },
+  railing: { label: 'Railing', prompt: 'railing', slot: 4 },
+  bearing: { label: 'Bearing', prompt: 'bridge bearing', slot: 5 },
+  terrain: { label: 'Terrain', prompt: 'ground, embankment', slot: 6 },
+  water: { label: 'Water', prompt: 'water', slot: null },
+  damage: { label: 'Damage', prompt: 'crack, rust, stain, mould, spalling', slot: null },
+};
+const classColor = (cls) => (CLASSES[cls].slot == null ? tok('--seg-neutral') : SLOTS[CLASSES[cls].slot]);
+
+/* =====================================================================
+   Procedural splat generation (stands in for the backend's .spz + labels)
+   ===================================================================== */
+function h3(x, y, z) {
+  let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(z, 1440662683);
+  h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function vnoise(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const a = lerp(h3(xi, yi, zi), h3(xi + 1, yi, zi), u), b = lerp(h3(xi, yi + 1, zi), h3(xi + 1, yi + 1, zi), u);
+  const c = lerp(h3(xi, yi, zi + 1), h3(xi + 1, yi, zi + 1), u), d = lerp(h3(xi, yi + 1, zi + 1), h3(xi + 1, yi + 1, zi + 1), u);
+  return lerp(lerp(a, b, v), lerp(c, d, v), w);
+}
+const fbm = (x, y, z) => 0.55 * vnoise(x, y, z) + 0.3 * vnoise(x * 2.7 + 7, y * 2.7, z * 2.7) + 0.15 * vnoise(x * 6.1, y * 6.1 + 3, z * 6.1);
+let R = Math.random;
+const tint = (c, d) => [clamp(c[0] + d, 0, 1), clamp(c[1] + d, 0, 1), clamp(c[2] + d, 0, 1)];
+const MAT = {
+  plaster: (c = [0.87, 0.84, 0.78]) => (x, y, z) => tint(c, (fbm(x * 1.7, y * 1.7, z * 1.7) - 0.5) * 0.07 + (R() - 0.5) * 0.025),
+  concrete: (c = [0.66, 0.65, 0.62]) => (x, y, z) => tint(c, (fbm(x * 0.8, y * 0.8, z * 0.8) - 0.5) * 0.18 + (R() - 0.5) * 0.06 - (y < 1.2 ? (1.2 - y) * 0.035 : 0)),
+  asphalt: (c = [0.3, 0.3, 0.31]) => (x, y, z) => tint(c, (R() - 0.5) * 0.07 + (fbm(x * 2, 0, z * 2) - 0.5) * 0.05),
+  steel: (c = [0.42, 0.48, 0.47]) => (x, y, z) => tint(c, (R() - 0.5) * 0.03 + (fbm(x * 0.6, y * 3, z * 0.6) - 0.5) * 0.05),
+  wood: (c = [0.64, 0.46, 0.3]) => (x, y, z, a, b) => {
+    const pw = 0.19, pi = Math.floor(b / pw), pr = h3(pi, 7, 3);
+    const seam = b - pi * pw < 0.014 ? -0.12 : 0;
+    const grain = 0.035 * Math.sin(a * 11 + pr * 40 + Math.sin(a * 2.3 + pr * 9) * 2.5);
+    const k = 0.86 + 0.26 * pr;
+    return [clamp(c[0] * k + grain + seam, 0, 1), clamp(c[1] * k + grain * 0.8 + seam, 0, 1), clamp(c[2] * k + grain * 0.6 + seam, 0, 1)];
+  },
+  tiles: (c = [0.84, 0.83, 0.8], size = 0.3) => (x, y, z, a, b) => {
+    const grout = a % size < 0.012 || b % size < 0.012;
+    return grout ? tint(c, -0.2) : tint(c, (h3(Math.floor(a / size), Math.floor(b / size), 5) - 0.5) * 0.05 + (R() - 0.5) * 0.02);
+  },
+  carpet: (c) => (x, y, z) => tint(c, (R() - 0.5) * 0.08 + (fbm(x * 3, 0, z * 3) - 0.5) * 0.05),
+  flat: (c, j = 0.03) => () => tint(c, (R() - 0.5) * j),
+  glass: (c = [0.62, 0.74, 0.82]) => (x, y, z) => tint(c, (fbm(x * 0.5, y * 0.5, z * 0.5) - 0.5) * 0.12),
+  water: () => (x, y, z) => { const f = fbm(x * 0.7, 0, z * 1.5); return [0.2 + 0.08 * f, 0.34 + 0.1 * f, 0.42 + 0.1 * f]; },
+  terrain: () => (x, y, z) => {
+    const f = fbm(x * 0.35, 0, z * 0.35), wet = clamp(1 - (y - 0.1) / 1.2, 0, 1);
+    return tint([lerp(0.36 + 0.08 * f, 0.47, wet), lerp(0.45 + 0.08 * f, 0.42, wet), lerp(0.25, 0.33, wet)], (R() - 0.5) * 0.06);
+  },
+};
+
+const ZAX = new THREE.Vector3(0, 0, 1);
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _m4 = new THREE.Matrix4();
+const norm3 = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+function qNormal(n, spin) { _v1.set(n[0], n[1], n[2]); _qa.setFromUnitVectors(ZAX, _v1); _qb.setFromAxisAngle(ZAX, spin); return _qa.multiply(_qb); }
+function qBasis(t, b, n) { _v1.set(t[0], t[1], t[2]); _v2.set(b[0], b[1], b[2]); _v3.set(n[0], n[1], n[2]); _m4.makeBasis(_v1, _v2, _v3); return _qa.setFromRotationMatrix(_m4); }
+
+// 14 floats per splat: center(3) scales(3) quaternion(4) opacity(1) rgb(3)
+const STRIDE = 14;
+class SplatBuf {
+  constructor() { this.d = []; }
+  push(x, y, z, sx, sy, sz, q, o, r, g, b) { this.d.push(x, y, z, sx, sy, sz, q.x, q.y, q.z, q.w, o, r, g, b); }
+  get count() { return this.d.length / STRIDE; }
+}
+
+function createBuilder(seed) {
+  const rnd = mulberry32(seed);
+  R = rnd;
+  const segs = new Map();
+  const seg = (id, cls, label, meta = {}) => {
+    if (!segs.has(id)) segs.set(id, { id, cls, label, short: meta.short || label, buf: new SplatBuf(), area: 0, conf: +(0.86 + rnd() * 0.11).toFixed(2), ...meta });
+    return segs.get(id);
+  };
+  function rect(s, o, u, v, sp, color, opt = {}) {
+    const lu = Math.hypot(u[0], u[1], u[2]), lv = Math.hypot(v[0], v[1], v[2]);
+    if (lu < 1e-6 || lv < 1e-6) return;
+    const n = opt.normal ? norm3(opt.normal) : norm3(cross3(u, v));
+    const nu = Math.max(1, Math.round(lu / sp)), nv = Math.max(1, Math.round(lv / sp));
+    const su = lu / nu, sv = lv / nv;
+    const iso = Math.abs(su - sv) / Math.max(su, sv) < 0.35;
+    const ud = [u[0] / lu, u[1] / lu, u[2] / lu];
+    const q0 = qBasis(ud, cross3(n, ud), n).clone();
+    const op = opt.opacity ?? 0.95, thin = opt.thin ?? 0.004, off = opt.offset ?? 0;
+    const sig = Math.min(su, sv) * 0.62;
+    for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+      const a = (i + rnd()) / nu, b = (j + rnd()) / nv, am = a * lu, bm = b * lv;
+      if (opt.skip && opt.skip(am, bm)) continue;
+      const x = o[0] + u[0] * a + v[0] * b + n[0] * off, y = o[1] + u[1] * a + v[1] * b + n[1] * off, z = o[2] + u[2] * a + v[2] * b + n[2] * off;
+      const c = color(x, y, z, am, bm);
+      if (iso) s.buf.push(x, y, z, sig * (0.85 + rnd() * 0.35), sig * (0.85 + rnd() * 0.35), thin, qNormal(n, rnd() * TAU), op, c[0], c[1], c[2]);
+      else s.buf.push(x, y, z, su * 0.62 * (0.9 + rnd() * 0.2), sv * 0.62 * (0.9 + rnd() * 0.2), thin, q0, op, c[0], c[1], c[2]);
+    }
+    s.area += lu * lv * (opt.areaW ?? 1);
+  }
+  function box(s, a, b, sp, color, opt = {}) {
+    const [x0, y0, z0] = a, [x1, y1, z1] = b, dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+    const o = { opacity: opt.opacity };
+    if (!opt.noTop) rect(s, [x0, y1, z0], [dx, 0, 0], [0, 0, dz], sp, color, { ...o, normal: [0, 1, 0] });
+    if (!opt.noBottom) rect(s, [x0, y0, z0], [dx, 0, 0], [0, 0, dz], sp, color, { ...o, normal: [0, -1, 0] });
+    rect(s, [x1, y0, z0], [0, dy, 0], [0, 0, dz], sp, color, { ...o, normal: [1, 0, 0] });
+    rect(s, [x0, y0, z0], [0, dy, 0], [0, 0, dz], sp, color, { ...o, normal: [-1, 0, 0] });
+    rect(s, [x0, y0, z1], [dx, 0, 0], [0, dy, 0], sp, color, { ...o, normal: [0, 0, 1] });
+    rect(s, [x0, y0, z0], [dx, 0, 0], [0, dy, 0], sp, color, { ...o, normal: [0, 0, -1] });
+  }
+  function cyl(s, cx, cz, r, y0, y1, sp, color, opt = {}) {
+    const circ = TAU * r, nt = Math.max(8, Math.round(circ / sp)), ny = Math.max(1, Math.round((y1 - y0) / sp));
+    const st = circ / nt, sy = (y1 - y0) / ny, sig = Math.min(st, sy) * 0.65;
+    for (let i = 0; i < nt; i++) for (let j = 0; j < ny; j++) {
+      const th = ((i + rnd()) / nt) * TAU, y = y0 + (j + rnd()) * sy, nx = Math.cos(th), nz = Math.sin(th);
+      const x = cx + r * nx, z = cz + r * nz, c = color(x, y, z, th * r, y - y0);
+      s.buf.push(x, y, z, sig, sig, 0.004, qNormal([nx, 0, nz], rnd() * TAU), 0.95, c[0], c[1], c[2]);
+    }
+    s.area += circ * (y1 - y0);
+    if (opt.cap) disc(s, cx, y1, cz, r, sp, color);
+  }
+  function disc(s, cx, y, cz, r, sp, color) {
+    const n = Math.ceil((2 * r) / sp);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const x = cx - r + (i + rnd()) * sp, z = cz - r + (j + rnd()) * sp;
+      if ((x - cx) ** 2 + (z - cz) ** 2 > r * r) continue;
+      const c = color(x, y, z, x - cx, z - cz);
+      s.buf.push(x, y, z, sp * 0.62, sp * 0.62, 0.004, qNormal([0, 1, 0], rnd() * TAU), 0.95, c[0], c[1], c[2]);
+    }
+    s.area += Math.PI * r * r;
+  }
+  function heightfield(s, x0, x1, z0, z1, sp, hf, color) {
+    const nx = Math.round((x1 - x0) / sp), nz = Math.round((z1 - z0) / sp), e = 0.25;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+      const x = x0 + (i + rnd()) * sp, z = z0 + (j + rnd()) * sp, y = hf(x, z);
+      const n = norm3([hf(x - e, z) - hf(x + e, z), 2 * e, hf(x, z - e) - hf(x, z + e)]);
+      const c = color(x, y, z);
+      s.buf.push(x, y, z, sp * 0.68, sp * 0.68, 0.01, qNormal(n, rnd() * TAU), 0.97, c[0], c[1], c[2]);
+    }
+    s.area += (x1 - x0) * (z1 - z0);
+  }
+  function wall(s, a, b, h, t, openings, sp, color) {
+    const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L, nx = -uz, nz = ux;
+    const inOpen = (sv, y) => openings.some((op) => sv > op.at - op.w / 2 && sv < op.at + op.w / 2 && y > op.y0 && y < op.y1);
+    for (const side of [1, -1]) rect(s, [a[0] + nx * t / 2 * side, 0, a[1] + nz * t / 2 * side], [dx, 0, dz], [0, h, 0], sp, color, { normal: [nx * side, 0, nz * side], skip: inOpen, areaW: 0.5 });
+    rect(s, [a[0] - nx * t / 2, h, a[1] - nz * t / 2], [dx, 0, dz], [nx * t, 0, nz * t], sp, color, { normal: [0, 1, 0], areaW: 0 });
+    for (const op of openings) {
+      const s0 = op.at - op.w / 2, s1 = op.at + op.w / 2;
+      for (const [sv, dir] of [[s0, 1], [s1, -1]]) rect(s, [a[0] + ux * sv - nx * t / 2, op.y0, a[1] + uz * sv - nz * t / 2], [nx * t, 0, nz * t], [0, op.y1 - op.y0, 0], sp, color, { normal: [ux * dir, 0, uz * dir], areaW: 0 });
+      rect(s, [a[0] + ux * s0 - nx * t / 2, op.y1, a[1] + uz * s0 - nz * t / 2], [ux * op.w, 0, uz * op.w], [nx * t, 0, nz * t], sp, color, { normal: [0, -1, 0], areaW: 0 });
+      if (op.y0 > 0.01) rect(s, [a[0] + ux * s0 - nx * t / 2, op.y0, a[1] + uz * s0 - nz * t / 2], [ux * op.w, 0, uz * op.w], [nx * t, 0, nz * t], sp, color, { normal: [0, 1, 0], areaW: 0 });
+    }
+    return { ux, uz, nx, nz, L };
+  }
+  // Damage shapes, placed a few mm in front of the surface they sit on.
+  function surfaceBasis(n, dir) {
+    const N = norm3(n);
+    let D = dir ? norm3(dir) : (Math.abs(N[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]);
+    const dn = D[0] * N[0] + D[1] * N[1] + D[2] * N[2];
+    D = norm3([D[0] - N[0] * dn, D[1] - N[1] * dn, D[2] - N[2] * dn]);
+    return { N, D, A: cross3(N, D) };
+  }
+  function crack(s, p, n, dir, length, seed, opt = {}) {
+    const r = mulberry32(seed), { N, D, A } = surfaceBasis(n, dir);
+    const step = 0.012, off = 0.008, col = opt.color || [0.12, 0.11, 0.1], halo = opt.halo ?? true, w = opt.width ?? 0.007;
+    const walk = (start, steps, baseAng, scale) => {
+      let pos = start.slice(), ang = baseAng;
+      for (let k = 0; k < steps; k++) {
+        ang = ang * 0.86 + (r() - 0.5) * 0.9 + baseAng * 0.14;
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const dk = norm3([D[0] * ca + A[0] * sa, D[1] * ca + A[1] * sa, D[2] * ca + A[2] * sa]);
+        pos = [pos[0] + dk[0] * step, pos[1] + dk[1] * step, pos[2] + dk[2] * step];
+        const across = cross3(N, dk), q = qBasis(dk, across, N);
+        const taper = (0.45 + Math.sin(Math.PI * (k + 0.5) / steps) ** 0.6) * scale;
+        const c = [pos[0] + N[0] * off, pos[1] + N[1] * off, pos[2] + N[2] * off];
+        s.buf.push(c[0], c[1], c[2], 0.01, w * taper, 0.002, q, 1, col[0], col[1], col[2]);
+        if (halo) s.buf.push(c[0] - N[0] * 0.002, c[1] - N[1] * 0.002, c[2] - N[2] * 0.002, 0.013, w * 2.6 * taper, 0.002, q, 0.32, col[0] + 0.12, col[1] + 0.11, col[2] + 0.1);
+        if (scale > 0.7 && k > 4 && k < steps - 6 && r() < 0.05) walk(pos, Math.round(steps * (0.15 + r() * 0.2)), (r() < 0.5 ? -1 : 1) * (0.6 + r() * 0.4), 0.55);
+      }
+    };
+    const steps = Math.max(6, Math.round(length / step));
+    walk([p[0] - D[0] * length / 2, p[1] - D[1] * length / 2, p[2] - D[2] * length / 2], steps, 0, 1);
+    s.area += length * w * 3;
+  }
+  function patch(s, p, n, radius, color, seed, opt = {}) {
+    const r = mulberry32(seed), { N, D, A } = surfaceBasis(n, opt.dir);
+    const sp = opt.spacing ?? 0.016, off = 0.007, [kx, ky] = opt.stretch || [1, 1], shift = opt.shift || 0;
+    const steps = Math.ceil((2 * radius) / sp), ph = r() * TAU;
+    for (let i = 0; i < steps; i++) for (let j = 0; j < steps; j++) {
+      const u = -radius + (i + r()) * sp, v = -radius + (j + r()) * sp, ang = Math.atan2(v, u);
+      const rr = radius * (0.78 + 0.16 * Math.sin(3 * ang + ph) + 0.12 * Math.sin(7 * ang + ph * 2));
+      const dist = Math.hypot(u, v);
+      if (dist > rr) continue;
+      if (opt.density && r() > opt.density) continue;
+      const e = dist / rr, U = u * kx, V = v * ky + shift;
+      const x = p[0] + D[0] * V + A[0] * U + N[0] * off, y = p[1] + D[1] * V + A[1] * U + N[1] * off, z = p[2] + D[2] * V + A[2] * U + N[2] * off;
+      const c = color(e, r, U, V);
+      s.buf.push(x, y, z, sp * 0.7 * kx, sp * 0.7 * ky, 0.002, qBasis(A, D, N), (opt.opacity ?? 0.95) * (1 - e * (opt.fade ?? 0.25)), c[0], c[1], c[2]);
+    }
+    s.area += Math.PI * radius * radius * kx * ky;
+  }
+  return { rnd, segs, seg, rect, box, cyl, disc, heightfield, wall, crack, patch, surfaceBasis };
+}
+
+/* ---------- interiors (office floor, apartment) ---------- */
+function buildInterior(B, spec) {
+  const plaster = MAT.plaster(spec.wallColor);
+  const plan = { bounds: spec.bounds, rooms: [], walls: [], items: [] };
+  for (const room of spec.rooms) {
+    const s = B.seg(`floor-${room.id}`, 'floor', `Floor · ${room.label}`, { short: `Floor ${room.label.toLowerCase()}` });
+    const color = room.floor === 'wood' ? MAT.wood() : room.floor === 'tiles' ? MAT.tiles(room.color, room.tile || 0.3) : MAT.carpet(room.color);
+    B.rect(s, [room.x0, 0, room.z0], [room.x1 - room.x0, 0, 0], [0, 0, room.z1 - room.z0], spec.sp, color, { normal: [0, 1, 0] });
+    plan.rooms.push(room);
+  }
+  let doorN = 0, winN = 0;
+  for (const w of spec.walls) {
+    const openings = (w.open || []).map((o) => ({ ...o, w: o.w ?? (o.kind === 'window' ? 1.6 : 0.95), y0: o.y0 ?? (o.kind === 'window' ? 0.9 : 0), y1: o.y1 ?? (o.kind === 'window' ? 2.3 : 2.1) }));
+    const s = B.seg(w.id, 'wall', w.label, { short: w.short });
+    const g = B.wall(s, w.a, w.b, spec.H, w.t, openings, spec.sp, plaster);
+    plan.walls.push({ ...w, openings });
+    for (const op of openings) {
+      const s0 = op.at - op.w / 2;
+      const base = [w.a[0] + g.ux * s0, 0, w.a[1] + g.uz * s0];
+      if (op.kind === 'door') {
+        doorN++;
+        const d = B.seg(`${w.id}-door-${doorN}`, 'door', op.label || `Door ${doorN}`, { short: `Door ${doorN}` });
+        B.rect(d, [base[0] + g.ux * 0.02, 0, base[2] + g.uz * 0.02], [g.ux * (op.w - 0.04), 0, g.uz * (op.w - 0.04)], [0, op.y1 - 0.02, 0], 0.045, MAT.flat([0.78, 0.74, 0.66], 0.04), { normal: [g.nx, 0, g.nz] });
+      } else if (op.kind === 'window') {
+        winN++;
+        const d = B.seg(`${w.id}-window-${winN}`, 'window', op.label || `Window ${winN}`, { short: `Window ${winN}` });
+        B.rect(d, [base[0], op.y0, base[2]], [g.ux * op.w, 0, g.uz * op.w], [0, op.y1 - op.y0, 0], 0.07, MAT.glass(), { normal: [g.nx, 0, g.nz], opacity: 0.3 });
+        const frame = MAT.flat([0.93, 0.93, 0.91], 0.02), fw = 0.05;
+        B.rect(d, [base[0], op.y0, base[2]], [g.ux * op.w, 0, g.uz * op.w], [0, fw, 0], 0.025, frame, { normal: [g.nx, 0, g.nz], areaW: 0 });
+        B.rect(d, [base[0], op.y1 - fw, base[2]], [g.ux * op.w, 0, g.uz * op.w], [0, fw, 0], 0.025, frame, { normal: [g.nx, 0, g.nz], areaW: 0 });
+        B.rect(d, [base[0] + g.ux * (op.w / 2 - fw / 2), op.y0, base[2] + g.uz * (op.w / 2 - fw / 2)], [g.ux * fw, 0, g.uz * fw], [0, op.y1 - op.y0, 0], 0.025, frame, { normal: [g.nx, 0, g.nz], areaW: 0 });
+      }
+    }
+  }
+  for (const c of spec.columns || []) {
+    const s = B.seg(c.id, 'column', c.label, { short: c.short });
+    B.box(s, [c.x - c.s / 2, 0, c.z - c.s / 2], [c.x + c.s / 2, spec.H, c.z + c.s / 2], spec.sp * 0.7, MAT.concrete([0.74, 0.73, 0.7]), { noBottom: true });
+    plan.items.push({ kind: 'column', rect: [c.x - c.s / 2, c.z - c.s / 2, c.x + c.s / 2, c.z + c.s / 2] });
+  }
+  for (const it of spec.items || []) {
+    const s = B.seg(it.id, it.cls, it.label, { short: it.short });
+    for (const part of it.parts) {
+      const color = MAT.flat(part.color, part.jitter ?? 0.03);
+      if (part.box) B.box(s, part.box.slice(0, 3), part.box.slice(3), part.sp || 0.045, color, { noBottom: true });
+      if (part.cyl) { const [cx, cz, r, y0, y1] = part.cyl; B.cyl(s, cx, cz, r, y0, y1, part.sp || 0.045, color, { cap: true }); }
+    }
+    const p0 = it.parts[0];
+    plan.items.push(p0.cyl ? { kind: it.plan || it.cls, circle: [p0.cyl[0], p0.cyl[1], p0.cyl[2]] } : { kind: it.plan || it.cls, rect: [p0.box[0], p0.box[2], p0.box[3], p0.box[5]] });
+  }
+  return { plan };
+}
+
+const OFFICE_SPEC = {
+  H: 2.9, sp: 0.08, wallColor: [0.88, 0.86, 0.82], bounds: [-0.4, -0.4, 18.4, 11.4],
+  rooms: [
+    { id: 'meeting', label: 'Meeting room', x0: 0, z0: 0, x1: 6, z1: 5, floor: 'carpet', color: [0.47, 0.51, 0.56] },
+    { id: 'corridor', label: 'Corridor', x0: 0, z0: 5, x1: 6, z1: 7, floor: 'carpet', color: [0.74, 0.72, 0.68] },
+    { id: 'kitchen', label: 'Kitchen', x0: 0, z0: 7, x1: 6, z1: 11, floor: 'tiles', color: [0.85, 0.84, 0.81], tile: 0.3 },
+    { id: 'open', label: 'Open office', x0: 6, z0: 0, x1: 18, z1: 11, floor: 'carpet', color: [0.6, 0.59, 0.56] },
+  ],
+  walls: [
+    { id: 'wall-n', label: 'Wall N (façade)', short: 'Wall N', a: [0, 0], b: [18, 0], t: 0.15, open: [{ at: 4.8, w: 1.2, kind: 'window' }, { at: 9, w: 1.8, kind: 'window' }, { at: 12, w: 1.8, kind: 'window' }, { at: 15, w: 1.8, kind: 'window' }] },
+    { id: 'wall-e', label: 'Wall E (façade)', short: 'Wall E', a: [18, 0], b: [18, 11], t: 0.15, open: [{ at: 2.5, w: 1.8, kind: 'window' }, { at: 5.5, w: 1.8, kind: 'window' }] },
+    { id: 'wall-s', label: 'Wall S (façade)', short: 'Wall S', a: [18, 11], b: [0, 11], t: 0.15, open: [{ at: 3, w: 1.8, kind: 'window' }, { at: 6, w: 1.8, kind: 'window' }, { at: 9, w: 1.8, kind: 'window' }, { at: 15, w: 1.4, kind: 'window' }] },
+    { id: 'wall-w', label: 'Wall W (façade)', short: 'Wall W', a: [0, 11], b: [0, 0], t: 0.15, open: [{ at: 8.5, w: 1.6, kind: 'window' }] },
+    { id: 'wall-meet-s', label: 'Partition meeting room / corridor', short: 'Partition M/C', a: [0, 5], b: [6, 5], t: 0.1, open: [{ at: 3.2, kind: 'door', label: 'Door meeting room' }] },
+    { id: 'wall-kit-n', label: 'Partition kitchen / corridor', short: 'Partition K/C', a: [0, 7], b: [6, 7], t: 0.1, open: [{ at: 3.2, kind: 'door', label: 'Door kitchen' }] },
+    { id: 'wall-meet-e', label: 'Partition meeting room / open office', short: 'Partition M/O', a: [6, 0], b: [6, 5], t: 0.1, open: [{ at: 2.0, w: 2.6, y0: 0.9, y1: 2.4, kind: 'window', label: 'Glass partition' }, { at: 4.2, kind: 'door', label: 'Door open office' }] },
+    { id: 'wall-kit-e', label: 'Partition kitchen / open office', short: 'Partition K/O', a: [6, 7], b: [6, 11], t: 0.1, open: [{ at: 1.0, kind: 'door', label: 'Door kitchen east' }] },
+  ],
+  columns: [
+    { id: 'col-c1', label: 'Column C1', short: 'Column C1', x: 12, z: 3.7, s: 0.5 },
+    { id: 'col-c2', label: 'Column C2', short: 'Column C2', x: 12, z: 7.3, s: 0.5 },
+  ],
+  items: [
+    ...[['A', 7.2, 1.4], ['B', 13.6, 1.4], ['C', 7.2, 8.1], ['D', 13.6, 8.1]].map(([n, x, z]) => ({
+      id: `desks-${n.toLowerCase()}`, cls: 'furniture', label: `Desk cluster ${n}`, short: `Desks ${n}`, plan: 'desk',
+      parts: [{ box: [x, 0.71, z, x + 3.2, 0.75, z + 1.5], color: [0.84, 0.8, 0.72] }, { box: [x, 0, z, x + 0.04, 0.71, z + 1.5], color: [0.5, 0.52, 0.55] }, { box: [x + 3.16, 0, z, x + 3.2, 0.71, z + 1.5], color: [0.5, 0.52, 0.55] }],
+    })),
+    { id: 'meeting-table', cls: 'furniture', label: 'Meeting table', short: 'Table', plan: 'desk', parts: [{ box: [1.6, 0.71, 1.6, 4.4, 0.75, 3.4], color: [0.62, 0.47, 0.33] }, { box: [2.9, 0, 2.3, 3.1, 0.71, 2.7], color: [0.3, 0.3, 0.32] }] },
+    { id: 'kitchen-counter', cls: 'fixture', label: 'Kitchen counter', short: 'Counter', plan: 'counter', parts: [{ box: [0.6, 0, 10.35, 4.2, 0.9, 10.925], color: [0.92, 0.91, 0.89] }, { box: [0.6, 0.9, 10.3, 4.2, 0.94, 10.925], color: [0.3, 0.3, 0.32] }] },
+    { id: 'kitchen-table', cls: 'furniture', label: 'Kitchen table', short: 'Table', plan: 'table', parts: [{ cyl: [3, 8.8, 0.5, 0.72, 0.75], color: [0.9, 0.88, 0.84] }, { cyl: [3, 8.8, 0.05, 0, 0.72], color: [0.3, 0.3, 0.32] }] },
+  ],
+};
+const APARTMENT_SPEC = {
+  H: 2.6, sp: 0.06, wallColor: [0.9, 0.88, 0.84], bounds: [-0.4, -0.4, 8.4, 6.9],
+  rooms: [
+    { id: 'living', label: 'Living', x0: 0, z0: 0, x1: 5, z1: 6.5, floor: 'wood' },
+    { id: 'bath', label: 'Bath', x0: 5, z0: 0, x1: 8, z1: 3, floor: 'tiles', color: [0.8, 0.86, 0.9], tile: 0.2 },
+    { id: 'kitchen', label: 'Kitchen', x0: 5, z0: 3, x1: 8, z1: 6.5, floor: 'tiles', color: [0.86, 0.83, 0.77], tile: 0.3 },
+  ],
+  walls: [
+    { id: 'wall-n', label: 'Wall N', short: 'North wall', a: [0, 0], b: [8, 0], t: 0.2, open: [{ at: 2.5, w: 1.6, kind: 'window' }] },
+    { id: 'wall-e', label: 'Wall E', short: 'East wall', a: [8, 0], b: [8, 6.5], t: 0.2, open: [{ at: 1.5, w: 0.6, y0: 1.5, y1: 2.1, kind: 'window', label: 'Bath window' }, { at: 4.8, w: 1.2, kind: 'window' }] },
+    { id: 'wall-s', label: 'Wall S', short: 'South wall', a: [8, 6.5], b: [0, 6.5], t: 0.2, open: [{ at: 4.2, w: 1.4, kind: 'window' }, { at: 6.4, w: 1.0, kind: 'door', label: 'Entrance door' }] },
+    { id: 'wall-w', label: 'Wall W', short: 'West wall', a: [0, 6.5], b: [0, 0], t: 0.2, open: [{ at: 3.25, w: 1.8, kind: 'window' }] },
+    { id: 'wall-bath-w', label: 'Partition bath / living', short: 'Partition B/L', a: [5, 0], b: [5, 3], t: 0.12, open: [{ at: 2.3, w: 0.8, kind: 'door', label: 'Bath door' }] },
+    { id: 'wall-bath-s', label: 'Partition bath / kitchen', short: 'Partition B/K', a: [5, 3], b: [8, 3], t: 0.12 },
+    { id: 'wall-kit-w', label: 'Partition kitchen / living', short: 'Partition K/L', a: [5, 3], b: [5, 6.5], t: 0.12, open: [{ at: 1.4, w: 1.3, y1: 2.1, kind: 'passage' }] },
+  ],
+  items: [
+    { id: 'sofa', cls: 'furniture', label: 'Sofa', short: 'Sofa', plan: 'sofa', parts: [{ box: [1.0, 0, 0.35, 3.6, 0.42, 1.25], color: [0.55, 0.6, 0.67] }, { box: [1.0, 0.42, 0.35, 3.6, 0.85, 0.6], color: [0.5, 0.55, 0.62] }] },
+    { id: 'rug', cls: 'furniture', label: 'Rug', short: 'Rug', plan: 'rug', parts: [{ box: [1.2, 0, 1.6, 3.4, 0.015, 3.0], color: [0.91, 0.87, 0.79], jitter: 0.05 }] },
+    { id: 'coffee-table', cls: 'furniture', label: 'Coffee table', short: 'Coffee table', plan: 'table', parts: [{ box: [1.9, 0, 2.0, 2.7, 0.4, 2.6], color: [0.72, 0.56, 0.38] }] },
+    { id: 'dining-table', cls: 'furniture', label: 'Dining table', short: 'Dining table', plan: 'table', parts: [{ cyl: [3.6, 5.2, 0.55, 0.72, 0.75], color: [0.86, 0.8, 0.7] }, { cyl: [3.6, 5.2, 0.06, 0, 0.72], color: [0.3, 0.3, 0.3] }] },
+    { id: 'tv-cabinet', cls: 'furniture', label: 'TV cabinet', short: 'Cabinet', plan: 'cabinet', parts: [{ box: [0.12, 0, 2.4, 0.55, 0.5, 4.1], color: [0.36, 0.3, 0.26] }] },
+    { id: 'bathtub', cls: 'fixture', label: 'Bathtub', short: 'Bathtub', plan: 'tub', parts: [{ box: [6.2, 0, 0.12, 7.88, 0.55, 0.9], color: [0.96, 0.96, 0.95], jitter: 0.015 }] },
+    { id: 'toilet', cls: 'fixture', label: 'Toilet', short: 'Toilet', plan: 'toilet', parts: [{ box: [5.3, 0, 0.14, 5.75, 0.42, 0.72], color: [0.96, 0.96, 0.95], jitter: 0.015 }] },
+    { id: 'kitchen-counter', cls: 'fixture', label: 'Kitchen counter', short: 'Counter', plan: 'counter', parts: [{ box: [5.3, 0, 5.85, 7.88, 0.92, 6.38], color: [0.93, 0.92, 0.9] }, { box: [5.3, 0.92, 5.8, 7.88, 0.96, 6.38], color: [0.28, 0.28, 0.3] }] },
+    { id: 'kitchen-island', cls: 'fixture', label: 'Kitchen island', short: 'Island', plan: 'counter', parts: [{ box: [6.0, 0, 4.3, 7.2, 0.92, 4.9], color: [0.93, 0.92, 0.9] }] },
+  ],
+};
+
+/* ---------- bridge ---------- */
+function bridgeHeight(x, z) {
+  const ax = Math.abs(x);
+  let h;
+  if (ax < 8) h = -0.6;
+  else if (ax < 14.8) { const t = (ax - 8) / 6.8; h = -0.6 + 2.8 * t * t * (3 - 2 * t); }
+  else if (ax < 17.5) h = 2.2 + ((ax - 14.8) / 2.7) * 2.0;
+  else h = 4.2;
+  return h + (fbm(x * 0.25, 0, z * 0.25) - 0.5) * (ax > 8 ? 0.5 : 0.15);
+}
+function buildBridge(B) {
+  const conc = MAT.concrete([0.7, 0.69, 0.66]), concDark = MAT.concrete([0.63, 0.62, 0.59]);
+  const top = 4.6, bot = 4.25, X0 = -15, X1 = 15, ZW = 1.6;
+  const deck = B.seg('deck', 'deck', 'Deck slab', { short: 'Deck' });
+  B.rect(deck, [X0, top, -ZW], [X1 - X0, 0, 0], [0, 0, 2 * ZW], 0.065, MAT.asphalt(), { normal: [0, 1, 0] });
+  B.rect(deck, [X0, bot, -ZW], [X1 - X0, 0, 0], [0, 0, 2 * ZW], 0.07, conc, { normal: [0, -1, 0], areaW: 0 });
+  for (const sz of [1, -1]) B.rect(deck, [X0, bot, sz * ZW], [X1 - X0, 0, 0], [0, top - bot, 0], 0.06, conc, { normal: [0, 0, sz], areaW: 0 });
+  B.box(deck, [X0, top, -ZW], [X1, top + 0.15, -ZW + 0.22], 0.06, conc, { noBottom: true });
+  B.box(deck, [X0, top, ZW - 0.22], [X1, top + 0.15, ZW], 0.06, conc, { noBottom: true });
+  for (const [id, label, short, z0, z1] of [['girder-n', 'Girder north', 'Girder N', -1.25, -0.85], ['girder-s', 'Girder south', 'Girder S', 0.85, 1.25]]) {
+    B.box(B.seg(id, 'girder', label, { short }), [X0 + 0.3, 3.55, z0], [X1 - 0.3, bot, z1], 0.07, MAT.steel(), { noTop: true });
+  }
+  for (const [n, x] of [[1, -6], [2, 6]]) {
+    const p = B.seg(`pier-p${n}`, 'pier', `Pier P${n}`, { short: `Pier P${n}` });
+    B.cyl(p, x, 0, 0.55, -0.7, 3.1, 0.05, concDark);
+    B.box(p, [x - 0.55, 3.1, -1.5], [x + 0.55, 3.4, 1.5], 0.05, conc);
+    const br = B.seg(`bearings-p${n}`, 'bearing', `Bearings P${n}`, { short: `Bearings P${n}` });
+    for (const z of [-1.05, 1.05]) B.box(br, [x - 0.18, 3.4, z - 0.18], [x + 0.18, 3.55, z + 0.18], 0.03, MAT.flat([0.25, 0.25, 0.27]), { noBottom: true });
+  }
+  for (const [id, label, short, xa, xb] of [['abutment-w', 'Abutment west', 'Abutment W', -17.5, -15], ['abutment-e', 'Abutment east', 'Abutment E', 15, 17.5]]) {
+    B.box(B.seg(id, 'abutment', label, { short }), [xa, 0.8, -2.2], [xb, bot, 2.2], 0.075, conc, { noBottom: true });
+  }
+  const posts = [];
+  for (let x = X0 + 0.25; x <= X1 - 0.2; x += 1.5) posts.push(x);
+  const rail = MAT.steel([0.24, 0.29, 0.29]);
+  for (const [id, label, short, z] of [['railing-n', 'Railing north', 'Railing N', -1.5], ['railing-s', 'Railing south', 'Railing S', 1.5]]) {
+    const r = B.seg(id, 'railing', label, { short }), y0 = top + 0.15;
+    for (const x of posts) B.box(r, [x - 0.03, y0, z - 0.03], [x + 0.03, y0 + 1.05, z + 0.03], 0.03, rail, { noBottom: true });
+    B.box(r, [X0, y0 + 1.02, z - 0.04], [X1, y0 + 1.1, z + 0.04], 0.035, rail);
+    B.box(r, [X0, y0 + 0.5, z - 0.015], [X1, y0 + 0.53, z + 0.015], 0.03, rail);
+  }
+  B.heightfield(B.seg('terrain', 'terrain', 'Embankment and riverbed', { short: 'Terrain' }), -26, 26, -10, 10, 0.17, bridgeHeight, MAT.terrain());
+  B.rect(B.seg('water', 'water', 'River', { short: 'River' }), [-11, 0.15, -10], [22, 0, 0], [0, 0, 20], 0.2, MAT.water(), { normal: [0, 1, 0], opacity: 0.55, skip: (a, b) => bridgeHeight(-11 + a, -10 + b) > 0.12 });
+  const terrain = [];
+  for (let x = -24; x <= 24.001; x += 0.5) terrain.push([x, bridgeHeight(x, 0)]);
+  return {
+    elevation: {
+      x0: -24, x1: 24, y0: -1.2, y1: 6.2, terrain, waterY: 0.15, waterX: [-10.25, 10.25],
+      piers: [{ x: -6, label: 'P1' }, { x: 6, label: 'P2' }], pierR: 0.55, pierY: [-0.7, 3.1], cap: [3.1, 3.4, 1.1],
+      deck: { x0: X0, x1: X1, y0: bot, y1: top }, girder: [3.55, bot], rail: [top + 0.15, top + 1.25], posts,
+      abutments: [{ x0: -17.5, x1: -15, y0: 0.8, y1: bot, label: 'A-W' }, { x0: 15, x1: 17.5, y0: 0.8, y1: bot, label: 'A-E' }],
+    },
+  };
+}
+
+function buildDamage(B, def) {
+  const s = B.seg(`dmg-${def.id}`, 'damage', `${TYPES[def.type].label} ${def.id}`, { short: TYPES[def.type].short, issueId: def.id, conf: def.obs.at(-1)[3] ?? 0.9 });
+  const last = def.obs.at(-1)[2];
+  const radius = TYPES[def.type].metric === 'area' ? Math.sqrt(last / Math.PI) : 0;
+  switch (def.type) {
+    case 'crack': B.crack(s, def.p, def.n, def.dir, last, def.seed); break;
+    case 'scratch': B.crack(s, def.p, def.n, def.dir, last, def.seed, { color: [0.9, 0.82, 0.68], halo: false, width: 0.004 }); break;
+    case 'corrosion': B.patch(s, def.p, def.n, radius, (e, r) => tint([lerp(0.6, 0.42, e), lerp(0.3, 0.24, e), 0.14], (r() - 0.5) * 0.16), def.seed, { spacing: 0.014 }); break;
+    case 'leak': B.patch(s, def.p, def.n, radius, (e, r) => tint([0.62, 0.5, 0.34], -0.12 * (1 - e) + (r() - 0.5) * 0.04), def.seed, { stretch: [0.75, 1.35], shift: -radius * 0.35, opacity: 0.75, fade: 0.7 }); break;
+    case 'mould': B.patch(s, def.p, def.n, radius, (e, r) => tint([0.18, 0.21, 0.16], (r() - 0.5) * 0.12), def.seed, { spacing: 0.012, density: 0.55, opacity: 0.9, fade: 0.5 }); break;
+    case 'spalling': {
+      B.patch(s, def.p, def.n, radius, (e, r) => tint([0.48, 0.47, 0.44], (r() - 0.5) * 0.14 - (1 - e) * 0.06), def.seed, { spacing: 0.015 });
+      const { D, A } = B.surfaceBasis(def.n);
+      for (const k of [-0.33, 0.33]) B.crack(s, [def.p[0] + A[0] * radius * k, def.p[1] + A[1] * radius * k - def.n[1] * 0.003, def.p[2] + A[2] * radius * k], def.n, D, radius * 1.5, def.seed + k * 10, { color: [0.45, 0.24, 0.12], halo: false, width: 0.009 });
+      break;
+    }
+    case 'coating': B.patch(s, def.p, def.n, radius, (e, r) => tint([0.6, 0.59, 0.56], (r() - 0.5) * 0.08 + e * 0.1), def.seed, { spacing: 0.01 }); break;
+  }
+}
+
+function finalizeSegments(segs) {
+  const list = [...segs.values()];
+  for (const s of list) {
+    s.buf.d = Float32Array.from(s.buf.d);
+    const d = s.buf.d, min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < d.length; i += STRIDE) for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], d[i + k]); max[k] = Math.max(max[k], d[i + k]); }
+    s.min = min; s.max = max;
+  }
+  return list;
+}
+
+/* =====================================================================
+   Mock sites. Shapes follow the README's issue record so the frontend
+   can switch to the real API by replacing MockApi.
+   ===================================================================== */
+const SITE_DEFS = [
+  {
+    id: 'bridge-b17', name: 'Footbridge B-17', option: 'Footbridge B-17 · Bridge', kind: 'structure', category: 'Pedestrian bridge', location: 'River crossing, km 4.2',
+    scanned_at: '2026-10-02T09:30:00Z', map_id: 'b17-2026-10', seed: 17,
+    camera: { dir: [0.55, 0.32, 0.77], center: [0, 2.2, 0], box: [[-17.5, -0.7, -2.2], [17.5, 5.9, 2.2]] },
+    build: (B) => buildBridge(B),
+    summary: { repaired_this_year: 9, avg_days_to_repair: 11, observations_total: 148 },
+    monthly: [6, 5, 7, 6, 8, 7, 9, 8, 10, 9, 11, 6],
+    issues: [
+      { id: 'ISS-0142', type: 'crack', severity: 'high', object: 'pier-p1', surface: 'concrete', where: 'south face', p: [-6, 1.7, 0.551], n: [0, 0, 1], dir: [0.18, 1, 0], seed: 142,
+        obs: [['2026-06-12T09:14:00Z', 'robot', 0.34], ['2026-09-03T10:02:00Z', 'phone', 0.48], ['2026-11-14T16:42:10Z', 'robot', 0.62]] },
+      { id: 'ISS-0137', type: 'corrosion', severity: 'medium', object: 'girder-s', surface: 'steel', where: 'outer web', p: [3.5, 3.9, 1.251], n: [0, 0, 1], seed: 137,
+        obs: [['2026-08-21T07:40:00Z', 'robot', 0.21], ['2026-11-07T07:38:00Z', 'robot', 0.26]] },
+      { id: 'ISS-0129', type: 'spalling', severity: 'high', object: 'deck', surface: 'concrete', where: 'underside, span 2', p: [10, 4.249, 0.2], n: [0, -1, 0], seed: 129,
+        obs: [['2026-05-30T13:05:00Z', 'phone', 0.18], ['2026-08-02T08:15:00Z', 'glasses', 0.18], ['2026-10-28T09:50:00Z', 'robot', 0.19]] },
+      { id: 'ISS-0118', type: 'leak', severity: 'low', object: 'abutment-e', surface: 'concrete', where: 'front face', p: [14.999, 3.5, 0.4], n: [-1, 0, 0], seed: 118, repaired_at: '2026-08-20T11:00:00Z', repaired_by: 'J. Brandt',
+        obs: [['2026-07-09T10:20:00Z', 'phone', 0.42], ['2026-08-14T08:00:00Z', 'robot', 0.45]] },
+      { id: 'ISS-0153', type: 'crack', severity: 'medium', object: 'pier-p2', surface: 'concrete', where: 'pier cap', p: [6, 3.25, 1.501], n: [0, 0, 1], dir: [1, 0.35, 0], seed: 153,
+        obs: [['2026-11-14T16:44:30Z', 'robot', 0.28]] },
+    ],
+    extraCaptures: [
+      { capture_id: 'CAP-9F21C0A4', created: '2026-11-14T16:58:00Z', source: 'phone', status: 'processing', stage: 2 },
+      { capture_id: 'CAP-3B7E55D1', created: '2026-11-13T08:21:00Z', source: 'robot', status: 'failed', stage: 1, reason: 'Pose confidence 0.41 is below the 0.60 threshold. Retake with more of the pier in view.' },
+      { capture_id: 'CAP-7A0D2E96', created: '2026-11-12T08:20:00Z', source: 'robot', status: 'done', stage: 5, result: 'No damage found' },
+    ],
+  },
+  {
+    id: 'office-f3', name: 'Office building C', option: 'Office building C · Floor 3', kind: 'interior', category: 'Interior', location: 'Building C, floor 3',
+    scanned_at: '2026-09-09T07:45:00Z', map_id: 'c-f3-2026-09', seed: 3,
+    camera: { dir: [0, 0.72, 0.7], center: [9, 0.6, 5.5], box: [[0, 0, 0], [18, 2.9, 11]] },
+    build: (B) => buildInterior(B, OFFICE_SPEC),
+    summary: { repaired_this_year: 7, avg_days_to_repair: 8, observations_total: 96 },
+    monthly: [3, 4, 2, 5, 4, 6, 5, 3, 6, 7, 5, 4],
+    issues: [
+      { id: 'ISS-0204', type: 'crack', severity: 'high', object: 'wall-n', surface: 'plaster', where: 'meeting room', p: [2.6, 1.75, 0.076], n: [0, 0, 1], dir: [0.3, 1, 0], seed: 204,
+        obs: [['2026-04-17T14:10:00Z', 'phone', 0.41], ['2026-07-22T09:30:00Z', 'glasses', 0.56], ['2026-11-12T15:05:00Z', 'phone', 0.79]] },
+      { id: 'ISS-0211', type: 'leak', severity: 'medium', object: 'wall-e', surface: 'plaster', where: 'open office', p: [17.924, 0.55, 8.6], n: [-1, 0, 0], seed: 211,
+        obs: [['2026-11-10T11:25:00Z', 'phone', 0.38]] },
+      { id: 'ISS-0198', type: 'mould', severity: 'medium', object: 'wall-w', surface: 'plaster', where: 'kitchen corner', p: [0.076, 2.35, 10.45], n: [1, 0, 0], seed: 198, repaired_at: '2026-09-18T10:00:00Z', repaired_by: 'A. Weiss',
+        obs: [['2026-09-11T08:45:00Z', 'phone', 0.09], ['2026-09-16T08:30:00Z', 'phone', 0.11]] },
+      { id: 'ISS-0207', type: 'coating', severity: 'low', object: 'col-c2', surface: 'concrete', where: 'south face', p: [12, 1.25, 7.551], n: [0, 0, 1], seed: 207,
+        obs: [['2026-06-03T12:00:00Z', 'glasses', 0.03], ['2026-10-21T12:20:00Z', 'glasses', 0.031]] },
+    ],
+    extraCaptures: [
+      { capture_id: 'CAP-51C2D8E0', created: '2026-11-14T09:12:00Z', source: 'phone', status: 'processing', stage: 1 },
+      { capture_id: 'CAP-C4E1A7B2', created: '2026-11-11T13:40:00Z', source: 'glasses', status: 'done', stage: 5, result: 'No damage found' },
+    ],
+  },
+  {
+    id: 'unit-304', name: 'Unit 3.04', option: 'Unit 3.04 · Apartment', kind: 'interior', category: 'Apartment handover', location: 'Property A, 3rd floor',
+    scanned_at: '2026-03-14T08:10:00Z', map_id: 'pa-304-2026-03', seed: 304,
+    camera: { dir: [0, 0.68, 0.73], center: [4, 0.5, 3.25], box: [[0, 0, 0], [8, 2.6, 6.5]] },
+    build: (B) => buildInterior(B, APARTMENT_SPEC),
+    summary: { repaired_this_year: 12, avg_days_to_repair: 6, observations_total: 148 },
+    monthly: [0, 1, 0, 2, 1, 0, 1, 0, 1, 3, 2, 6],
+    issues: [
+      { id: 'ISS-0311', type: 'crack', severity: 'medium', object: 'wall-n', surface: 'plaster', where: 'bath', p: [6.6, 1.45, 0.101], n: [0, 0, 1], dir: [0.2, 1, 0], seed: 311,
+        obs: [['2023-03-01T10:15:00Z', 'phone', 0.18], ['2024-05-14T09:40:00Z', 'phone', 0.27], ['2026-11-14T10:42:00Z', 'phone', 0.42]] },
+      { id: 'ISS-0305', type: 'mould', severity: 'medium', object: 'wall-bath-s', surface: 'plaster', where: 'kitchen', p: [7.3, 2.15, 3.061], n: [0, 0, 1], seed: 305, repaired_at: '2026-10-08T15:00:00Z', repaired_by: 'M. Keller',
+        obs: [['2026-10-02T09:20:00Z', 'phone', 0.12]] },
+      { id: 'ISS-0313', type: 'scratch', severity: 'low', object: 'floor-living', surface: 'wood', where: 'living', p: [2.6, 0, 3.7], n: [0, 1, 0], dir: [1, 0, 0.35], seed: 313,
+        obs: [['2026-11-14T10:31:00Z', 'phone', 0.52]] },
+    ],
+    extraCaptures: [
+      { capture_id: 'CAP-0E9B4F13', created: '2026-11-14T10:50:00Z', source: 'phone', status: 'uploaded', stage: 0 },
+    ],
+  },
+];
+const REVIEWERS = ['J. Brandt', 'A. Weiss', 'M. Keller'];
+
+function makePose(def, kind, r) {
+  const p = new THREE.Vector3(...def.p), n = new THREE.Vector3(...def.n).normalize();
+  const dist = { robot: 1.7, phone: 0.95, glasses: 1.3 }[kind];
+  const up = Math.abs(n.y) > 0.9 ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0);
+  const side = new THREE.Vector3().crossVectors(up, n).normalize();
+  const eye = p.clone().addScaledVector(n, dist).addScaledVector(side, (r() - 0.5) * 0.7).addScaledVector(up, (kind === 'robot' ? -0.3 : 0.15) + (r() - 0.5) * 0.2);
+  const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(eye, p, up));
+  return { t: [eye.x, eye.y, eye.z].map((v) => +v.toFixed(3)), q: [q.x, q.y, q.z, q.w].map((v) => +v.toFixed(4)) };
+}
+const capId = (s) => 'CAP-' + hashStr(s).toString(16).toUpperCase().padStart(8, '0');
+
+function expandSite(def) {
+  const B = createBuilder(def.seed);
+  const extra = def.build(B);
+  for (const d of def.issues) buildDamage(B, d);
+  const segments = finalizeSegments(B.segs);
+  const segById = new Map(segments.map((s) => [s.id, s]));
+  const r = mulberry32(def.seed * 977);
+  let obsN = 900 + (def.seed % 37) * 10;
+  const issues = def.issues.map((d) => {
+    const isLen = TYPES[d.type].metric === 'length';
+    const observations = d.obs.map(([ts, kind, metric], i) => {
+      const obs_id = `OBS-${String(++obsN).padStart(4, '0')}`;
+      const capture_id = capId(def.id + obs_id);
+      return {
+        obs_id, timestamp: ts, source: { kind, device_id: SOURCES[kind].device }, camera_pose: makePose(d, kind, r),
+        pose_confidence: +(0.82 + r() * 0.15).toFixed(2),
+        image_url: `gs://deepsplat-captures/${def.id}/${capture_id}/photo.jpg`, mask_url: `gs://deepsplat-captures/${def.id}/${capture_id}/mask.png`,
+        length_m: isLen ? metric : null, area_m2: isLen ? +(metric * 0.03).toFixed(3) : metric,
+        detector_confidence: +(0.78 + r() * 0.17).toFixed(2),
+        reviewed_by: i < d.obs.length - 1 ? REVIEWERS[(i + d.seed) % 3] : null, capture_id,
+      };
+    });
+    const seg = segById.get(d.object);
+    return {
+      issue_id: d.id, type: d.type, severity: d.severity, surface: d.surface, where: d.where,
+      object: { id: d.object, label: seg.label, short: seg.short }, position_m: d.p, normal: d.n,
+      repaired_at: d.repaired_at || null, repaired_by: d.repaired_by || null, observations,
+    };
+  });
+  const captures = [];
+  for (const iss of issues) for (const o of iss.observations) {
+    captures.push({ capture_id: o.capture_id, created: new Date(ms(o.timestamp) + 70000).toISOString(), source: o.source.kind, status: 'done', stage: 5, frames: 80 + Math.floor(r() * 21), size_mb: +(28 + r() * 10).toFixed(1), obs_id: o.obs_id, issue_id: iss.issue_id, pose_confidence: o.pose_confidence });
+  }
+  for (const c of def.extraCaptures) captures.push({ frames: 80 + Math.floor(r() * 21), size_mb: +(28 + r() * 10).toFixed(1), ...c });
+  captures.sort((a, b) => ms(b.created) - ms(a.created));
+  const gaussians = segments.reduce((n, s) => n + s.buf.count, 0);
+  return { ...def, ...extra, segments, segById, issues, captures, gaussians };
+}
+
+const MockApi = {
+  _cache: new Map(),
+  listSites: async () => SITE_DEFS.map(({ id, option }) => ({ id, option })),
+  async getSite(id) {
+    if (!this._cache.has(id)) this._cache.set(id, expandSite(SITE_DEFS.find((s) => s.id === id)));
+    return this._cache.get(id);
+  },
+};
+
+/* =====================================================================
+   Derived state
+   ===================================================================== */
+const metricOf = (issue, o) => (TYPES[issue.type].metric === 'length' ? o.length_m : o.area_m2);
+const fmtMetric = (issue, v) => (TYPES[issue.type].metric === 'length' ? `${v.toFixed(2)} m` : `${v.toFixed(3)} m²`);
+function statusAt(issue, date = NOW) {
+  const obs = issue.observations.filter((o) => ms(o.timestamp) <= +date);
+  if (!obs.length) return null;
+  if (issue.repaired_at && ms(issue.repaired_at) <= +date) return { status: 'repaired', obs };
+  if (obs.length === 1) return { status: 'new', obs };
+  return { status: metricOf(issue, obs.at(-1)) > metricOf(issue, obs[0]) * 1.15 ? 'worsening' : 'stable', obs };
+}
+const isOpen = (issue) => statusAt(issue).status !== 'repaired';
+const statusChip = (st) => `<span class="ds-status" data-status="${st}">${STATUS[st].label}</span>`;
+const sevChip = (sev) => `<span class="ds-sev" data-sev="${sev}">${SEV[sev].label}</span>`;
+const issueTitle = (i) => `${TYPES[i.type].label} · ${i.object.short}`;
+
+/* =====================================================================
+   Mock photos (SVG) — stand-ins for the capture photos in GCS
+   ===================================================================== */
+const SURF = {
+  plaster: ['#DCD5C8', '#CBC2B1'], concrete: ['#ADA9A1', '#8E8B83'], steel: ['#6E7A78', '#58625F'], wood: ['#9C7350', '#7E5A3C'], tiles: ['#DAD9D4', '#C6C5BF'],
+};
+let svgUid = 0;
+function photoSVG(issue, obsIdx, labels = true) {
+  const uid = `ph${++svgUid}`, W = 320, H = 240, obs = issue.observations[obsIdx];
+  const ratio = clamp(metricOf(issue, obs) / metricOf(issue, issue.observations.at(-1)), 0.15, 1);
+  const r = mulberry32(hashStr(issue.issue_id)), [bg, bg2] = SURF[issue.surface] || SURF.plaster;
+  const cx = W * 0.5, cy = H * 0.5;
+  let dmg = '', box = [cx - 40, cy - 40, cx + 40, cy + 40];
+  const ptsToBox = (pts, pad) => { const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]); return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad]; };
+  if (issue.type === 'crack' || issue.type === 'scratch') {
+    const horiz = issue.type === 'scratch', L = H * 0.8, steps = 28, pts = [];
+    let x = horiz ? cx - L / 2 : cx + (r() - 0.5) * 20, y = horiz ? cy : cy - L / 2;
+    for (let i = 0; i <= steps; i++) {
+      pts.push([x, y]);
+      if (horiz) { x += L / steps; y += (r() - 0.5) * 7; } else { y += L / steps; x += (r() - 0.5) * 13; }
+    }
+    const shown = pts.slice(0, Math.max(3, Math.round(pts.length * ratio)));
+    const color = horiz ? '#EFE2CB' : '#2A2622';
+    dmg = `<polyline points="${shown.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="${horiz ? 1.8 : 2.6}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    if (!horiz && shown.length > 14) {
+      const b0 = shown[Math.floor(shown.length * 0.55)], br = [b0];
+      for (let i = 0; i < 6; i++) br.push([br.at(-1)[0] + 6 + r() * 4, br.at(-1)[1] + 4 + r() * 4]);
+      dmg += `<polyline points="${br.map((p) => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>`;
+    }
+    box = ptsToBox(shown, 12);
+  } else {
+    const k = Math.sqrt(ratio), blobs = [];
+    const n = issue.type === 'mould' ? 70 : 16;
+    for (let i = 0; i < n; i++) {
+      const a = r() * TAU, d = Math.sqrt(r()) * 52 * k;
+      blobs.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d * (issue.type === 'leak' ? 1.5 : 0.9) + (issue.type === 'leak' ? 12 * k : 0), (issue.type === 'mould' ? 2 + r() * 3 : 10 + r() * 14) * k]);
+    }
+    const fill = { corrosion: '#8E4B22', leak: '#8C7350', mould: '#2C3326', spalling: '#77736B', coating: '#D7D2C6' }[issue.type];
+    const op = { corrosion: 0.85, leak: 0.45, mould: 0.85, spalling: 0.95, coating: 0.95 }[issue.type];
+    dmg = `<g fill="${fill}" opacity="${op}" filter="url(#${uid}d)">${blobs.map(([x, y, rr]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rr.toFixed(1)}"/>`).join('')}</g>`;
+    if (issue.type === 'spalling') dmg += `<g stroke="#8B4A26" stroke-width="4" stroke-linecap="round"><line x1="${cx - 40 * k}" y1="${cy - 10}" x2="${cx + 40 * k}" y2="${cy - 14}"/><line x1="${cx - 36 * k}" y1="${cy + 14}" x2="${cx + 38 * k}" y2="${cy + 10}"/></g>`;
+    box = ptsToBox(blobs.map(([x, y]) => [x, y]), 22 * k + 8);
+  }
+  box = [clamp(box[0], 6, W - 6), clamp(box[1], 6, H - 6), clamp(box[2], 6, W - 6), clamp(box[3], 6, H - 6)];
+  const lab = `${TYPES[issue.type].prompt} ${obs.detector_confidence.toFixed(2)}`;
+  const overlay = labels ? `<rect x="${box[0]}" y="${box[1]}" width="${box[2] - box[0]}" height="${box[3] - box[1]}" rx="6" fill="${COLOR.blue}" fill-opacity=".08" stroke="${COLOR.blue}" stroke-width="1.6" stroke-dasharray="5 4"/>
+    <rect x="${box[0]}" y="${Math.max(2, box[1] - 20)}" width="${lab.length * 6.4 + 14}" height="17" rx="8.5" fill="${COLOR.blue}"/><text x="${box[0] + 7}" y="${Math.max(2, box[1] - 20) + 12.5}" fill="#fff" font-family="IBM Plex Mono, monospace" font-size="10.5">${esc(lab)}</text>` : '';
+  const texture = issue.surface === 'tiles' ? `<g stroke="${bg2}" stroke-width="2">${[1, 2, 3].map((i) => `<line x1="${i * 80}" y1="0" x2="${i * 80}" y2="${H}"/><line x1="0" y1="${i * 60}" x2="${W}" y2="${i * 60}"/>`).join('')}</g>`
+    : issue.surface === 'wood' ? `<g stroke="${bg2}" stroke-width="1.5" opacity=".7">${[1, 2, 3, 4, 5].map((i) => `<line x1="0" y1="${i * 40}" x2="${W}" y2="${i * 40}"/>`).join('')}</g>` : '';
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(`${TYPES[issue.type].label} photo, ${fmt.date(obs.timestamp)}`)}" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <radialGradient id="${uid}g" cx="40%" cy="35%" r="85%"><stop offset="0" stop-color="${bg}"/><stop offset="1" stop-color="${bg2}"/></radialGradient>
+      <filter id="${uid}n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="${hashStr(issue.issue_id) % 97}"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 0.22"/></feComponentTransfer></filter>
+      <filter id="${uid}d"><feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="10"/></filter>
+    </defs>
+    <rect width="${W}" height="${H}" fill="url(#${uid}g)"/>${texture}<rect width="${W}" height="${H}" filter="url(#${uid}n)"/>${dmg}${overlay}
+  </svg>`;
+}
+
+/* =====================================================================
+   Dashboard drawings
+   ===================================================================== */
+function pickCallouts(issues) {
+  const open = issues.filter(isOpen).sort((a, b) => SEV[b.severity].rank - SEV[a.severity].rank || (statusAt(b).status === 'worsening') - (statusAt(a).status === 'worsening'));
+  const rep = issues.filter((i) => !isOpen(i));
+  return [...open.slice(0, rep.length ? 3 : 4), ...rep.slice(0, 1)];
+}
+function calloutText(i) {
+  const st = statusAt(i).status;
+  if (st === 'repaired') return `${TYPES[i.type].short} · repaired in ${Math.round((ms(i.repaired_at) - ms(i.observations[0].timestamp)) / DAY)} days`;
+  return `${TYPES[i.type].short} · ${i.object.short} · ${STATUS[st].label.toLowerCase()}`;
+}
+function pinsAndCallouts(site, toXY, layout, W) {
+  const call = pickCallouts(site.issues), set = new Set(call);
+  let out = '';
+  for (const i of site.issues) {
+    if (set.has(i)) continue;
+    const [x, y] = toXY(i.position_m);
+    out += `<circle cx="${x}" cy="${y}" r="5" fill="${isOpen(i) ? COLOR.rust : COLOR.blue}" stroke="${COLOR.card}" stroke-width="2"><title>${esc(issueTitle(i))}</title></circle>`;
+  }
+  const items = call.map((i) => { const [x, y] = toXY(i.position_m); const text = calloutText(i); return { i, x, y, text, w: Math.min(206, text.length * 6.25 + 28) }; });
+  if (layout === 'left') {
+    items.sort((a, b) => a.y - b.y);
+    const n = items.length, top = 48, bottom = 352, gap = n > 1 ? (bottom - top) / (n - 1) : 0;
+    items.forEach((it, k) => { it.px = 12; it.py = n === 1 ? 200 : top + gap * k; });
+  } else {
+    items.sort((a, b) => a.x - b.x);
+    const n = items.length, slot = (W - 24) / n;
+    items.forEach((it, k) => { it.px = clamp(12 + slot * k + (slot - it.w) / 2, 12, W - 12 - it.w); it.py = k % 2 ? 62 : 18; });
+  }
+  for (const it of items) {
+    const col = isOpen(it.i) ? COLOR.rust : COLOR.blue;
+    const ax = layout === 'left' ? it.px + it.w : it.px + it.w / 2, ay = layout === 'left' ? it.py + 15 : it.py + 30;
+    out += `<g class="callout" data-action="open-issue" data-id="${it.i.issue_id}" style="cursor:pointer">
+      <line x1="${ax}" y1="${ay}" x2="${it.x}" y2="${it.y}" stroke="${col}" stroke-width="1.5"/>
+      <rect x="${it.px}" y="${it.py}" width="${it.w}" height="30" rx="15" fill="${COLOR.card}" stroke="${col}" stroke-width="1.5"/>
+      <text x="${it.px + it.w / 2}" y="${it.py + 19.5}" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="11.5" font-weight="600" fill="${COLOR.ink}">${esc(it.text)}</text>
+      <circle cx="${it.x}" cy="${it.y}" r="11" fill="${col}" opacity=".22"/>
+      <circle cx="${it.x}" cy="${it.y}" r="6" fill="${col}" stroke="${COLOR.card}" stroke-width="2"/>
+    </g>`;
+  }
+  return out;
+}
+function floorPlanSVG(site) {
+  const P = site.plan, W = 640, H = 400, reg = [222, 18, 630, 382];
+  const [bx0, bz0, bx1, bz1] = P.bounds;
+  const sc = Math.min((reg[2] - reg[0]) / (bx1 - bx0), (reg[3] - reg[1]) / (bz1 - bz0));
+  const ox = reg[0] + ((reg[2] - reg[0]) - (bx1 - bx0) * sc) / 2 - bx0 * sc, oy = reg[1] + ((reg[3] - reg[1]) - (bz1 - bz0) * sc) / 2 - bz0 * sc;
+  const X = (x) => +(ox + x * sc).toFixed(1), Y = (z) => +(oy + z * sc).toFixed(1);
+  const fills = { wood: 'url(#pl-wood)', tiles: 'url(#pl-tiles)', carpet: '#D3D0C8' };
+  let g = `<rect x="${X(bx0)}" y="${Y(bz0)}" width="${(bx1 - bx0) * sc}" height="${(bz1 - bz0) * sc}" fill="${COLOR.card}" rx="4"/>`;
+  for (const r of P.rooms) {
+    const f = r.floor === 'carpet' ? `rgb(${r.color.map((c) => Math.round(lerp(c, 0.93, 0.45) * 255)).join(',')})` : fills[r.floor];
+    g += `<rect x="${X(r.x0)}" y="${Y(r.z0)}" width="${(r.x1 - r.x0) * sc}" height="${(r.z1 - r.z0) * sc}" fill="${f}"/>`;
+  }
+  for (const it of P.items) {
+    const fill = { desk: '#EFE7D6', table: '#E7DCC6', counter: '#F4F2EE', sofa: '#8E9BAA', rug: '#EEE6D6', cabinet: '#7D6A5A', tub: '#CFE3EE', toilet: '#F4F4F2', column: '#9A968E' }[it.kind] || '#E5DFD3';
+    if (it.rect) { const [x0, z0, x1, z1] = it.rect; g += `<rect x="${X(x0)}" y="${Y(z0)}" width="${((x1 - x0) * sc).toFixed(1)}" height="${((z1 - z0) * sc).toFixed(1)}" rx="3" fill="${fill}" stroke="rgba(23,32,51,.15)"/>`; }
+    else { const [cx, cz, r] = it.circle; g += `<circle cx="${X(cx)}" cy="${Y(cz)}" r="${(r * sc).toFixed(1)}" fill="${fill}" stroke="rgba(23,32,51,.15)"/>`; }
+  }
+  for (const w of P.walls) {
+    const L = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]), ux = (w.b[0] - w.a[0]) / L, uz = (w.b[1] - w.a[1]) / L;
+    const at = (s) => [w.a[0] + ux * s, w.a[1] + uz * s];
+    const gaps = w.openings.filter((o) => o.kind !== 'window').map((o) => [o.at - o.w / 2, o.at + o.w / 2]).sort((a, b) => a[0] - b[0]);
+    let s0 = 0;
+    const pieces = [];
+    for (const [a, b] of gaps) { pieces.push([s0, a]); s0 = b; }
+    pieces.push([s0, L]);
+    for (const [a, b] of pieces) { const p = at(a), q = at(b); g += `<line x1="${X(p[0])}" y1="${Y(p[1])}" x2="${X(q[0])}" y2="${Y(q[1])}" stroke="#CBC3B3" stroke-width="${Math.max(4, w.t * sc)}" stroke-linecap="square"/>`; }
+    for (const o of w.openings) {
+      const p = at(o.at - o.w / 2), q = at(o.at + o.w / 2);
+      if (o.kind === 'window') g += `<line x1="${X(p[0])}" y1="${Y(p[1])}" x2="${X(q[0])}" y2="${Y(q[1])}" stroke="#A9CBE0" stroke-width="${Math.max(2.5, w.t * sc * 0.45)}"/>`;
+      if (o.kind === 'door') { const rr = o.w * sc, nx = -uz, nz = ux; g += `<path d="M ${X(p[0])} ${Y(p[1])} L ${X(p[0] + nx * o.w)} ${Y(p[1] + nz * o.w)} A ${rr} ${rr} 0 0 ${nx * uz - nz * ux > 0 ? 0 : 1} ${X(q[0])} ${Y(q[1])}" fill="none" stroke="#A39B8B" stroke-width="1"/>`; }
+    }
+  }
+  for (const r of P.rooms) g += `<text x="${X(r.x0) + 8}" y="${Y(r.z0) + 17}" font-family="IBM Plex Sans, sans-serif" font-size="11" font-weight="600" fill="${COLOR.ink}">${esc(r.label)}</text>`;
+  g += pinsAndCallouts(site, (p) => [X(p[0]), Y(p[2])], 'left', W);
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Floor plan of ${esc(site.name)} with open findings">
+    <defs>
+      <pattern id="pl-wood" width="40" height="9" patternUnits="userSpaceOnUse"><rect width="40" height="9" fill="#B98B5F"/><rect width="40" height="1" fill="#A47852"/><rect x="22" width="1" height="9" fill="#A47852"/></pattern>
+      <pattern id="pl-tiles" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="#E3E8EA"/><path d="M10 0V10M0 10H10" stroke="#C9D2D6" stroke-width="1"/></pattern>
+    </defs>${g}</svg>`;
+}
+function elevationSVG(site) {
+  const E = site.elevation, W = 640, H = 400, reg = [16, 120, 624, 388];
+  const sc = Math.min((reg[2] - reg[0]) / (E.x1 - E.x0), (reg[3] - reg[1]) / (E.y1 - E.y0));
+  const ox = reg[0] + ((reg[2] - reg[0]) - (E.x1 - E.x0) * sc) / 2 - E.x0 * sc, oy = reg[3] - ((reg[3] - reg[1]) - (E.y1 - E.y0) * sc) / 2 + E.y0 * sc;
+  const X = (x) => +(ox + x * sc).toFixed(1), Y = (y) => +(oy - y * sc).toFixed(1);
+  const rect = (x0, y0, x1, y1, fill, extra = '') => `<rect x="${X(x0)}" y="${Y(y1)}" width="${((x1 - x0) * sc).toFixed(1)}" height="${((y1 - y0) * sc).toFixed(1)}" fill="${fill}" ${extra}/>`;
+  let g = rect(E.waterX[0], -0.65, E.waterX[1], E.waterY, '#A8C6D2');
+  g += `<path d="M ${X(E.x0)} ${Y(E.y0)} ${E.terrain.map(([x, y]) => `L ${X(x)} ${Y(y)}`).join(' ')} L ${X(E.x1)} ${Y(E.y0)} Z" fill="#D2C8A5" stroke="#A89D78" stroke-width="1.2"/>`;
+  for (const p of E.piers) {
+    g += rect(p.x - E.pierR, E.pierY[0], p.x + E.pierR, E.pierY[1], '#C9C5BB', 'stroke="#9F9A8F"');
+    g += rect(p.x - E.cap[2] / 2, E.cap[0], p.x + E.cap[2] / 2, E.cap[1], '#D3CFC6', 'stroke="#9F9A8F"');
+    g += `<text x="${X(p.x)}" y="${Y(E.pierY[0]) + 14}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="${COLOR['ink-2']}">${p.label}</text>`;
+  }
+  for (const a of E.abutments) {
+    g += rect(a.x0, a.y0, a.x1, a.y1, '#CFCAC0', 'stroke="#9F9A8F"');
+    g += `<text x="${X((a.x0 + a.x1) / 2)}" y="${Y(a.y0) + 14}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="${COLOR['ink-2']}">${a.label}</text>`;
+  }
+  g += rect(E.deck.x0 + 0.3, E.girder[0], E.deck.x1 - 0.3, E.girder[1], '#8E9A98');
+  g += rect(E.deck.x0, E.deck.y0, E.deck.x1, E.deck.y1, '#BDB8AC', 'stroke="#958F82"');
+  g += `<line x1="${X(E.deck.x0)}" y1="${Y(E.rail[1])}" x2="${X(E.deck.x1)}" y2="${Y(E.rail[1])}" stroke="#4C5656" stroke-width="2"/>`;
+  g += `<line x1="${X(E.deck.x0)}" y1="${Y(E.rail[0] + 0.5)}" x2="${X(E.deck.x1)}" y2="${Y(E.rail[0] + 0.5)}" stroke="#4C5656" stroke-width="1"/>`;
+  for (const x of E.posts) g += `<line x1="${X(x)}" y1="${Y(E.rail[0])}" x2="${X(x)}" y2="${Y(E.rail[1])}" stroke="#4C5656" stroke-width="1.2"/>`;
+  g += pinsAndCallouts(site, (p) => [X(p[0]), Y(p[1])], 'top', W);
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Side elevation of ${esc(site.name)} with open findings">${g}</svg>`;
+}
+const MONTHS = ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+function barsSVG(values, flagLast) {
+  const W = 420, H = 150, base = 128, top = 10, n = values.length, slot = W / n, bw = slot * 0.56, max = Math.max(...values, 1);
+  let g = `<line x1="0" y1="${base}" x2="${W}" y2="${base}" stroke="${COLOR['line-2']}"/>`;
+  values.forEach((v, i) => {
+    const h = (v / max) * (base - top), x = i * slot + (slot - bw) / 2, y = base - h, last = i === n - 1;
+    const rr = Math.min(4, h / 2, bw / 2);
+    const path = h > 0 ? `M ${x} ${base} V ${y + rr} Q ${x} ${y} ${x + rr} ${y} H ${x + bw - rr} Q ${x + bw} ${y} ${x + bw} ${y + rr} V ${base} Z` : '';
+    const label = `${MONTHS[i]} ${i === 0 ? 2025 : 2026}: ${v} capture${v === 1 ? '' : 's'}${last ? ' (month to date)' : ''}`;
+    g += `<g class="bar" data-tip="${esc(label)}"><rect x="${i * slot}" y="${top}" width="${slot}" height="${base - top + 18}" fill="transparent"/>${path ? `<path class="mark" d="${path}" fill="${last && flagLast ? COLOR.rust : COLOR.blue}"/>` : ''}
+      ${i % 2 === 1 || last ? `<text x="${i * slot + slot / 2}" y="${base + 15}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="500" fill="${COLOR.muted}">${MONTHS[i]}</text>` : ''}</g>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Captures per month, December 2025 to November 2026">${g}</svg>`;
+}
+function donutSVG(open, repaired) {
+  const total = open + repaired, R = 46, C = TAU * R, gap = total > 0 && open && repaired ? 3 : 0;
+  const segs = [[repaired, COLOR.blue, 'Repaired this year'], [open, COLOR.rust, 'Open']];
+  let off = 0, g = '';
+  for (const [v, c, l] of segs) {
+    if (!v) continue;
+    const len = (v / total) * C;
+    g += `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${c}" stroke-width="16" stroke-dasharray="${Math.max(0, len - gap)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)" data-tip="${esc(`${l}: ${v}`)}"/>`;
+    off += len;
+  }
+  return `<svg viewBox="0 0 120 120" role="img" aria-label="${open} open, ${repaired} repaired this year">${g}
+    <text x="60" y="61" text-anchor="middle" font-family="Space Grotesk, sans-serif" font-size="24" font-weight="600" fill="${COLOR.ink}">${total}</text>
+    <text x="60" y="78" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="10" fill="${COLOR.muted}">total</text></svg>`;
+}
+
+/* =====================================================================
+   Views
+   ===================================================================== */
+const state = {
+  tab: 'dashboard', siteId: 'bridge-b17', site: null,
+  selection: null, // { kind: 'issue', id, obsIndex } | { kind: 'segment', id, point }
+  overlay: true, overlayAlpha: 0.5,
+  hiddenClasses: new Set(), hiddenSegs: new Set(),
+  sevFilter: new Set(Object.keys(SEV)), showRepaired: true,
+  asOf: NOW, issueFilter: { q: '', sev: '', status: '' },
+};
+
+function renderDashboard() {
+  const s = state.site, open = s.issues.filter(isOpen);
+  const latest = s.issues.flatMap((i) => i.observations.map((o, k) => ({ i, o, k }))).sort((a, b) => ms(b.o.timestamp) - ms(a.o.timestamp)).slice(0, 3);
+  $('#view-dashboard').innerHTML = `
+  <div class="dash">
+    <article class="ds-card ds-card--hero hero">
+      <p class="ds-eyebrow">${esc(s.category)}</p>
+      <div class="hero-head"><h1 class="ds-h2">${esc(s.name)}</h1><span class="ds-chip ds-chip--live">Scan active</span></div>
+      <div class="ds-meta">${esc(s.location)} · scanned <span class="mono">${fmt.date(s.scanned_at)}</span></div>
+      <div class="hero-plan">${s.plan ? floorPlanSVG(s) : elevationSVG(s)}</div>
+      <div class="hero-actions">
+        <button class="ds-btn ds-btn--dark" data-action="goto-tab" data-tab="twin">Open 3D twin</button>
+        <button class="ds-btn ds-btn--secondary" data-action="toast" data-msg="PDF export arrives with the backend. Nothing was exported.">Export PDF</button>
+        <span class="hint">${s.plan ? 'Floor plan' : 'Side elevation'} drawn from the scan · click a label to open the issue</span>
+      </div>
+    </article>
+    <div class="kpis">
+      <div class="ds-kpi"><span class="ds-kpi__label">Open issues</span><span class="ds-kpi__value${open.length ? ' ds-kpi__value--open' : ''}">${open.length}</span></div>
+      <div class="ds-kpi"><span class="ds-kpi__label">Repaired this year</span><span class="ds-kpi__value">${s.summary.repaired_this_year}</span></div>
+      <div class="ds-kpi"><span class="ds-kpi__label">Days to repair, avg.</span><span class="ds-kpi__value ds-kpi__value--time">${s.summary.avg_days_to_repair}</span></div>
+      <div class="ds-kpi"><span class="ds-kpi__label">Records at this site</span><span class="ds-kpi__value">${s.summary.observations_total}</span></div>
+    </div>
+    <article class="ds-card bars">
+      <div class="bars-head"><h2 class="card-title">Captures per month</h2><span class="hint">Sample data</span></div>
+      ${barsSVG(s.monthly, open.length > 0)}
+    </article>
+    <div class="side">
+      <article class="ds-card">
+        <h2 class="card-title">Issues by status</h2>
+        <div class="donut-wrap">${donutSVG(open.length, s.summary.repaired_this_year)}
+          <ul class="legend">
+            <li><span class="dot" style="--c:var(--blue)"></span>Repaired · ${s.summary.repaired_this_year}</li>
+            <li><span class="dot" style="--c:var(--rust)"></span>Open · ${open.length}</li>
+            <li class="note">Repaired issues leave the 3D view unless “Show repaired” is on.</li>
+          </ul>
+        </div>
+      </article>
+      <article class="ds-card">
+        <h2 class="card-title">Latest records</h2>
+        <ul class="records">${latest.map(({ i, o, k }) => `<li><button class="ds-row" data-action="open-issue" data-id="${i.issue_id}" data-obs="${k}">
+          <span class="ds-row__thumb">${photoSVG(i, k, false)}</span>
+          <span><span class="ds-row__title">${esc(TYPES[i.type].label)} · ${esc(i.object.short)}${i.where ? `, ${esc(i.where)}` : ''}</span><span class="ds-row__meta">${fmt.rel(o.timestamp)} · ${SOURCES[o.source.kind].label} ${esc(o.source.device_id)}</span></span>
+        </button></li>`).join('')}</ul>
+      </article>
+    </div>
+  </div>`;
+}
+
+function issueRows() {
+  const f = state.issueFilter, q = f.q.trim().toLowerCase();
+  return state.site.issues.filter((i) => {
+    const st = statusAt(i).status;
+    if (f.sev && i.severity !== f.sev) return false;
+    if (f.status && st !== f.status) return false;
+    if (q && !`${i.issue_id} ${TYPES[i.type].label} ${i.object.label} ${i.where}`.toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a, b) => isOpen(b) - isOpen(a) || SEV[b.severity].rank - SEV[a.severity].rank);
+}
+function renderIssueTable() {
+  const rows = issueRows();
+  $('#issue-tbody').innerHTML = rows.length ? rows.map((i) => {
+    const st = statusAt(i).status, last = i.observations.at(-1);
+    return `<tr data-action="open-issue" data-id="${i.issue_id}" tabindex="0">
+      <td class="mono">${i.issue_id}</td>
+      <td><b>${esc(TYPES[i.type].label)}</b><span class="sub">${esc(i.object.label)}${i.where ? ` · ${esc(i.where)}` : ''}</span></td>
+      <td>${sevChip(i.severity)}</td>
+      <td>${statusChip(st)}</td>
+      <td class="mono">${fmtMetric(i, metricOf(i, last))}</td>
+      <td>${i.observations.length}</td>
+      <td>${fmt.rel(last.timestamp)}<span class="sub">${SOURCES[last.source.kind].label}</span></td>
+    </tr>`;
+  }).join('') : `<tr class="empty-row"><td colspan="7">No issues match these filters. Clear the search or pick another status.</td></tr>`;
+}
+function renderIssues() {
+  const s = state.site, open = s.issues.filter(isOpen).length;
+  $('#view-issues').innerHTML = `
+  <div class="page">
+    <div class="page-head">
+      <div><p class="ds-eyebrow">Issues · ${esc(s.name)}</p><h2 class="ds-h2">${s.issues.length} issues, ${open} open</h2></div>
+      <div class="filters">
+        <input type="search" id="f-q" placeholder="Search ID, type or object" value="${esc(state.issueFilter.q)}" aria-label="Search issues">
+        <select id="f-sev" aria-label="Severity"><option value="">All severities</option>${Object.entries(SEV).map(([k, v]) => `<option value="${k}" ${state.issueFilter.sev === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+        <select id="f-status" aria-label="Status"><option value="">All statuses</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${state.issueFilter.status === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="ds-card table-card"><div class="table-scroll"><table>
+      <thead><tr><th>ID</th><th>Issue</th><th>Severity</th><th>Status</th><th>Latest size</th><th>Records</th><th>Last seen</th></tr></thead>
+      <tbody id="issue-tbody"></tbody>
+    </table></div></div>
+  </div>`;
+  renderIssueTable();
+}
+
+function renderCaptures() {
+  const s = state.site;
+  $('#view-captures').innerHTML = `
+  <div class="page">
+    <div class="page-head">
+      <div><p class="ds-eyebrow">Captures · ${esc(s.name)}</p><h2 class="ds-h2">${s.captures.length} captures</h2>
+      <p>Each capture is a short 5 FPS video sweep with IMU data and one damage photo, uploaded by the capture app, a robot or smart glasses. The backend localizes it in the 3D scan, runs SAM 3 and files the result.</p></div>
+    </div>
+    <div class="caps">${s.captures.map((c) => {
+      const steps = PIPELINE.map((label, k) => {
+        const cls = k < c.stage ? 'done' : k === c.stage ? (c.status === 'failed' ? 'failed' : c.status === 'done' ? 'done' : 'active') : '';
+        return `<li class="${cls}">${label}</li>`;
+      }).join('');
+      let result;
+      if (c.status === 'failed') result = `<div class="cap-result fail"><b>Stopped at localization.</b> ${esc(c.reason)}</div>`;
+      else if (c.status === 'processing') result = `<div class="cap-result">${PIPELINE_ACTIVE[c.stage]}…</div>`;
+      else if (c.status === 'uploaded') result = `<div class="cap-result">Uploaded, waiting for the localizer.</div>`;
+      else if (c.issue_id) result = `<div class="cap-result">${c.obs_id} filed on <button class="link-btn" data-action="open-issue" data-id="${c.issue_id}">${c.issue_id}</button><div class="meta">Pose confidence ${c.pose_confidence.toFixed(2)}</div></div>`;
+      else result = `<div class="cap-result">${esc(c.result)}</div>`;
+      return `<article class="ds-card cap">
+        <div><b class="mono">${c.capture_id}</b><div class="meta">${fmt.dt(c.created)} UTC · ${SOURCES[c.source].label} ${SOURCES[c.source].device}</div><div class="meta">${c.frames} frames + photo · ${c.size_mb} MB</div></div>
+        <ol class="steps" aria-label="Processing steps">${steps}</ol>
+        ${result}
+      </article>`;
+    }).join('')}</div>
+  </div>`;
+}
+
+/* ---------- twin panels ---------- */
+const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17.6 17.6 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+function renderLayers() {
+  const s = state.site;
+  const groups = new Map();
+  for (const seg of s.segments) { if (seg.cls === 'damage') continue; if (!groups.has(seg.cls)) groups.set(seg.cls, []); groups.get(seg.cls).push(seg); }
+  const order = [...groups.keys()].sort((a, b) => (CLASSES[a].slot ?? 99) - (CLASSES[b].slot ?? 99));
+  const nInst = [...groups.values()].reduce((n, g) => n + g.length, 0);
+  const selId = state.selection?.kind === 'segment' ? state.selection.id : null;
+  $('#layers').innerHTML = `
+  <div class="psec">
+    <div class="eyebrow">Segmentation</div>
+    <div class="row-between">
+      <div><b>SAM 3 masks in 3D</b><div class="hint">${groups.size} classes · ${nInst} objects on ${fmt.num(s.gaussians)} Gaussians</div></div>
+      <label class="switch"><input type="checkbox" id="ovl" ${state.overlay ? 'checked' : ''} aria-label="Show segmentation colours"><span></span></label>
+    </div>
+    <label class="slider-row">Mask opacity <input type="range" id="ovl-alpha" min="0.15" max="0.95" step="0.05" value="${state.overlayAlpha}" ${state.overlay ? '' : 'disabled'}></label>
+  </div>
+  <div class="psec">
+    <div class="eyebrow">Classes</div>
+    <ul class="cls-list">${order.map((cls) => {
+      const list = groups.get(cls), off = state.hiddenClasses.has(cls), g = list.reduce((n, x) => n + x.buf.count, 0);
+      return `<li><details class="cls ${off ? 'off' : ''}" ${list.some((x) => x.id === selId) ? 'open' : ''}>
+        <summary><span class="sw" style="--c:${classColor(cls)}"></span><span class="cls-name">${CLASSES[cls].label}</span><span class="cnt mono" title="${fmt.num(g)} Gaussians">${list.length}</span>
+          <button class="eye" data-action="toggle-class" data-cls="${cls}" aria-pressed="${!off}" aria-label="${off ? 'Show' : 'Hide'} ${CLASSES[cls].label.toLowerCase()}">${off ? EYE_OFF : EYE}</button></summary>
+        <ul class="inst">${list.map((x) => `<li><button class="${x.id === selId ? 'on' : ''}" data-action="select-seg" data-id="${x.id}"><span>${esc(x.label)}</span><span class="mono">${fmt.num(x.buf.count)}</span></button></li>`).join('')}</ul>
+      </details></li>`;
+    }).join('')}</ul>
+  </div>
+  <div class="psec">
+    <div class="eyebrow">Issue pins</div>
+    <div class="chip-toggles">${Object.entries(SEV).map(([k, v]) => `<button class="ds-chip chip-toggle" data-action="sev-filter" data-sev="${k}" aria-pressed="${state.sevFilter.has(k)}"><span class="ds-sev" data-sev="${k}">${v.label}</span></button>`).join('')}</div>
+    <label class="check-row">Show repaired <span class="switch"><input type="checkbox" id="show-rep" ${state.showRepaired ? 'checked' : ''}><span></span></span></label>
+  </div>`;
+}
+
+function renderInspector() {
+  const el = $('#inspector'), s = state.site, sel = state.selection;
+  if (sel?.kind === 'issue') { const i = s.issues.find((x) => x.issue_id === sel.id); if (i) { el.innerHTML = issueInspector(i, sel); return; } }
+  if (sel?.kind === 'segment') { const seg = s.segById.get(sel.id); if (seg) { el.innerHTML = segmentInspector(seg, sel.point); return; } }
+  const open = s.issues.filter(isOpen).sort((a, b) => SEV[b.severity].rank - SEV[a.severity].rank);
+  el.innerHTML = `<div class="insp-empty">
+    <div class="reticle-icon" aria-hidden="true"></div>
+    <h3>Click a surface or a pin</h3>
+    <p>A surface shows what SAM 3 labelled it and which issues sit on it. A pin opens the issue with every record, photo and timestamp.</p>
+    <div class="eyebrow" style="margin-bottom:10px">Open issues</div>
+    <ul class="issue-list">${open.map((i) => `<li><button data-action="open-issue" data-id="${i.issue_id}"><span class="grow"><span class="ds-row__title">${esc(issueTitle(i))}</span><span class="ds-row__meta mono">${i.issue_id}</span></span>${sevChip(i.severity)}</button></li>`).join('')}</ul>
+  </div>`;
+}
+function issueInspector(i, sel) {
+  const stNow = statusAt(i, state.asOf) || statusAt(i), idx = clamp(sel.obsIndex ?? i.observations.length - 1, 0, i.observations.length - 1);
+  const o = i.observations[idx], first = i.observations[0], last = i.observations.at(-1);
+  const delta = metricOf(i, last) - metricOf(i, first), n = i.observations.length;
+  const seg = state.site.segById.get(i.object.id);
+  const visual = n > 1
+    ? `<div class="compare" data-compare>
+        <div class="img before">${photoSVG(i, 0)}</div><div class="img after">${photoSVG(i, n - 1)}</div><div class="divider"></div>
+        <span class="tag l">${fmt.date(first.timestamp)}</span><span class="tag r">${fmt.date(last.timestamp)}</span>
+        <input type="range" min="0" max="100" value="50" aria-label="Compare the first and the latest photo">
+      </div>`
+    : `<div class="photo">${photoSVG(i, 0)}</div>`;
+  return `
+  <div class="insp-head">
+    <div class="insp-kicker"><span class="mono">${i.issue_id}</span>${statusChip(stNow.status)}<button class="insp-close" data-action="clear-selection" aria-label="Close">×</button></div>
+    <h3>${esc(TYPES[i.type].label)} on ${esc(i.object.label)}${i.where ? `, ${esc(i.where)}` : ''}</h3>
+    <div class="chips">${sevChip(i.severity)}<button class="ds-chip chip-link" data-action="select-seg" data-id="${i.object.id}"><span class="sw" style="--c:${classColor(seg.cls)}"></span>${esc(CLASSES[seg.cls].label)} · ${esc(i.object.short)}</button></div>
+  </div>
+  <div class="insp-body">
+    <div class="metrics">
+      <div><span>Latest ${TYPES[i.type].metric}</span><b>${fmtMetric(i, metricOf(i, last))}</b></div>
+      <div><span>Since first record</span><b class="${delta > 0.0005 ? 'up' : ''}">${delta >= 0 ? '+' : '−'}${fmtMetric(i, Math.abs(delta))}</b></div>
+      <div><span>Records</span><b>${n}</b></div>
+    </div>
+    ${visual}
+    <div>
+      <div class="eyebrow" style="margin-bottom:8px">Records at this spot</div>
+      <ol class="timeline">
+        ${i.observations.map((x, k) => `<li class="${k === idx ? 'on' : ''}${k === n - 1 && stNow.status !== 'repaired' ? ' is-open' : ''}"><button data-action="select-obs" data-index="${k}" aria-pressed="${k === idx}">
+          <span class="tl-dot"></span><span class="tl-main"><b>${fmt.dt(x.timestamp)} UTC</b><span>${SOURCES[x.source.kind].label} · ${esc(x.source.device_id)}</span></span><span class="tl-val mono">${fmtMetric(i, metricOf(i, x))}</span>
+        </button></li>`).join('')}
+        ${i.repaired_at ? `<li class="rep"><span class="tl-dot"></span>Repaired ${fmt.date(i.repaired_at)} · ${esc(i.repaired_by)}</li>` : ''}
+      </ol>
+    </div>
+    <dl class="facts">
+      <dt>Timestamp</dt><dd class="mono">${o.timestamp}</dd>
+      <dt>Record</dt><dd class="mono">${o.obs_id}</dd>
+      <dt>Capture</dt><dd class="mono">${o.capture_id}</dd>
+      <dt>Source</dt><dd>${SOURCES[o.source.kind].label} · ${esc(o.source.device_id)}</dd>
+      <dt>Camera position</dt><dd class="mono">${fmt.xyz(o.camera_pose.t)}</dd>
+      <dt>Pose confidence</dt><dd>${o.pose_confidence.toFixed(2)}</dd>
+      <dt>SAM 3 confidence</dt><dd>${o.detector_confidence.toFixed(2)} · “${TYPES[i.type].prompt}”</dd>
+      <dt>Reviewed by</dt><dd>${o.reviewed_by ? esc(o.reviewed_by) : 'Not reviewed yet'}</dd>
+      <dt>Issue position</dt><dd class="mono">${fmt.xyz(i.position_m)} m</dd>
+      <dt>Photo</dt><dd class="mono small">${esc(o.image_url)}</dd>
+    </dl>
+    <div class="insp-actions">
+      <button class="ds-btn ds-btn--dark ds-btn--sm" data-action="fly-obs">View from this camera</button>
+      <button class="ds-btn ds-btn--secondary ds-btn--sm" data-action="toast" data-msg="Reports arrive with the backend. ${i.issue_id} was not added anywhere.">Add to report</button>
+      ${stNow.status !== 'repaired' ? `<button class="ds-btn ds-btn--secondary ds-btn--sm" data-action="toast" data-msg="Marking as repaired needs the backend. Nothing was changed.">Mark repaired</button>` : ''}
+    </div>
+  </div>`;
+}
+function segmentInspector(seg, point) {
+  const s = state.site, cls = CLASSES[seg.cls];
+  if (seg.cls === 'damage') return issueInspector(s.issues.find((i) => i.issue_id === seg.issueId), { obsIndex: undefined });
+  const issues = s.issues.filter((i) => i.object.id === seg.id);
+  const ext = seg.max.map((v, k) => v - seg.min[k]);
+  return `
+  <div class="insp-head">
+    <div class="insp-kicker"><span class="sw" style="--c:${classColor(seg.cls)}"></span>${cls.label} · segmented object<button class="insp-close" data-action="clear-selection" aria-label="Close">×</button></div>
+    <h3>${esc(seg.label)}</h3>
+    <div class="chips"><span class="ds-chip ds-chip--info">SAM 3 prompt “${esc(cls.prompt)}”</span></div>
+  </div>
+  <div class="insp-body">
+    <dl class="facts">
+      <dt>Mask confidence</dt><dd>${seg.conf.toFixed(2)}</dd>
+      <dt>Gaussians</dt><dd class="mono">${fmt.num(seg.buf.count)}</dd>
+      <dt>Surface</dt><dd>≈ ${seg.area.toFixed(1)} m²</dd>
+      <dt>Extent (x · y · z)</dt><dd class="mono">${ext.map((v) => v.toFixed(2)).join(' · ')} m</dd>
+      <dt>Height range</dt><dd class="mono">${seg.min[1].toFixed(2)} – ${seg.max[1].toFixed(2)} m</dd>
+      <dt>Segmented from</dt><dd>Scan ${fmt.date(s.scanned_at)} · <span class="mono">${esc(s.map_id)}</span></dd>
+      ${point ? `<dt>Picked point</dt><dd class="mono">${fmt.xyz(point)} m</dd>` : ''}
+    </dl>
+    <div>
+      <div class="eyebrow" style="margin-bottom:10px">Issues on this object</div>
+      ${issues.length ? `<ul class="issue-list">${issues.map((i) => `<li><button data-action="open-issue" data-id="${i.issue_id}"><span class="grow">${esc(TYPES[i.type].label)}${i.where ? ` · ${esc(i.where)}` : ''}</span>${statusChip(statusAt(i).status)}</button></li>`).join('')}</ul>` : '<p class="hint" style="margin:0">No issues recorded on this object.</p>'}
+    </div>
+  </div>`;
+}
+
+function issueDateRange() {
+  const t = state.site.issues.flatMap((i) => i.observations.map((o) => ms(o.timestamp)));
+  return [dayStart(Math.min(...t)) - 14 * DAY, dayStart(NOW)];
+}
+function renderTimebar() {
+  const [start, end] = issueDateRange(), days = Math.round((end - start) / DAY), cur = Math.round((dayStart(state.asOf) - start) / DAY);
+  const ticks = state.site.issues.flatMap((i) => i.observations.map((o) => `<i style="left:${(((dayStart(o.timestamp) - start) / DAY) / days) * 100}%;--c:var(${isOpen(i) ? '--vp-rust' : '--pick'})" title="${esc(`${i.issue_id} · ${fmt.date(o.timestamp)}`)}"></i>`)).join('');
+  $('#timebar').innerHTML = `
+    <div><span class="eyebrow">State on</span><span class="date" id="asof-label">${fmt.date(state.asOf)}</span></div>
+    <div class="tb-track"><div class="tb-ticks">${ticks}</div><input type="range" id="asof" min="0" max="${days}" value="${clamp(cur, 0, days)}" aria-label="Show the site on this date"><div class="tb-ends"><span>${fmt.date(start)}</span><span>today</span></div></div>
+    <button class="glass stage-btn" data-action="today">Today</button>`;
+}
+
+/* =====================================================================
+   3D twin (Three.js + Spark)
+   ===================================================================== */
+let Spark = null;
+const _c = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion(), _col = new THREE.Color(), _p = new THREE.Vector3();
+
+class Twin {
+  constructor(stage) {
+    this.stage = stage;
+    this.host = $('.canvas-host', stage);
+    this.pinLayer = $('.pin-layer', stage);
+    this.tip = $('.hover-tip', stage);
+    this.reticle = $('.reticle', stage);
+    const renderer = (this.renderer = new THREE.WebGLRenderer({ antialias: false }));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(new THREE.Color(COLOR.vp), 1);
+    this.host.appendChild(renderer.domElement);
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(50, 1, 0.05, 400);
+    this.spark = new Spark.SparkRenderer({ renderer });
+    this.scene.add(this.spark);
+    this.controls = new OrbitControls(this.camera, renderer.domElement);
+    Object.assign(this.controls, { enableDamping: true, dampingFactor: 0.08, screenSpacePanning: true, maxPolarAngle: Math.PI * 0.92, minDistance: 0.4, maxDistance: 120 });
+    this.controls.addEventListener('start', () => { this.anim = null; });
+    this.splatRoot = new THREE.Group();
+    this.helpers = new THREE.Group();
+    this.scene.add(this.splatRoot, this.helpers);
+    this.meshes = [];
+    this.bySeg = new Map();
+    this.raycaster = new THREE.Raycaster();
+    this.ndc = new THREE.Vector2();
+    this.active = false;
+    this.anim = null;
+    this.pins = [];
+    new ResizeObserver(() => this.resize()).observe(this.host);
+    this.bindPointer();
+    renderer.setAnimationLoop((t) => this.frame(t));
+  }
+  resize() {
+    const w = this.host.clientWidth, h = this.host.clientHeight;
+    if (!w || !h) return;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+  clear() {
+    for (const m of this.meshes) { this.splatRoot.remove(m); m.dispose?.(); }
+    this.meshes = []; this.bySeg.clear();
+    this.helpers.clear();
+    this.pinLayer.innerHTML = ''; this.pins = [];
+  }
+  async load(site) {
+    this.clear();
+    this.site = site;
+    const waits = [];
+    for (const seg of site.segments) {
+      const d = seg.buf.d, count = seg.buf.count;
+      const mesh = new Spark.SplatMesh({
+        constructSplats: (packed) => {
+          for (let i = 0; i < count; i++) {
+            const k = i * STRIDE;
+            _c.set(d[k], d[k + 1], d[k + 2]); _s.set(d[k + 3], d[k + 4], d[k + 5]); _q.set(d[k + 6], d[k + 7], d[k + 8], d[k + 9]); _col.setRGB(d[k + 11], d[k + 12], d[k + 13]);
+            packed.pushSplat(_c, _s, _q, d[k + 10], _col);
+          }
+        },
+      });
+      mesh.userData.seg = seg;
+      this.splatRoot.add(mesh);
+      this.meshes.push(mesh);
+      this.bySeg.set(seg.id, mesh);
+      waits.push(mesh.initialized);
+    }
+    await Promise.all(waits);
+    this.resize();
+    this.homeView(true);
+    this.buildPins();
+    this.refresh();
+  }
+  overlayFor(seg) {
+    if (seg.cls === 'damage') {
+      const iss = this.site.issues.find((i) => i.issue_id === seg.issueId);
+      return state.overlay ? { rgb: hex2rgb(SEV[iss.severity].color), a: 0.85 } : null;
+    }
+    const selected = state.selection?.kind === 'segment' && state.selection.id === seg.id;
+    if (selected) return { rgb: hex2rgb(classColor(seg.cls)), a: Math.max(0.7, state.overlay ? state.overlayAlpha + 0.2 : 0) };
+    if (state.overlay) return { rgb: hex2rgb(classColor(seg.cls)), a: state.overlayAlpha };
+    return null;
+  }
+  paint(mesh) {
+    const seg = mesh.userData.seg, target = this.overlayFor(seg);
+    const key = target ? `${target.rgb.join(',')}:${target.a.toFixed(2)}` : 'base';
+    if (mesh.userData.paintKey === key || !mesh.packedSplats) return;
+    mesh.userData.paintKey = key;
+    const d = seg.buf.d, n = seg.buf.count, packed = mesh.packedSplats;
+    const a = target ? target.a : 0, [tr, tg, tb] = target ? target.rgb : [0, 0, 0];
+    for (let i = 0; i < n; i++) {
+      const k = i * STRIDE;
+      _c.set(d[k], d[k + 1], d[k + 2]); _s.set(d[k + 3], d[k + 4], d[k + 5]); _q.set(d[k + 6], d[k + 7], d[k + 8], d[k + 9]);
+      _col.setRGB(d[k + 11] * (1 - a) + tr * a, d[k + 12] * (1 - a) + tg * a, d[k + 13] * (1 - a) + tb * a);
+      packed.setSplat(i, _c, _s, _q, d[k + 10], _col);
+    }
+    packed.needsUpdate = true;
+    mesh.needsUpdate = true;
+  }
+  issueVisible(i) {
+    const st = statusAt(i, state.asOf);
+    return !!st && state.sevFilter.has(i.severity) && (state.showRepaired || st.status !== 'repaired');
+  }
+  refresh() {
+    if (!this.site) return;
+    for (const m of this.meshes) {
+      const seg = m.userData.seg;
+      if (seg.cls === 'damage') m.visible = this.issueVisible(this.site.issues.find((i) => i.issue_id === seg.issueId));
+      else m.visible = !state.hiddenClasses.has(seg.cls) && !state.hiddenSegs.has(seg.id);
+      this.paint(m);
+    }
+    for (const p of this.pins) {
+      const st = statusAt(p.issue, state.asOf);
+      p.visible = this.issueVisible(p.issue);
+      p.el.classList.toggle('is-open', !!st && st.status !== 'repaired');
+      p.el.classList.toggle('is-worsening', st?.status === 'worsening');
+      p.el.classList.toggle('selected', state.selection?.kind === 'issue' && state.selection.id === p.issue.issue_id);
+      p.el.querySelector('.pin-status').textContent = st ? STATUS[st.status].label.toLowerCase() : '';
+    }
+    this.showObservation();
+  }
+  buildPins() {
+    this.pins = this.site.issues.map((issue) => {
+      const el = document.createElement('button');
+      el.className = 'pin';
+      el.dataset.action = 'open-issue'; el.dataset.id = issue.issue_id; el.dataset.nofly = '1';
+      el.setAttribute('aria-label', `${issue.issue_id}: ${issueTitle(issue)}, ${SEV[issue.severity].label} severity`);
+      el.innerHTML = `<span class="pin-dot"></span><span class="pin-label">${esc(issueTitle(issue))} <span class="mono">${issue.issue_id} · <span class="pin-status"></span></span></span>`;
+      this.pinLayer.appendChild(el);
+      const n = issue.normal;
+      return { issue, el, pos: [issue.position_m[0] + n[0] * 0.03, issue.position_m[1] + n[1] * 0.03, issue.position_m[2] + n[2] * 0.03], visible: true };
+    });
+  }
+  showObservation() {
+    this.helpers.clear();
+    const sel = state.selection;
+    if (sel?.kind !== 'issue') return;
+    const issue = this.site.issues.find((i) => i.issue_id === sel.id);
+    if (!issue) return;
+    const o = issue.observations[sel.obsIndex ?? issue.observations.length - 1];
+    const fov = THREE.MathUtils.degToRad(62), asp = 4 / 3, d = 0.4, hh = Math.tan(fov / 2) * d, hw = hh * asp;
+    const corners = [[0, 0, 0], [-hw, -hh, -d], [hw, -hh, -d], [hw, hh, -d], [-hw, hh, -d], [0, hh * 1.5, -d]];
+    const idx = [0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1, 3, 5, 5, 4];
+    const q = new THREE.Quaternion(...o.camera_pose.q), t = new THREE.Vector3(...o.camera_pose.t);
+    const pts = idx.map((k) => new THREE.Vector3(...corners[k]).applyQuaternion(q).add(t));
+    const frustum = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(COLOR.pick), depthTest: false, transparent: true }));
+    const ray = new THREE.Line(new THREE.BufferGeometry().setFromPoints([t, new THREE.Vector3(...issue.position_m)]), new THREE.LineDashedMaterial({ color: new THREE.Color(COLOR.pick), dashSize: 0.06, gapSize: 0.05, depthTest: false, transparent: true, opacity: 0.8 }));
+    ray.computeLineDistances();
+    frustum.renderOrder = ray.renderOrder = 999;
+    this.helpers.add(frustum, ray);
+  }
+  project(p) {
+    _p.set(p[0], p[1], p[2]).project(this.camera);
+    return { x: ((_p.x + 1) / 2) * this.host.clientWidth, y: ((1 - _p.y) / 2) * this.host.clientHeight, ok: _p.z < 1 && _p.z > -1 };
+  }
+  updateOverlays() {
+    const w = this.host.clientWidth, h = this.host.clientHeight;
+    for (const p of this.pins) {
+      const s = this.project(p.pos), show = p.visible && s.ok && s.x > -40 && s.x < w + 40 && s.y > -40 && s.y < h + 40;
+      p.el.style.visibility = show ? 'visible' : 'hidden';
+      if (show) p.el.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+    }
+    const pt = state.selection?.kind === 'segment' ? state.selection.point : null;
+    if (pt) {
+      const s = this.project(pt);
+      this.reticle.style.display = s.ok ? 'block' : 'none';
+      this.reticle.style.transform = `translate(${s.x}px, ${s.y}px)`;
+    } else this.reticle.style.display = 'none';
+  }
+  frame(t) {
+    if (!this.active) return;
+    if (this.anim) {
+      const a = this.anim, k = clamp((t - (a.t0 ??= t)) / a.dur, 0, 1), e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+      this.camera.position.lerpVectors(a.fromP, a.toP, e);
+      this.controls.target.lerpVectors(a.fromT, a.toT, e);
+      if (k >= 1) this.anim = null;
+    }
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+    this.updateOverlays();
+  }
+  flyTo(pos, target) {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const toP = new THREE.Vector3(...pos), toT = new THREE.Vector3(...target);
+    if (reduce) { this.camera.position.copy(toP); this.controls.target.copy(toT); this.anim = null; return; }
+    this.anim = { fromP: this.camera.position.clone(), toP, fromT: this.controls.target.clone(), toT, dur: 950 };
+  }
+  viewIssue(issue) {
+    const p = issue.position_m, n = issue.normal, up = Math.abs(n[1]) > 0.9;
+    const dist = this.site.kind === 'structure' ? 4.2 : 3.2;
+    const eye = up ? [p[0] + 0.4, p[1] + n[1] * dist, p[2] + 2.2] : [p[0] + n[0] * dist + 0.8, p[1] + 0.9, p[2] + n[2] * dist + 0.8];
+    this.flyTo(eye, p);
+  }
+  // Closest eye position along `dir` from which every corner of the scene box stays in frame and above the time bar.
+  fitEye(dir, center) {
+    const [a, b] = this.site.camera.box, n = norm3(dir), cam = this.camera.clone();
+    const corners = [];
+    for (const x of [a[0], b[0]]) for (const y of [a[1], b[1]]) for (const z of [a[2], b[2]]) corners.push(new THREE.Vector3(x, y, z));
+    for (let d = 2; d < 300; d *= 1.04) {
+      cam.position.set(center[0] + n[0] * d, center[1] + n[1] * d, center[2] + n[2] * d);
+      cam.lookAt(...center); cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+      if (corners.every((c) => { const p = c.clone().project(cam); return Math.abs(p.x) < 0.9 && p.y > -0.68 && p.y < 0.84 && p.z < 1; })) return cam.position.toArray();
+    }
+    return cam.position.toArray();
+  }
+  homeView(instant = false) {
+    const { dir, center } = this.site.camera, eye = this.fitEye(dir, center);
+    if (!instant) return this.flyTo(eye, center);
+    this.camera.position.set(...eye); this.controls.target.set(...center); this.controls.update();
+  }
+  topView() {
+    const { center } = this.site.camera;
+    this.flyTo(this.fitEye([0, 1, 0.001], center), center);
+  }
+  pick(e) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    this.ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.ndc, this.camera);
+    return this.raycaster.intersectObjects(this.meshes.filter((m) => m.visible), false)[0] || null;
+  }
+  setHover(mesh) {
+    if (this.hovered === mesh) return;
+    if (this.hovered) this.hovered.recolor.setRGB(1, 1, 1);
+    this.hovered = mesh;
+    if (mesh) mesh.recolor.setRGB(1.28, 1.28, 1.28);
+  }
+  bindPointer() {
+    const el = this.renderer.domElement;
+    el.addEventListener('pointerdown', (e) => { this.down = { x: e.clientX, y: e.clientY }; });
+    el.addEventListener('pointerup', (e) => {
+      if (!this.down) return;
+      const moved = Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y);
+      this.down = null;
+      if (moved > 5) return;
+      const hit = this.pick(e);
+      if (!hit) { app.clearSelection(); return; }
+      const seg = hit.object.userData.seg;
+      if (seg.cls === 'damage') app.selectIssue(seg.issueId, { fly: false });
+      else app.selectSegment(seg.id, [hit.point.x, hit.point.y, hit.point.z]);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (e.buttons) { this.tip.style.display = 'none'; return; }
+      this.lastMove = e;
+      if (this.hoverTimer) return;
+      this.hoverTimer = setTimeout(() => {
+        this.hoverTimer = null;
+        const ev = this.lastMove, hit = this.pick(ev);
+        if (!hit) { this.setHover(null); this.tip.style.display = 'none'; return; }
+        const seg = hit.object.userData.seg;
+        this.setHover(hit.object);
+        const color = seg.cls === 'damage' ? SEV[this.site.issues.find((i) => i.issue_id === seg.issueId).severity].color : classColor(seg.cls);
+        this.tip.innerHTML = `<span class="sw" style="--c:${color}"></span>${esc(seg.cls === 'damage' ? seg.issueId : seg.label)}<span class="k">${esc(seg.cls === 'damage' ? seg.short : CLASSES[seg.cls].label)}</span>`;
+        const r = this.host.getBoundingClientRect();
+        this.tip.style.display = 'block';
+        this.tip.style.transform = `translate(${Math.min(ev.clientX - r.left + 14, r.width - this.tip.offsetWidth - 8)}px, ${ev.clientY - r.top + 16}px)`;
+      }, 80);
+    });
+    el.addEventListener('pointerleave', () => { this.setHover(null); this.tip.style.display = 'none'; });
+  }
+}
+
+/* =====================================================================
+   App controller
+   ===================================================================== */
+let twin = null, twinSiteId = null, twinLoading = null;
+const app = {
+  async setSite(id) {
+    state.siteId = id;
+    state.selection = null; state.asOf = NOW; state.hiddenClasses.clear(); state.hiddenSegs.clear();
+    state.site = await MockApi.getSite(id);
+    $('#site-select').value = id;
+    $('#stage-site').innerHTML = `${esc(state.site.name)} <span class="mono">${fmt.num(state.site.gaussians)} Gaussians</span>`;
+    renderDashboard(); renderIssues(); renderCaptures(); renderLayers(); renderInspector(); renderTimebar();
+    if (state.tab === 'twin') await this.ensureTwin();
+    this.writeHash();
+  },
+  async setTab(tab) {
+    state.tab = tab;
+    document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${tab}`));
+    if (twin) twin.active = tab === 'twin';
+    if (tab === 'twin') await this.ensureTwin();
+    this.writeHash();
+  },
+  async ensureTwin() {
+    const loading = $('#stage-loading');
+    try {
+      if (!Spark) { $('#loading-text').textContent = 'Loading the splat renderer…'; Spark = await import('@sparkjsdev/spark'); }
+      if (!twin) twin = new Twin($('#stage'));
+      twin.active = state.tab === 'twin';
+      if (twinSiteId !== state.siteId) {
+        twinSiteId = state.siteId;
+        loading.hidden = false;
+        $('#loading-text').textContent = `Building ${fmt.num(state.site.gaussians)} Gaussians for ${state.site.name}…`;
+        twinLoading = twin.load(state.site);
+        await twinLoading;
+        loading.hidden = true;
+        if (state.selection?.kind === 'issue') { const i = state.site.issues.find((x) => x.issue_id === state.selection.id); if (i) twin.viewIssue(i); }
+      }
+      twin.resize();
+    } catch (err) {
+      console.error(err);
+      loading.hidden = false;
+      $('#loading-text').innerHTML = `The 3D viewer could not start: ${esc(err.message)}<br><span class="hint">It needs WebGL2 and access to cdn.jsdelivr.net.</span>`;
+    }
+  },
+  async selectIssue(id, { fly = true, obsIndex } = {}) {
+    const issue = state.site.issues.find((i) => i.issue_id === id);
+    if (!issue) return;
+    if (!statusAt(issue, state.asOf)) { state.asOf = NOW; renderTimebar(); }
+    state.selection = { kind: 'issue', id, obsIndex };
+    if (state.tab !== 'twin') await this.setTab('twin');
+    if (twinLoading) await twinLoading;
+    renderInspector(); renderLayers();
+    twin?.refresh();
+    if (fly && twin) twin.viewIssue(issue);
+    this.writeHash();
+  },
+  selectSegment(id, point = null) {
+    state.selection = { kind: 'segment', id, point };
+    renderInspector(); renderLayers();
+    twin?.refresh();
+    this.writeHash();
+  },
+  clearSelection() {
+    state.selection = null;
+    renderInspector(); renderLayers();
+    twin?.refresh();
+    this.writeHash();
+  },
+  writeHash() {
+    const parts = [state.tab, state.siteId];
+    if (state.tab === 'twin' && state.selection?.kind === 'issue') parts.push(state.selection.id);
+    const h = `#${parts.join('/')}`;
+    if (location.hash !== h) history.replaceState(null, '', h);
+  },
+};
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+document.addEventListener('click', (e) => {
+  const tabBtn = e.target.closest('.tab');
+  if (tabBtn) { app.setTab(tabBtn.dataset.tab); return; }
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  const a = el.dataset.action;
+  if (a === 'goto-tab') app.setTab(el.dataset.tab);
+  else if (a === 'open-issue') app.selectIssue(el.dataset.id, { fly: !el.dataset.nofly, obsIndex: el.dataset.obs != null ? +el.dataset.obs : undefined });
+  else if (a === 'select-seg') { e.preventDefault(); app.selectSegment(el.dataset.id); const m = twin?.bySeg.get(el.dataset.id); if (m) { const seg = m.userData.seg, c = seg.min.map((v, k) => (v + seg.max[k]) / 2); if (!twin.anim) twin.controls.target.set(...c); } }
+  else if (a === 'select-obs') { state.selection.obsIndex = +el.dataset.index; renderInspector(); twin?.refresh(); }
+  else if (a === 'fly-obs') {
+    const i = state.site.issues.find((x) => x.issue_id === state.selection.id), o = i.observations[state.selection.obsIndex ?? i.observations.length - 1];
+    const t = o.camera_pose.t, dir = i.position_m.map((v, k) => v - t[k]);
+    twin?.flyTo(t.map((v, k) => v - dir[k] * 0.35), i.position_m);
+  }
+  else if (a === 'clear-selection') app.clearSelection();
+  else if (a === 'toggle-class') {
+    e.preventDefault(); e.stopPropagation();
+    const c = el.dataset.cls;
+    state.hiddenClasses.has(c) ? state.hiddenClasses.delete(c) : state.hiddenClasses.add(c);
+    renderLayers(); twin?.refresh();
+  }
+  else if (a === 'sev-filter') { const s = el.dataset.sev; state.sevFilter.has(s) ? state.sevFilter.delete(s) : state.sevFilter.add(s); renderLayers(); twin?.refresh(); }
+  else if (a === 'reset-view') twin?.homeView();
+  else if (a === 'top-view') twin?.topView();
+  else if (a === 'today') { state.asOf = NOW; renderTimebar(); twin?.refresh(); renderInspector(); }
+  else if (a === 'toast') toast(el.dataset.msg);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches('tr[data-action]')) e.target.click();
+  if (e.key === 'Escape' && state.tab === 'twin' && state.selection) app.clearSelection();
+});
+let paintRaf = 0;
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.id === 'ovl-alpha') { state.overlayAlpha = +t.value; cancelAnimationFrame(paintRaf); paintRaf = requestAnimationFrame(() => twin?.refresh()); }
+  else if (t.id === 'asof') {
+    const [start] = issueDateRange();
+    state.asOf = new Date(start + +t.value * DAY + DAY - 1000);
+    if (state.asOf > NOW) state.asOf = NOW;
+    $('#asof-label').textContent = fmt.date(state.asOf);
+    twin?.refresh();
+    if (state.selection?.kind === 'issue') renderInspector();
+  }
+  else if (t.closest('[data-compare]')) t.closest('[data-compare]').style.setProperty('--pos', `${t.value}%`);
+  else if (t.id === 'f-q') { state.issueFilter.q = t.value; renderIssueTable(); }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.id === 'site-select') app.setSite(t.value);
+  else if (t.id === 'ovl') { state.overlay = t.checked; renderLayers(); twin?.refresh(); }
+  else if (t.id === 'show-rep') { state.showRepaired = t.checked; twin?.refresh(); }
+  else if (t.id === 'f-sev') { state.issueFilter.sev = t.value; renderIssueTable(); }
+  else if (t.id === 'f-status') { state.issueFilter.status = t.value; renderIssueTable(); }
+});
+const tipEl = $('#tip');
+document.addEventListener('pointerover', (e) => {
+  const el = e.target.closest?.('[data-tip]');
+  if (!el) { tipEl.style.display = 'none'; return; }
+  tipEl.textContent = el.dataset.tip; tipEl.style.display = 'block';
+});
+document.addEventListener('pointermove', (e) => {
+  if (tipEl.style.display !== 'block') return;
+  tipEl.style.left = `${Math.min(e.clientX + 12, innerWidth - tipEl.offsetWidth - 8)}px`;
+  tipEl.style.top = `${e.clientY - 34}px`;
+});
+
+/* ---------- boot ---------- */
+window.deepsplat = { state, app, get twin() { return twin; } }; // console handle for debugging
+(async function boot() {
+  const sites = await MockApi.listSites();
+  $('#site-select').innerHTML = sites.map((s) => `<option value="${s.id}">${esc(s.option)}</option>`).join('');
+  const [tab, siteId, issueId] = location.hash.slice(1).split('/');
+  const validTab = ['dashboard', 'twin', 'issues', 'captures'].includes(tab) ? tab : 'dashboard';
+  await app.setSite(sites.some((s) => s.id === siteId) ? siteId : 'bridge-b17');
+  await app.setTab(validTab);
+  if (issueId) app.selectIssue(issueId);
+})();
+</script>
+</body>
+</html>
