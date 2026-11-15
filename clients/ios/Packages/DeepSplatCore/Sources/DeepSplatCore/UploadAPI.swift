@@ -8,12 +8,24 @@ public struct CreateCaptureRequest: Codable, Sendable {
     enum CodingKeys: String, CodingKey { case captureID = "capture_id", mapID = "map_id", sizeBytes = "size_bytes", createdUnix = "created_unix" }
     public init(id: UUID, mapID: String, size: Int64, created: Double) { captureID = id; self.mapID = mapID; sizeBytes = size; createdUnix = created }
 }
+/// Plain http is accepted only for private-network hosts (same Wi-Fi testing); everything else must be https.
+public func isPrivateNetworkHost(_ host: String?) -> Bool {
+    guard let host = host?.lowercased() else { return false }
+    if host == "localhost" || host.hasSuffix(".local") { return true }
+    let p = host.split(separator: ".").compactMap { Int($0) }
+    guard p.count == 4, p.allSatisfy({ (0...255).contains($0) }) else { return false }
+    return p[0] == 10 || (p[0] == 172 && (16...31).contains(p[1])) || (p[0] == 192 && p[1] == 168)
+        || (p[0] == 169 && p[1] == 254) || p[0] == 127
+}
+public func isAllowedBackendScheme(_ url: URL) -> Bool {
+    url.scheme == "https" || (url.scheme == "http" && isPrivateNetworkHost(url.host))
+}
 public struct UploadTicket: Decodable, Sendable {
     public let uploadURL: URL
     public let expiresAt: String?
     enum CodingKeys: String, CodingKey { case uploadURL = "upload_url", expiresAt = "expires_at" }
     public func validate() throws {
-        guard uploadURL.scheme == "https", uploadURL.host != nil, uploadURL.user == nil, uploadURL.password == nil else {
+        guard isAllowedBackendScheme(uploadURL), uploadURL.host != nil, uploadURL.user == nil, uploadURL.password == nil else {
             throw CaptureError.invalid("Backend returned an invalid signed upload URL.")
         }
     }
