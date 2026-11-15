@@ -78,8 +78,11 @@ def render(xyz: np.ndarray, rgb: np.ndarray | None, *, up_axis: str = "z", floor
             take = ~filled & src
             img[take] = np.roll(np.roll(img, dy, 0), dx, 1)[take]
             filled |= take
+    # transparent where the scan has no points (RGB stays 245 grey there, so readers that convert
+    # to RGB, like the PDF report, keep the old light background)
+    rgba = np.dstack([img, np.where(filled, 255, 0).astype(np.uint8)])
     buf = io.BytesIO()
-    Image.fromarray(img).save(buf, format="PNG", optimize=True)
+    Image.fromarray(rgba, "RGBA").save(buf, format="PNG", optimize=True)
     meta = {"m_per_px": m_per_px, "origin_x": round(float(lo[0]), 4), "origin_y": round(float(hi[1]), 4),
             "width": W, "height": H, "floor_z": floor_z, "cut_m": cut_m}
     return buf.getvalue(), meta
