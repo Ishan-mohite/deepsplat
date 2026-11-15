@@ -60,13 +60,15 @@ button { font: inherit; color: inherit; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex: none; }
 
 /* ---------- dashboard ---------- */
-.dash { padding: var(--space-6); max-width: 1480px; margin: 0 auto; display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr) minmax(0, .98fr); grid-template-areas: "hero kpis side" "hero bars side"; }
+.dash { padding: var(--space-6); display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, .98fr); grid-template-areas: "hero kpis side" "hero bars side"; }
 .hero { grid-area: hero; display: flex; flex-direction: column; }
 .hero-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); }
 .hero .ds-meta { margin-top: var(--space-2); }
-.hero-plan { flex: 1; min-height: 300px; margin: var(--space-3) -8px var(--space-2); display: flex; align-items: center; }
-.hero-plan svg { width: 100%; height: auto; display: block; }
-.plan-empty { margin: 0 8px; color: var(--muted); font: var(--text-body-s); }
+/* The plan box grows with the hero's width (8:5, at most 72% of the window height) and fills any extra height
+   of the hero; the drawing is laid out to the box (live: 1 SVG unit = 1 px, samples: scaled to fit). */
+.hero-plan { flex: 1 0 auto; position: relative; aspect-ratio: 8 / 5; min-height: 300px; max-height: max(300px, 72vh); margin: var(--space-3) -8px var(--space-2); }
+.hero-plan > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.plan-empty { position: absolute; inset: 0; display: flex; align-items: center; margin: 0 8px; color: var(--muted); font: var(--text-body-s); }
 .hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
 .hero-actions .hint { margin-left: auto; }
 .kpis { grid-area: kpis; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
@@ -400,9 +402,19 @@ td .sub { display: block; color: var(--ink-2); font-size: 12px; }
 }
 @media (max-width: 680px) {
   .dash { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "kpis" "bars" "side"; padding: var(--space-4); }
+  .hero-plan { aspect-ratio: 1 / 1; }
   .page { padding: 18px var(--space-4) var(--space-8); }
   .brand img { height: 24px; }
-  .site-select select { max-width: 150px; }
+  /* Logo, chip and account in the first row, the site picker on its own full-width row, then the tabs:
+     one row needs ~470 px. */
+  .topbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand chip avatar" "site site site" "tabs tabs tabs"; column-gap: var(--space-2); }
+  .brand { grid-area: brand; }
+  .top-right { display: contents; }
+  .top-right .ds-chip { grid-area: chip; }
+  .avatar { grid-area: avatar; }
+  .site-select { grid-area: site; min-width: 0; }
+  .site-select select { max-width: none; width: 100%; text-overflow: ellipsis; }
+  .tabs { grid-area: tabs; }
   .filters input { min-width: 0; flex: 1; }
   .timebar { grid-template-columns: 1fr auto; }
   .timebar .tb-track { grid-column: 1 / -1; grid-row: 2; }
@@ -1242,7 +1254,7 @@ function calloutText(i) {
   if (st === 'repaired') return `${TYPES[i.type].short} · repaired in ${Math.round((ms(i.repaired_at) - ms(i.observations[0].timestamp)) / DAY)} days`;
   return `${TYPES[i.type].short} · ${i.object.short} · ${STATUS[st].label.toLowerCase()}`;
 }
-function pinsAndCallouts(site, toXY, layout, W) {
+function pinsAndCallouts(site, toXY, layout, W, H = 400) {
   const call = pickCallouts(site.issues), set = new Set(call);
   let out = '';
   for (const i of site.issues) {
@@ -1253,8 +1265,8 @@ function pinsAndCallouts(site, toXY, layout, W) {
   const items = call.map((i) => { const [x, y] = toXY(i.position_m, i); const text = calloutText(i); return { i, x, y, text, w: Math.min(206, text.length * 6.25 + 28) }; });
   if (layout === 'left') {
     items.sort((a, b) => a.y - b.y);
-    const n = items.length, top = 48, bottom = 352, gap = n > 1 ? (bottom - top) / (n - 1) : 0;
-    items.forEach((it, k) => { it.px = 12; it.py = n === 1 ? 200 : top + gap * k; });
+    const n = items.length, top = 48, bottom = H - 48, gap = n > 1 ? (bottom - top) / (n - 1) : 0;
+    items.forEach((it, k) => { it.px = 12; it.py = n === 1 ? H / 2 : top + gap * k; });
   } else {
     items.sort((a, b) => a.x - b.x);
     const n = items.length, slot = (W - 24) / n;
@@ -1384,17 +1396,22 @@ function transparentPlan(src) {
 }
 // One download per plan: the <image> stays empty until the transparent copy (or, failing that, the original) is ready.
 const planHref = (src) => { const c = planCache.get(src); if (c?.url) return c.url; transparentPlan(src); return ''; };
-function livePlanSVG(site) {
+function livePlanSVG(site, W = 640, H = 400) {
   // The floor map (floor, raised levels, furniture, walls; elevmap/floormap.py) when the backend has built it,
   // else the top-down render of the splat.
-  const useMap = !!(site.floor_map_src && site.floor_map?.width), W = 640, H = 400;
+  const useMap = !!(site.floor_map_src && site.floor_map?.width);
   const fp = useMap ? site.floor_map : site.floor_plan, src = useMap ? site.floor_map_src : site.floor_plan_src;
   if (!src || !fp?.width) return `<p class="plan-empty">The backend is still preparing the floor plan of this scan (map status: ${esc(site.status || 'processing')}).</p>`;
   const pinned = { ...site, issues: site.issues.filter((i) => i.floor_xy) };
-  // Long side horizontal: an upright plan is turned 90° clockwise. Centred; callouts (if any) in a band on top.
+  // Long side horizontal: an upright plan is turned 90° clockwise. As large as the field allows: callouts (if
+  // any) in a band on top for a wide plan, in a column on the left for a compact one, whichever leaves more.
   const rot = fp.height > fp.width, pw = rot ? fp.height : fp.width, ph = rot ? fp.width : fp.height;
-  const reg = pinned.issues.length ? [16, 100, W - 16, H - 12] : [16, 14, W - 16, H - 14];
-  const sc = Math.min((reg[2] - reg[0]) / pw, (reg[3] - reg[1]) / ph), w = pw * sc, h = ph * sc;
+  const fit = (r) => Math.min((r[2] - r[0]) / pw, (r[3] - r[1]) / ph);
+  const call = pickCallouts(pinned.issues), cw = Math.max(0, ...call.map((i) => Math.min(206, calloutText(i).length * 6.25 + 28)));
+  const regTop = [8, call.length > 1 ? 96 : 52, W - 8, H - 6], regLeft = [cw + 24, 6, W - 8, H - 6];
+  const layout = !pinned.issues.length ? 'none' : fit(regLeft) > fit(regTop) ? 'left' : 'top';
+  const reg = { none: [8, 6, W - 8, H - 6], top: regTop, left: regLeft }[layout];
+  const sc = fit(reg), w = pw * sc, h = ph * sc;
   const ox = reg[0] + (reg[2] - reg[0] - w) / 2, oy = reg[1] + (reg[3] - reg[1] - h) / 2;
   const toXY = (_p, i) => {
     const px = (i.floor_xy[0] - fp.origin_x) / fp.m_per_px, py = (fp.origin_y - i.floor_xy[1]) / fp.m_per_px;
@@ -1405,7 +1422,7 @@ function livePlanSVG(site) {
     ? `<image href="${esc(planHref(src))}" data-src="${esc(src)}" width="${(fp.width * sc).toFixed(1)}" height="${(fp.height * sc).toFixed(1)}" preserveAspectRatio="none" transform="translate(${(ox + w).toFixed(1)} ${oy.toFixed(1)}) rotate(90)"/>`
     : `<image href="${esc(planHref(src))}" data-src="${esc(src)}" x="${ox.toFixed(1)}" y="${oy.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" preserveAspectRatio="none"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Floor plan of ${esc(site.name)} with open findings">
-    ${img}${pinned.issues.length ? pinsAndCallouts(pinned, toXY, 'top', W) : ''}</svg>`;
+    ${img}${layout === 'none' ? '' : pinsAndCallouts(pinned, toXY, layout, W, H)}</svg>`;
 }
 function donutSVG(open, repaired) {
   const total = open + repaired, R = 46, C = TAU * R, gap = total > 0 && open && repaired ? 3 : 0;
@@ -1445,7 +1462,7 @@ function renderDashboard() {
       <p class="ds-eyebrow">${esc(s.category)}</p>
       <div class="hero-head"><h1 class="ds-h2">${esc(s.name)}</h1><span class="ds-chip ds-chip--live">Scan active</span></div>
       <div class="ds-meta">${esc(s.location)} · scanned <span class="mono">${fmt.date(s.scanned_at)}</span></div>
-      <div class="hero-plan">${s.live ? livePlanSVG(s) : s.plan ? floorPlanSVG(s) : elevationSVG(s)}</div>
+      <div class="hero-plan">${s.live ? '' : s.plan ? floorPlanSVG(s) : elevationSVG(s)}</div>
       <div class="hero-actions">
         <button class="ds-btn ds-btn--dark" data-action="goto-tab" data-tab="twin">Open 3D twin</button>
         ${s.live ? `<a class="ds-btn ds-btn--secondary" href="${esc(`${API}/maps/${encodeURIComponent(s.id)}/report.pdf`)}" target="_blank" rel="noopener">Export PDF</a>`
@@ -1483,7 +1500,19 @@ function renderDashboard() {
       </article>
     </div>
   </div>`;
+  if (s.live) { drawLivePlan(); planObserver.disconnect(); planObserver.observe($('#view-dashboard .hero-plan')); }
 }
+// The live plan is laid out to the size of its box, so it fills the hero on every screen; redrawn when the box
+// changes size (window resize, dashboard tab shown again). Its children are absolutely positioned, so drawing
+// never changes the box itself.
+function drawLivePlan() {
+  const box = $('#view-dashboard .hero-plan');
+  if (!box || !state.site?.live) return;
+  const { width, height } = box.getBoundingClientRect();
+  if (width < 50 || height < 50) return;                    // dashboard tab hidden
+  box.innerHTML = livePlanSVG(state.site, Math.round(width), Math.round(height));
+}
+const planObserver = new ResizeObserver(drawLivePlan);
 
 function issueRows() {
   const f = state.issueFilter, q = f.q.trim().toLowerCase();
@@ -2631,6 +2660,7 @@ const app = {
     if (tab !== 'captures') closeCapture();
     document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${tab}`));
+    if (tab === 'dashboard') drawLivePlan();       // its box had no size while the tab was hidden
     if (twin) twin.active = tab === 'twin';
     if (tab === 'twin') await this.ensureTwin();
     this.writeHash();
