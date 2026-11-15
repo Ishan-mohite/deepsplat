@@ -1,7 +1,7 @@
 /*
  * deepsplat design tokens
  * Source of truth for colour, type, spacing and radii. Mirrors tokens.json.
- * Docs: design/system/DESIGN_SYSTEM.md
+ * Docs: DESIGN.md (repository root)
  *
  * Fonts (Google Fonts, SIL OFL):
  * <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -67,7 +67,7 @@
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Type scale: size / line height, weight and tracking in DESIGN_SYSTEM.md */
+  /* Type scale: size / line height, weight and tracking in DESIGN.md */
   --text-display-xl: 700 44px/1.08 var(--font-display);
   --text-display-l: 700 32px/1.1 var(--font-display);
   --text-display-m: 600 24px/1.15 var(--font-display);

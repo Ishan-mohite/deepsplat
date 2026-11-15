@@ -1,4 +1,4 @@
-# DeepSplat
+# deepsplat
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="design/brand/logos/deepsplat-wordmark-dark.svg">
@@ -7,7 +7,7 @@
 
 **Camera-based damage inspection on a living 3D twin.**
 
-DeepSplat turns an indoor space into a photo-real Gaussian splat, labels everything in it with AI, and lets any camera (a phone, smart glasses or a robot) locate itself inside that map. Every photo of damage becomes a timestamped record pinned to its exact 3D spot, and repeat inspections show how each issue changes over time.
+deepsplat turns an indoor space into a photo-real Gaussian splat, labels everything in it with AI, and lets any camera (a phone, smart glasses or a robot) locate itself inside that map. Every photo of damage becomes a timestamped record pinned to its exact 3D spot, and repeat inspections show how each issue changes over time.
 
 > One map, one localization layer, every damage record in its exact place.
 
@@ -15,7 +15,7 @@ DeepSplat turns an indoor space into a photo-real Gaussian splat, labels everyth
 
 ## Design system
 
-Everything you need to build DeepSplat screens, documents and slides. The rules are in [DESIGN.md](DESIGN.md), the tokens in
+Everything you need to build deepsplat screens, documents and slides. The rules are in [DESIGN.md](DESIGN.md), the tokens in
 [`design/system/tokens.css`](design/system/tokens.css) and [`tokens.json`](design/system/tokens.json), the components in
 [`design/system/components.css`](design/system/components.css).
 
@@ -106,7 +106,7 @@ flowchart LR
 
 ## Inspect & log damage, in detail
 
-This is the core of DeepSplat. Each image goes through the same pipeline, whoever or whatever took it.
+This is the core of deepsplat. Each image goes through the same pipeline, whoever or whatever took it.
 
 ### 1. Capture
 

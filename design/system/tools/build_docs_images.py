@@ -3,7 +3,7 @@
 # requires-python = ">=3.10"
 # dependencies = ["fonttools", "uharfbuzz"]
 # ///
-"""Render the design system images shown in README.md and DESIGN_SYSTEM.md.
+"""Render the design system images shown in README.md.
 
 Colours come from design/system/tokens.json. All text is outlined (Space Grotesk, IBM Plex Sans,
 IBM Plex Mono; SIL OFL) so the SVGs look the same on GitHub as anywhere else.

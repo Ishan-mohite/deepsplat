@@ -1,6 +1,6 @@
-# DeepSplat design system
+# deepsplat design system
 
-Rules for building DeepSplat UI, documents and slides. The visual overview is in the [README](README.md#design-system).
+Rules for building deepsplat UI, documents and slides. The visual overview is in the [README](README.md#design-system).
 Tokens live in [`design/system/tokens.css`](design/system/tokens.css) and [`tokens.json`](design/system/tokens.json),
 ready-made components in [`design/system/components.css`](design/system/components.css), and logo files in
 [`design/brand/logos/`](design/brand/logos/).
@@ -28,8 +28,8 @@ For native apps or other tools, read `tokens.json` (W3C design tokens format).
 
 | Where | How |
 |---|---|
-| Logo | Always the lowercase wordmark **deepsplat**, one word, from the logo files. Never retype it. |
-| Running text | **DeepSplat**, as in this repo's README. Never "Deep Splat", "Deepsplat" or "DEEPSPLAT". |
+| Logo | The wordmark from the logo files. Never retype it. |
+| Running text, titles, UI copy | **deepsplat**: lowercase and one word, also at the start of a sentence and in headings. Never "DeepSplat", "Deep Splat", "Deepsplat" or "DEEPSPLAT". |
 | Code, URLs, package and file names | `deepsplat` |
 
 ## Logo
