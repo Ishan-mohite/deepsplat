@@ -122,7 +122,7 @@ def estimate(xyz: np.ndarray, scale: np.ndarray, quat: np.ndarray, yaw: str = "a
         _, n0, p0 = best
         sel = pts[np.abs((pts - p0) @ n0) < 0.03]
         c0 = sel.mean(0)
-        n0 = np.linalg.svd(sel - c0)[2][2]
+        n0 = np.linalg.svd(sel - c0, full_matrices=False)[2][2]
         n0 = n0 if n0 @ up > 0 else -n0
     offset = float(n0 @ c0)
     tilt = float(np.degrees(np.arccos(np.clip(n0 @ up, -1, 1))))

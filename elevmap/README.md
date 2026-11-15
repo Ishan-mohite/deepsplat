@@ -1,8 +1,8 @@
 # elevmap: floor-aligned elevation map from a Gaussian splat
 
 ```bash
-pip install -r elevmap/requirements.txt
-python -m elevmap --splat trained_splats/splat_30000.ply --out maps/auditorium --min-opacity 0.15
+uv sync                                   # or: pip install -r elevmap/requirements.txt
+uv run python -m elevmap --splat trained_splats/splat_30000.ply --out maps/auditorium --min-opacity 0.15
 # remote, nothing is downloaded to disk (HTTP Range streaming):
 python -m elevmap --splat github:Ishan-mohite/deepsplat@main/trained_splats/splat_30000.ply --out maps/x   # GITHUB_TOKEN if private
 python -m elevmap --splat gs://my-bucket/maps/unit.ply --out maps/x                                        # GCS_ACCESS_TOKEN if private
