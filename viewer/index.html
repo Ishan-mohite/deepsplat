@@ -106,6 +106,8 @@ button { font: inherit; color: inherit; }
 .switch input:checked + span { background: var(--blue); }
 .switch input:checked + span::after { transform: translateX(17px); }
 .switch input:focus-visible + span { box-shadow: var(--focus-ring); }
+.photo3d { display: flex; align-items: end; gap: var(--space-3); margin-top: calc(-1 * var(--space-2)); }
+.photo3d .slider-row { flex: 1; margin-top: 0; }
 .slider-row { display: grid; gap: 6px; margin-top: var(--space-3); font: var(--text-body-s); color: var(--ink-2); }
 input[type="range"] { width: 100%; accent-color: var(--blue); }
 .cls-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -1449,6 +1451,7 @@ const state = {
   hiddenClasses: new Set(), hiddenSegs: new Set(),
   sevFilter: new Set(Object.keys(SEV)), showRepaired: true,
   showVps: false, vpsLow: true, // VPS layer (debug): camera poses of all localized captures, also those below the threshold
+  photoAlpha: 0, // the selected record's photo in the 3D scan (0 = hidden)
   debugOpen: false, // the collapsed "Debug" group at the bottom of the twin's layer panel
   asOf: NOW, issueFilter: { q: '', sev: '', status: '' },
 };
@@ -2136,6 +2139,10 @@ function issueInspector(i, sel) {
       <div><span>Records</span><b>${n}</b></div>
     </div>
     ${visual}
+    ${state.site.live && o.camera_pose && (o.overlay_url || o.image_url) ? `<div class="photo3d">
+      <label class="slider-row">Photo in the scan <input type="range" id="photo-alpha" min="0" max="1" step="0.05" value="${state.photoAlpha}" aria-label="Fade the photo in the 3D scan in and out"></label>
+      <button class="ds-btn ds-btn--secondary ds-btn--sm" data-action="view-photo">View from the photo</button>
+    </div>` : ''}
     <div>
       <div class="eyebrow" style="margin-bottom:8px">Records at this spot</div>
       <ol class="timeline">
@@ -2505,19 +2512,57 @@ class Twin {
       return { issue, el, pos: [issue.position_m[0] + n[0] * 0.03, issue.position_m[1] + n[1] * 0.03, issue.position_m[2] + n[2] * 0.03], visible: true };
     });
   }
-  showObservation() {
-    this.helpers.clear();
+  selectedObs() {
     const sel = state.selection;
-    if (sel?.kind !== 'issue') return;
-    const issue = this.site.issues.find((i) => i.issue_id === sel.id);
-    if (!issue) return;
-    const o = issue.observations[sel.obsIndex ?? issue.observations.length - 1];
-    if (!o?.camera_pose) return;
-    const fov = THREE.MathUtils.degToRad(62), asp = 4 / 3, d = 0.4, hh = Math.tan(fov / 2) * d, hw = hh * asp;
+    if (sel?.kind !== 'issue') return null;
+    const issue = this.site?.issues.find((i) => i.issue_id === sel.id);
+    const o = issue?.observations[sel.obsIndex ?? issue.observations.length - 1];
+    return o?.camera_pose ? { issue, o } : null;
+  }
+  // The capture photo as a plane inside its camera frustum, at the depth of the damage: seen from the
+  // photo's pose it lies exactly over the scan ("Photo in the scan" slider fades it in and out).
+  photoTexture(url) {
+    this.photoTex ??= new Map();
+    if (!this.photoTex.has(url)) {
+      const loader = new THREE.TextureLoader();
+      loader.setCrossOrigin('anonymous');
+      const tex = loader.load(url, () => { if (this.selectedObs()) this.showObservation(); }, undefined, (e) => console.warn(`Photo ${url}:`, e));
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.photoTex.set(url, tex);
+    }
+    return this.photoTex.get(url);
+  }
+  viewFromPhoto() {
+    const s = this.selectedObs();
+    if (s) this.viewCapture({ vps: { camera_pose: s.o.camera_pose } }, true);
+  }
+  showObservation() {
+    this.helpers.traverse((x) => { if (x !== this.helpers) { x.geometry?.dispose(); x.material?.dispose(); } });
+    this.helpers.clear();
+    const s = this.selectedObs();
+    if (!s) return;
+    const { issue, o } = s;
+    const q = new THREE.Quaternion(...o.camera_pose.q), t = new THREE.Vector3(...o.camera_pose.t);
+    const vps = this.site.captures.find((c) => c.capture_id === o.capture_id)?.vps;
+    const src = this.site.live && (o.overlay_url || o.image_url), tex = src && state.photoAlpha > 0 ? this.photoTexture(src) : null;
+    const img = tex?.image, loaded = img && img.width > 0;
+    const fov = THREE.MathUtils.degToRad(vps?.fov_y || 62), asp = loaded ? img.width / img.height : vps?.aspect || 4 / 3;
+    // depth of the damage along the camera's view axis; the frustum reaches the photo plane while it is shown
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+    const dIssue = clamp(new THREE.Vector3(...issue.position_m).sub(t).dot(fwd), 0.3, 15);
+    const d = loaded ? dIssue : 0.4, hh = Math.tan(fov / 2) * d, hw = hh * asp;
     const corners = [[0, 0, 0], [-hw, -hh, -d], [hw, -hh, -d], [hw, hh, -d], [-hw, hh, -d], [0, hh * 1.5, -d]];
     const idx = [0, 1, 0, 2, 0, 3, 0, 4, 1, 2, 2, 3, 3, 4, 4, 1, 3, 5, 5, 4];
-    const q = new THREE.Quaternion(...o.camera_pose.q), t = new THREE.Vector3(...o.camera_pose.t);
     const pts = idx.map((k) => new THREE.Vector3(...corners[k]).applyQuaternion(q).add(t));
+    if (loaded) {
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(2 * hw, 2 * hh), new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, opacity: state.photoAlpha, depthTest: false, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      plane.quaternion.copy(q);
+      plane.position.copy(t).addScaledVector(fwd, d);
+      plane.renderOrder = 997;
+      plane.userData.photo = true;
+      this.helpers.add(plane);
+    }
     const frustum = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(COLOR.pick), depthTest: false, transparent: true }));
     const ray = new THREE.Line(new THREE.BufferGeometry().setFromPoints([t, new THREE.Vector3(...issue.position_m)]), new THREE.LineDashedMaterial({ color: new THREE.Color(COLOR.pick), dashSize: 0.06, gapSize: 0.05, depthTest: false, transparent: true, opacity: 0.8 }));
     ray.computeLineDistances();
@@ -2750,6 +2795,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'open-issue') app.selectIssue(el.dataset.id, { fly: !el.dataset.nofly, obsIndex: el.dataset.obs != null ? +el.dataset.obs : undefined });
   else if (a === 'select-seg') { e.preventDefault(); app.selectSegment(el.dataset.id); const m = twin?.bySeg.get(el.dataset.id); if (m) { const seg = m.userData.seg, c = seg.min.map((v, k) => (v + seg.max[k]) / 2); if (!twin.anim) twin.controls.target.set(...c); } }
   else if (a === 'select-obs') { state.selection.obsIndex = +el.dataset.index; renderInspector(); twin?.refresh(); }
+  else if (a === 'view-photo') twin?.viewFromPhoto();
   else if (a === 'zoom-photo') { const i = state.site.issues.find((x) => x.issue_id === state.selection?.id); if (i) openPhotoBox(i, +el.dataset.index); }
   else if (a === 'photo-view') { photoBox.view = el.dataset.view; renderPhotoBox(); }
   else if (a === 'photo-download') downloadPhotoBox();
@@ -2791,7 +2837,13 @@ document.addEventListener('keydown', (e) => {
 let paintRaf = 0;
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.id === 'ovl-alpha') { state.overlayAlpha = +t.value; cancelAnimationFrame(paintRaf); paintRaf = requestAnimationFrame(() => twin?.refresh()); }
+  if (t.id === 'photo-alpha') {
+    const was = state.photoAlpha > 0, plane = twin?.helpers.children.find((x) => x.userData.photo);
+    state.photoAlpha = +t.value;
+    if (plane && state.photoAlpha > 0) plane.material.opacity = state.photoAlpha;
+    else if (was !== state.photoAlpha > 0 || !plane) twin?.showObservation();
+  }
+  else if (t.id === 'ovl-alpha') { state.overlayAlpha = +t.value; cancelAnimationFrame(paintRaf); paintRaf = requestAnimationFrame(() => twin?.refresh()); }
   else if (t.id === 'asof') {
     const [start] = issueDateRange();
     state.asOf = new Date(start + +t.value * DAY + DAY - 1000);
