@@ -95,3 +95,34 @@ def robot_map(path: Path, g: dict):
     a.set_title("ROS occupancy grid (free = white, blocked = black, unknown = grey)", weight="bold")
     a.set_xlabel("x (m)"); a.set_ylabel("y (m)")
     fig.tight_layout(); fig.savefig(path, dpi=110); plt.close(fig)
+
+
+def preview3d(path: Path, npz: Path, stride: int = 4, elev=38, azim=-62):
+    """Static 3D picture of the ground surface (green = robot can drive, red = blocked)."""
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    z = np.load(npz)
+    gnd, trav = z["ground"][::stride, ::stride], z["trav"][::stride, ::stride]
+    res = float(z["res"]) * stride
+    ox, oy = [float(v) for v in z["origin_xy"]]
+    H0 = z["ground"].shape[0]
+    H, W = gnd.shape
+    X = ox + (np.arange(W) * stride + 0.5) * float(z["res"])
+    Y = oy + (H0 - np.arange(H) * stride - 0.5) * float(z["res"])
+    polys, cols = [], []
+    for i in range(H - 1):
+        for j in range(W - 1):
+            q = gnd[i:i + 2, j:j + 2]
+            if np.isnan(q).any() or np.ptp(q) > 0.6:
+                continue
+            polys.append([(X[j], Y[i], gnd[i, j]), (X[j + 1], Y[i], gnd[i, j + 1]),
+                          (X[j + 1], Y[i + 1], gnd[i + 1, j + 1]), (X[j], Y[i + 1], gnd[i + 1, j])])
+            cols.append((0.13, 0.7, 0.37) if trav[i, j] else (0.85, 0.3, 0.3))
+    fig = plt.figure(figsize=(11, 8.5))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.add_collection3d(Poly3DCollection(polys, facecolors=cols, edgecolors="none"))
+    ax.set_xlim(X.min(), X.max()); ax.set_ylim(Y.min(), Y.max()); ax.set_zlim(0, 6)
+    ax.set_box_aspect((X.max() - X.min(), Y.max() - Y.min(), 6))
+    ax.view_init(elev=elev, azim=azim)
+    ax.set_xlabel("x (m)"); ax.set_ylabel("y (m)"); ax.set_zlabel("height above floor (m)")
+    ax.set_title("3D elevation map: green = robot can drive, red = blocked (steps, seats, walls)", weight="bold")
+    fig.tight_layout(); fig.savefig(path, dpi=110); plt.close(fig)

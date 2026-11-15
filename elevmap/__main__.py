@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import align, export, grid, render, source
+from . import align, export, grid, mesh3d, render, source
 
 
 def main(argv=None):
@@ -58,6 +58,8 @@ def main(argv=None):
     render.alignment_figure(a.out / "floor_alignment.png", d["xyz"], p, al)
     render.overview(a.out / "elevation_overview.png", g)
     render.robot_map(a.out / "robot_map.png", g)
+    mesh3d.build(a.out / "elevation.npz", a.out)
+    render.preview3d(a.out / "elevation_3d_preview.png", a.out / "elevation.npz")
 
     hg = g["has_ground"]
     summary = {"cells": int(hg.size), "mapped_cells": int(hg.sum()),
