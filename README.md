@@ -1,10 +1,55 @@
-# DeepSplat
+# deepsplat
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="design/brand/logos/deepsplat-wordmark-dark.svg">
+  <img src="design/brand/logos/deepsplat-wordmark-light.svg" alt="deepsplat" width="360">
+</picture>
 
 **Camera-based damage inspection on a living 3D twin.**
 
-DeepSplat turns an indoor space into a photo-real Gaussian splat, labels everything in it with AI, and lets any camera (a phone, smart glasses or a robot) locate itself inside that map. Every photo of damage becomes a timestamped record pinned to its exact 3D spot, and repeat inspections show how each issue changes over time.
+deepsplat turns an indoor space into a photo-real Gaussian splat, labels everything in it with AI, and lets any camera (a phone, smart glasses or a robot) locate itself inside that map. Every photo of damage becomes a timestamped record pinned to its exact 3D spot, and repeat inspections show how each issue changes over time.
 
 > One map, one localization layer, every damage record in its exact place.
+
+---
+
+## Design system
+
+Everything you need to build deepsplat screens, documents and slides. The rules are in [DESIGN.md](DESIGN.md), the tokens in
+[`design/system/tokens.css`](design/system/tokens.css) and [`tokens.json`](design/system/tokens.json), the components in
+[`design/system/components.css`](design/system/components.css).
+
+To use it in another branch:
+
+```bash
+git fetch origin design-system
+git checkout origin/design-system -- DESIGN.md design/system design/brand/logos
+```
+
+### Logo and app icon
+
+<img src="design/system/img/logos.svg" alt="deepsplat wordmark on light and dark backgrounds, the small wordmark and the app icon at 64, 32 and 16 px" width="100%">
+
+Use the point-cloud wordmark at 32 px logo height or more, the solid small version below that, and the icon for square
+slots. Files: [`design/brand/logos/`](design/brand/logos/).
+
+### Colour
+
+<img src="design/system/img/palette.svg" alt="Product colour palette: paper, card, ink, blue, rust, green and amber with their roles" width="100%">
+
+<img src="design/system/img/viewport.svg" alt="3D viewport colours, severity colours and segmentation class colours" width="100%">
+
+### Typography
+
+<img src="design/system/img/typography.svg" alt="Type scale from display-xl to mono" width="100%">
+
+### Components
+
+<img src="design/system/img/components.svg" alt="Buttons, navigation, chips, severity and status chips, callout pills with pins, time bar, KPI tiles and record rows" width="100%">
+
+### Data visualisation
+
+<img src="design/system/img/dataviz.svg" alt="Single-series bar chart in blue with the latest bar in rust, and a status donut" width="100%">
 
 ---
 
@@ -61,7 +106,7 @@ flowchart LR
 
 ## Inspect & log damage, in detail
 
-This is the core of DeepSplat. Each image goes through the same pipeline, whoever or whatever took it.
+This is the core of deepsplat. Each image goes through the same pipeline, whoever or whatever took it.
 
 ### 1. Capture
 

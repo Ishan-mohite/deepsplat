@@ -1,0 +1,107 @@
+/*
+ * deepsplat design tokens
+ * Source of truth for colour, type, spacing and radii. Mirrors tokens.json.
+ * Docs: DESIGN.md (repository root)
+ *
+ * Fonts (Google Fonts, SIL OFL):
+ * <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+ */
+:root {
+  /* Surfaces (light product UI) */
+  --paper: #F1EEE6;      /* page background */
+  --paper-2: #E8E2D4;    /* sunken areas, hero panels, inactive tracks */
+  --card: #FBFAF7;       /* cards, sheets, inputs */
+
+  /* Text */
+  --ink: #172033;        /* primary text, dark buttons, selected nav */
+  --ink-2: #4A5163;      /* secondary text, metadata */
+  --muted: #7D786A;      /* hints, axis labels, placeholders (large or non-essential text only) */
+
+  /* Lines */
+  --line: #E2DCCF;       /* card borders, dividers */
+  --line-2: #D3CBBB;     /* control borders, stronger dividers */
+
+  /* Roles */
+  --blue: #2453D4;       /* primary action, links, located/known, closed findings, eyebrows */
+  --blue-soft: #E3E9FB;  /* selected rows, info callouts */
+  --rust: #C24A1C;       /* open findings, attention, newest record */
+  --rust-soft: #F7E5DB;
+  --green: #2F7D4B;      /* live and success: "Scan active", saved, repaired */
+  --green-soft: #E1EFE3;
+  --amber: #946300;      /* warnings that are not findings */
+  --amber-soft: #F6ECD2;
+
+  /* 3D viewport (always dark) */
+  --vp: #1A2130;
+  --vp-2: #232C3E;       /* panels and toolbars over the viewport */
+  --vp-line: #36435C;
+  --vp-ink: #E9ECF3;
+  --vp-muted: #9AA4B8;
+  --pick: #7EA2FF;       /* pick reticle, selection, blue role on dark */
+  --vp-rust: #E8784A;    /* rust role on dark */
+
+  /* Severity (fills, dots and bars; always paired with a label) */
+  --sev-low: #7C8DA6;
+  --sev-medium: #C98500;
+  --sev-high: #D95926;
+  --sev-critical: #B3261E;
+
+  /* Issue status */
+  --status-new: var(--blue);
+  --status-worsening: var(--rust);
+  --status-stable: var(--ink-2);
+  --status-repaired: var(--green);
+
+  /* Segmentation classes (SAM 3 overlay on the viewport), fixed order */
+  --seg-1: #3987E5;
+  --seg-2: #D95926;
+  --seg-3: #199E70;
+  --seg-4: #C98500;
+  --seg-5: #D55181;
+  --seg-6: #008300;
+  --seg-7: #9085E9;
+  --seg-neutral: #8B95A7; /* background / unlabelled */
+
+  /* Type families */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Type scale: size / line height, weight and tracking in DESIGN.md */
+  --text-display-xl: 700 44px/1.08 var(--font-display);
+  --text-display-l: 700 32px/1.1 var(--font-display);
+  --text-display-m: 600 24px/1.15 var(--font-display);
+  --text-display-s: 600 18px/1.25 var(--font-display);
+  --text-kpi: 600 40px/1 var(--font-display);
+  --text-body: 400 15px/1.5 var(--font-body);
+  --text-body-s: 400 13px/1.45 var(--font-body);
+  --text-label: 500 13px/1.2 var(--font-body);
+  --text-button: 600 14px/1 var(--font-body);
+  --text-eyebrow: 600 11px/1 var(--font-display);
+  --text-mono: 400 13px/1.4 var(--font-mono);
+  --text-mono-s: 500 11px/1.3 var(--font-mono);
+  --tracking-display: -0.02em;
+  --tracking-eyebrow: 0.14em;
+
+  /* Spacing (4 px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-14: 56px;
+  --space-18: 72px;
+
+  /* Radii */
+  --r-card: 22px;
+  --r-md: 14px;
+  --r-sm: 9px;
+  --r-pill: 999px;
+
+  /* Elevation: the UI is flat; shadows only for floating layers */
+  --shadow-float: 0 12px 32px rgba(23, 32, 51, 0.14);
+  --focus-ring: 0 0 0 3px var(--blue-soft), 0 0 0 4px var(--blue);
+}
