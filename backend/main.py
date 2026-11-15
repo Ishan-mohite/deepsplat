@@ -4,6 +4,7 @@ issue log for the viewer) and the iOS app plan (/v1 capture upload)."""
 import csv
 import io
 import json
+import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,7 +31,7 @@ from localization.cameras import R_P, Frame, Intrinsics, c2w_to_tq, matrix_from_
 from . import pipeline, report
 from .config import settings
 from .db import get_session, init_db
-from .models import OPEN_STATUSES, Capture, CaptureStatus, Handover, Issue, IssueStatus, Map, Observation, aware, now
+from .models import OPEN_STATUSES, Capture, CaptureStatus, Detection, Handover, Issue, IssueStatus, Map, Observation, aware, now
 from .schemas import (DashboardOut, HandoverIn, HandoverOut, InViewIn, InViewOut, InViewRecord, LatestRecord,
                       MapPatch, OpenFinding, floor_plan_px, handover_out, live_observations, place_of)
 from .schemas import (CaptureOut, DetectionOut, InspectMetadata, IssueOut, IssuePatch, LocalizeMetadata,
@@ -528,6 +529,38 @@ def list_captures(s: SessionDep, map_id: str | None = None, status: CaptureStatu
 @app.get("/captures/{capture_id}", response_model=CaptureOut)
 def get_capture(capture_id: str, s: SessionDep):
     return capture_out(s, _capture(s, capture_id))
+
+
+@app.delete("/captures/{capture_id}", dependencies=[Auth])
+def delete_capture(capture_id: str, s: SessionDep):
+    """Delete a capture with everything stored for it: the uploaded zip, photo, video frames, masks,
+    overlay and SAM 3 results. Captures that filed records are refused: those records are part of the
+    unit's hash chain (reject them in review instead)."""
+    cap = _capture(s, capture_id)
+    if cap.status in (CaptureStatus.uploaded, CaptureStatus.processing):
+        raise HTTPException(409, "the capture is being processed; try again when it has finished")
+    obs = s.exec(select(Observation).where(Observation.capture_id == cap.id)).all()
+    if obs:
+        issues = sorted({f"ISS-{o.issue_seq:04d}" for o in obs})
+        raise HTTPException(409, f"the capture filed records on {', '.join(issues)}; they are part of the "
+                                 "evidence log and cannot be deleted")
+    # Keep the database row if storage fails, so a retry can finish partial cleanup.
+    try:
+        n_files = storage.delete_prefix(f"captures/{cap.id}/")
+        if cap.package_key:
+            n_files += int(storage.delete(cap.package_key))
+    except Exception:
+        logging.getLogger(__name__).exception("Storage deletion failed for capture %s", cap.id)
+        raise HTTPException(503, "could not delete stored files; retry deletion") from None
+    for d in s.exec(select(Detection).where(Detection.capture_id == cap.id)).all():
+        s.delete(d)
+    for i in s.exec(select(Issue).where(Issue.repair_suggested_capture_id == cap.id)).all():
+        i.repair_suggested_capture_id = None
+        s.add(i)
+    s.flush()  # Remove dependent rows before the capture (foreign keys are enforced on Postgres).
+    s.delete(cap)
+    s.commit()
+    return {"deleted": capture_id, "files": n_files}
 
 
 @app.post("/captures/{capture_id}/registration", response_model=CaptureOut, status_code=202, dependencies=[Auth])
