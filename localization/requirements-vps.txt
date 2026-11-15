@@ -1,0 +1,7 @@
+# Optional: dependencies for the hloc VPS (VPS=hloc). Large (torch); a GPU is strongly recommended
+# for building map indexes. Install on top of the base environment:
+#   uv pip install -r localization/requirements-vps.txt
+torch>=2.2
+h5py>=3.10
+pycolmap>=3.10
+hloc @ git+https://github.com/cvg/Hierarchical-Localization.git

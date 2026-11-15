@@ -1,0 +1,10 @@
+# gcloud builds submit --config backend/deploy/cloudbuild.yaml --substitutions _IMAGE=<region>-docker.pkg.dev/<project>/deepsplat/backend .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "backend/Dockerfile", "-t", "${_IMAGE}", "--build-arg", "WITH_VPS=${_WITH_VPS}", "."]
+images: ["${_IMAGE}"]
+substitutions:
+  _WITH_VPS: "0"
+options:
+  machineType: E2_HIGHCPU_8
+timeout: 1800s
