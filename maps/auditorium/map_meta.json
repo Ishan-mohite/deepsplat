@@ -1,0 +1,91 @@
+{
+  "frame": "floor-aligned: z up, floor at z=0, metres, +x right / +y up in the top-down image",
+  "resolution_m": 0.05,
+  "width": 383,
+  "height": 422,
+  "origin_xy_m": [
+    -8.228431512280018,
+    -10.40846775117473
+  ],
+  "pixel_to_xy": "x = origin_x + (col + 0.5) * res ; y = origin_y + (H - row - 0.5) * res",
+  "height16_encoding": "metres = value / 65535 * 8 - 1 ; 0 = unknown",
+  "cost_encoding": "0 free, 1..99 inflated, 100 lethal/non-traversable, 255 unknown",
+  "source": "trained_splats/splat_30000.ply",
+  "splat_to_aligned_4x4": [
+    [
+      0.9999992057230727,
+      -1.9179197861269057e-06,
+      0.0012603767474379096,
+      -1.0
+    ],
+    [
+      -1.9179197861269057e-06,
+      0.9999953688491013,
+      0.0030433988682478457,
+      -3.0
+    ],
+    [
+      -0.0012603767474379096,
+      -0.0030433988682478457,
+      0.999994574572174,
+      1.1647975438326734
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "splat_to_aligned_yup_4x4 (three.js: apply to the splat mesh)": [
+    [
+      0.9999992057230727,
+      -1.9179197861269057e-06,
+      0.0012603767474379096,
+      -1.0
+    ],
+    [
+      -0.0012603767474379096,
+      -0.0030433988682478457,
+      0.999994574572174,
+      1.1647975438326734
+    ],
+    [
+      1.9179197861269057e-06,
+      -0.9999953688491013,
+      -0.0030433988682478457,
+      3.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "floor_plane_in_splat": {
+    "normal": [
+      -0.0012603767474379096,
+      -0.0030433988682478457,
+      0.999994574572174
+    ],
+    "offset_m": -1.1647975438326734
+  },
+  "tilt_corrected_deg": 0.1887360327218632,
+  "yaw_deg": 0.0,
+  "alignment_stats": {
+    "gravity_share": 0.388,
+    "beyond_pos": 0.0005,
+    "beyond_neg": 0.1648,
+    "floor_inliers": 9211,
+    "floor_candidates": 13992,
+    "yaw_strength": 0.08,
+    "floor_peak_height": -1.158
+  },
+  "robot": {
+    "height_m": 0.7,
+    "radius_m": 0.25,
+    "max_slope_deg": 20.0,
+    "max_step_m": 0.15
+  }
+}

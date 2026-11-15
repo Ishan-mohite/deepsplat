@@ -1,0 +1,12 @@
+{
+  "cells": 161626,
+  "mapped_cells": 92296,
+  "mapped_area_m2": 230.7,
+  "traversable_area_m2": 39.8,
+  "ground_height_range_m": [
+    -0.12,
+    2.4
+  ],
+  "floor_tilt_corrected_deg": 0.189,
+  "seconds": 2.9
+}
