@@ -3,12 +3,12 @@
 # requires-python = ">=3.10"
 # dependencies = ["fonttools", "uharfbuzz"]
 # ///
-"""Build the deepsplat logo concept sheet (design/brand/logo-ideas.html).
+"""Build the deepsplat logo concept sheets (design/brand/logo-ideas*.html).
 
 Every wordmark is outlined from Space Grotesk (SIL OFL) with HarfBuzz shaping, so
 each inline SVG is self-contained and can be exported as-is.
 
-Usage:  uv run design/brand/tools/build_logo_ideas.py [--fonts DIR] [--out PATH]
+Usage:  uv run design/brand/tools/build_logo_ideas.py [--fonts DIR] [--out-dir DIR]
         (uv installs fonttools and uharfbuzz from the inline metadata above)
 Fonts are fetched from the @fontsource npm packages on jsDelivr if missing.
 """
@@ -30,6 +30,7 @@ from fontTools.ttLib import TTFont
 
 HERE = pathlib.Path(__file__).resolve().parent
 FONT_FILES = {
+    "sg500": "space-grotesk/files/space-grotesk-latin-500-normal.woff",
     "sg600": "space-grotesk/files/space-grotesk-latin-600-normal.woff",
     "sg700": "space-grotesk/files/space-grotesk-latin-700-normal.woff",
 }
@@ -281,13 +282,13 @@ def i3(ctx):
     return tile("navy") + f'<path fill="{ICON["peach"]}" d="{crack(32, 10, 54, 11, amp=2.3)}"/>'
 
 
-def located_d(t_ink, t_blue, gx, s=1.0, oy=0.0, small=False):
+def located_d(t_ink, t_blue, gx, s=1.0, oy=0.0, small=False, dot=None):
     """The 'd' with its bowl replaced by a locating ring. gx = glyph origin, s = size/100."""
     stem = f'<rect x="{num(gx + 44.2 * s)}" y="{num(oy - 70 * s)}" width="{num(12.6 * s)}" height="{num(70 * s)}" fill="{t_ink}"/>'
     r_out, sw = 25.6 * s, 11 * s
     cx, cy = gx + 4.6 * s + r_out, oy - 24.8 * s
     ring = (f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r_out - sw / 2)}" fill="none" stroke="{t_blue}" stroke-width="{num(sw)}"/>'
-            f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num((6 if small else 4.8) * s)}" fill="{t_blue}"/>')
+            f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num((6 if small else 4.8) * s)}" fill="{dot or t_blue}"/>')
     return ring + stem
 
 
@@ -482,6 +483,187 @@ def i10(ctx):
     return tile("card") + pin(ctx, 32, 26, 17, 55, ICON["blue"], ICON["card"])
 
 
+
+# ---------------------------------------------------------------- round 2: two-tone, located d, scan pass
+def runs(spec, size=100, cx=None, cy=None):
+    """Consecutive runs of (font, text), kerned at the joins; centred on (cx, cy) by ink box if given."""
+    def build(ox, oy):
+        out, x = [], ox
+        for i, (font, text) in enumerate(spec):
+            out.append(word(font, x, oy, size, text=text))
+            if i + 1 < len(spec):
+                x = word(font, x, oy, size, text=text + spec[i + 1][1][0])[-1]["x"]
+        return out
+    R = build(0, 0)
+    if cx is None:
+        return R
+    x0, y0, x1, y1 = ink([g for G in R for g in G])
+    return build(cx - (x0 + x1) / 2, cy - (y0 + y1) / 2)
+
+
+def two_tone(G, a, b, split=4):
+    return paths(G[:split], a) + paths(G[split:], b)
+
+
+def h_gradient(ctx, x0, x1, c0, c1):
+    i = ctx.add_def(f'<linearGradient id="{{id}}" gradientUnits="userSpaceOnUse" x1="{num(x0)}" y1="0" x2="{num(x1)}" y2="0">'
+                    f'<stop offset="0" stop-color="{c0}"/><stop offset="1" stop-color="{c1}"/></linearGradient>')
+    return f"url(#{i})"
+
+
+DEPTH = dict(light=("#7097F7", "#1B3DA6"), dark=("#C7D5FF", "#5C86F5"))
+
+
+def bar(x, top, bot, w, color):
+    return f'<rect x="{num(x - w / 2)}" y="{num(top)}" width="{num(w)}" height="{num(bot - top)}" rx="{num(w / 2)}" fill="{color}"/>'
+
+
+def c11(ctx):
+    G = word()
+    return two_tone(G, ctx.t["blue"], ctx.t["ink"]), ink(G)
+
+
+def i11(ctx):
+    G = runs([("sg700", "ds")], 40, 32, 32)[0]
+    return tile("card") + two_tone(G, ICON["blue"], ICON["ink"], 1)
+
+
+def c12(ctx):
+    G = word()
+    return two_tone(G, ctx.t["ink"], ctx.t["blue"]), ink(G)
+
+
+def i12(ctx):
+    G = runs([("sg700", "ds")], 40, 32, 32)[0]
+    return tile("navy") + two_tone(G, ICON["paper"], ICON["sky"], 1)
+
+
+def c13(ctx):
+    G = word()
+    a, b = DEPTH[ctx.t["name"]]
+    fill = h_gradient(ctx, G[0]["b"][0], G[3]["b"][2], a, b)
+    return paths(G[:4], fill) + paths(G[4:], ctx.t["ink"]), ink(G)
+
+
+def i13(ctx):
+    G = runs([("sg700", "ds")], 40, 32, 32)[0]
+    a, b = DEPTH["light"]
+    return tile("card") + paths(G[:1], h_gradient(ctx, G[0]["b"][0], G[0]["b"][2], a, b)) + paths(G[1:], ICON["ink"])
+
+
+def c14(ctx):
+    A, B = runs([("sg500", "deep"), ("sg700", "splat")])
+    return paths(A, ctx.t["blue"]) + paths(B, ctx.t["ink"]), ink(A + B)
+
+
+def i14(ctx):
+    A, B = runs([("sg500", "d"), ("sg700", "s")], 40, 32, 32)
+    return tile("card") + paths(A, ICON["blue"]) + paths(B, ICON["ink"])
+
+
+def c15(ctx):
+    t = ctx.t
+    G = word()
+    return (paths(G[1:4], t["blue"]) + paths(G[4:], t["ink"])
+            + located_d(t["blue"], t["blue"], G[0]["x"], small=ctx.small)), ink(G)
+
+
+def icon_d(color_stem, color_ring, s=0.62, cx=32, cy=32, dot=None):
+    w, h = (56.8 - 4.6) * s, 71.4 * s
+    return located_d(color_stem, color_ring, cx - w / 2 - 4.6 * s, s, oy=cy + h / 2 - 1.4 * s, dot=dot)
+
+
+def i15(ctx):
+    return tile("card") + icon_d(ICON["blue"], ICON["blue"])
+
+
+def c16(ctx):
+    t = ctx.t
+    G = word()
+    return paths(G[1:], t["ink"]) + located_d(t["ink"], t["blue"], G[0]["x"], small=ctx.small, dot=t["rust"]), ink(G)
+
+
+def i16(ctx):
+    return tile("card") + icon_d(ICON["ink"], ICON["blue"], dot=ICON["rust"])
+
+
+def split_fill(ctx, glyphs, sx, left, right, x0, x1):
+    lc = ctx.add_def(f'<clipPath id="{{id}}"><rect x="{num(x0 - 5)}" y="-200" width="{num(sx - x0 + 5)}" height="400"/></clipPath>')
+    rc = ctx.add_def(f'<clipPath id="{{id}}"><rect x="{num(sx)}" y="-200" width="{num(x1 - sx + 5)}" height="400"/></clipPath>')
+    return (f'<g clip-path="url(#{lc})">{paths(glyphs, left)}</g>'
+            f'<g clip-path="url(#{rc})">{paths(glyphs, right)}</g>')
+
+
+def c17(ctx):
+    t = ctx.t
+    G = word()
+    x0, y0, x1, y1 = ink(G)
+    s = G[4]["b"]
+    sx = (s[0] + s[2]) / 2
+    top, bot = -84, 28
+    return (split_fill(ctx, G, sx, t["blue"], t["ink"], x0, x1)
+            + bar(sx, top, bot, 6 if ctx.small else 3.5, t["blue"])), (x0, top, x1, bot)
+
+
+def i17(ctx):
+    d, b = glyph_in("sg700", "d", 64, 32, 32)
+    sx = (b[0] + b[2]) / 2
+    lc = ctx.add_def(f'<clipPath id="{{id}}"><rect x="0" y="0" width="{num(sx)}" height="64"/></clipPath>')
+    rc = ctx.add_def(f'<clipPath id="{{id}}"><rect x="{num(sx)}" y="0" width="{num(64 - sx)}" height="64"/></clipPath>')
+    return (tile("card") + f'<path clip-path="url(#{lc})" fill="{ICON["blue"]}" d="{d}"/>'
+            f'<path clip-path="url(#{rc})" fill="{ICON["ink"]}" d="{d}"/>' + bar(sx, 9, 55, 3, ICON["blue"]))
+
+
+def scan_word(ctx, gap, deep, splat, ring=False, bw=None, trail=120):
+    t = ctx.t
+    G = word()
+    G = G[:4] + word(x=G[4]["x"] + gap, text="splat")
+    x0, y0, x1, y1 = ink(G)
+    bx = (G[3]["b"][2] + G[4]["b"][0]) / 2
+    bw = bw or (8 if ctx.small else 5)
+    top, bot = -86, 32
+    body = scan_trail(ctx, bx, top, bot, trail, t["blue"], 0.28 if ctx.small else 0.2)
+    if ring:
+        body += paths(G[1:4], deep) + located_d(deep, t["blue"], G[0]["x"], small=ctx.small)
+    else:
+        body += paths(G[:4], deep)
+    return body + paths(G[4:], splat) + bar(bx, top, bot, bw, t["blue"]), (x0, top, x1, bot)
+
+
+def c18(ctx):
+    return scan_word(ctx, 9, ctx.t["blue"], ctx.t["ink"], bw=6 if ctx.small else 4)
+
+
+def i18(ctx):
+    d, b = glyph_in("sg700", "d", 64, 28, 33)
+    bx = b[2] + 6
+    return (tile("card") + scan_trail(ctx, bx, 9, 55, 34, ICON["blue"], 0.22) + f'<path fill="{ICON["blue"]}" d="{d}"/>'
+            + bar(bx, 9, 55, 4, ICON["blue"]))
+
+
+def c19(ctx):
+    return scan_word(ctx, 16, ctx.t["ink"], ctx.t["ink"], ring=True)
+
+
+def scan_icon_d(ctx, stem):
+    s = 0.56
+    bx = 47
+    return (tile("card") + scan_trail(ctx, bx, 10, 54, 36, ICON["blue"], 0.22)
+            + icon_d(stem, ICON["blue"], s, cx=27) + bar(bx, 10, 54, 4, ICON["blue"]))
+
+
+def i19(ctx):
+    return scan_icon_d(ctx, ICON["ink"])
+
+
+def c20(ctx):
+    return scan_word(ctx, 12, ctx.t["blue"], ctx.t["ink"], ring=True, bw=6 if ctx.small else 4)
+
+
+def i20(ctx):
+    return scan_icon_d(ctx, ICON["blue"])
+
+
 CONCEPTS = [
     (0, "Current placeholder", "For reference: today's soft blob in front of the wordmark.", "Symbol + wordmark", c0, i0),
     (1, "Splat cluster", "Three anisotropic Gaussians, the primitive a splat is literally made of, grouped into one soft mark.", "Symbol + wordmark", c1, i1),
@@ -495,6 +677,304 @@ CONCEPTS = [
     (9, "Timeline", "The name rests on the compare-over-time bar: two past records in blue, the newest open one in rust.", "Wordmark + device", c9, i9),
     (10, "Splat pin", "A location pin whose head holds a Gaussian splat: damage pinned to its exact 3D spot.", "Symbol + wordmark", c10, i10),
 ]
+
+CONCEPTS_2 = [
+    (11, "Two-tone", "The small 05 promoted to the main logo: deep in blue, splat in ink. Calm and legible at any size.", "Pure type", c11, i11),
+    (12, "Two-tone, flipped", "splat carries the colour instead, because the Gaussian splat is what sets the product apart.", "Pure type", c12, i12),
+    (13, "Depth gradient", "deep darkens letter by letter from light to deep blue and runs into splat.", "Pure type", c13, i13),
+    (14, "Light and solid", "deep in a lighter weight and blue, splat in bold ink: the two halves read without a space.", "Pure type", c14, i14),
+    (15, "Two-tone, located", "05 meets 04: the blue half starts with the locating ring.", "Pure type", c15, i15),
+    (16, "Located d, finding", "04 with a rust centre: the ring has found something.", "Pure type", c16, i16),
+    (17, "Scan front", "08 without the gap: the colour change is the scan front and cuts right through the s.", "Pure type", c17, i17),
+    (18, "Scan pass, tight", "08 with a narrow gap and a thinner bar so the name stays one word, with deep in blue.", "Wordmark + device", c18, i18),
+    (19, "Located and scanned", "04 and 08 together: locating ring on the d, scan bar after deep.", "Wordmark + device", c19, i19),
+    (20, "All three", "Two-tone, locating ring and scan bar in one mark.", "Wordmark + device", c20, i20),
+]
+
+# ---------------------------------------------------------------- round 3: point cloud variants of 05
+def font_box(glyph):
+    f = FONTS[glyph["font"]]
+    bp = BoundsPen(f.gs)
+    f.gs[glyph["name"]].draw(bp)
+    return f, bp.bounds
+
+
+def to_svg(glyph, fx, fy):
+    s = glyph["size"] / 1000
+    return glyph["x"] + fx * s, glyph["y"] - fy * s
+
+
+def grid_pts(glyph, spacing, jitter=0.32, seed=0, row=0.87):
+    """Staggered grid inside the glyph outline; spacing in font units."""
+    f, (fx0, fy0, fx1, fy1) = font_box(glyph)
+    rnd, out, fy, i = random.Random(seed), [], fy0 + spacing / 2, 0
+    while fy < fy1:
+        fx = fx0 + (spacing / 2 if i % 2 else spacing / 4)
+        while fx < fx1:
+            px = fx + rnd.uniform(-jitter, jitter) * spacing
+            py = fy + rnd.uniform(-jitter, jitter) * spacing
+            if f.inside(glyph["name"], px, py):
+                out.append(to_svg(glyph, px, py))
+            fx += spacing
+        fy += spacing * row
+        i += 1
+    return out
+
+
+def random_pts(glyph, density, seed=0):
+    """Uniform random points inside the glyph; density = candidates per 10 000 font units squared."""
+    f, (fx0, fy0, fx1, fy1) = font_box(glyph)
+    rnd = random.Random(seed)
+    out = []
+    for _ in range(int((fx1 - fx0) * (fy1 - fy0) * density / 1e4)):
+        px, py = rnd.uniform(fx0, fx1), rnd.uniform(fy0, fy1)
+        if f.inside(glyph["name"], px, py):
+            out.append(to_svg(glyph, px, py))
+    return out
+
+
+def row_pts(glyph, row_gap, step, seed=0):
+    """Points along horizontal scan rows, like a LiDAR sweep."""
+    f, (fx0, fy0, fx1, fy1) = font_box(glyph)
+    rnd, out, fy = random.Random(seed), [], fy0 + row_gap / 2
+    while fy < fy1:
+        fx = fx0 + rnd.uniform(0, step)
+        while fx < fx1:
+            px, py = fx + rnd.uniform(-.3, .3) * step, fy + rnd.uniform(-.08, .08) * row_gap
+            if f.inside(glyph["name"], px, py):
+                out.append(to_svg(glyph, px, py))
+            fx += step
+        fy += row_gap
+    return out
+
+
+def ramp(v, a, b):
+    return max(0.0, min(1.0, (v - a) / (b - a)))
+
+
+def lerp(a, b, t):
+    return a + (b - a) * t
+
+
+def mix(c0, c1, t):
+    a = [int(c0[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(lerp(x, y, t)):02X}" for x, y in zip(a, b))
+
+
+def dots(pts, r, color, opacity=None):
+    """Circles at pts; r and color may be callables of (x, y)."""
+    op = f' fill-opacity="{opacity}"' if opacity else ""
+    rad = r if callable(r) else (lambda x, y: r)
+    if callable(color):
+        return "".join(f'<circle cx="{num(x)}" cy="{num(y)}" r="{num(rad(x, y))}" fill="{color(x, y)}"{op}/>' for x, y in pts)
+    return f'<g fill="{color}"{op}>' + "".join(
+        f'<circle cx="{num(x)}" cy="{num(y)}" r="{num(rad(x, y))}"/>' for x, y in pts) + "</g>"
+
+
+def splats(pts, r, color, seed=0):
+    """Tiny tilted ellipses (crisp Gaussian splats) at pts."""
+    rnd = random.Random(seed)
+    out = []
+    for x, y in pts:
+        a = -28 + rnd.uniform(-22, 22)
+        out.append(f'<ellipse cx="{num(x)}" cy="{num(y)}" rx="{num(r * 1.75)}" ry="{num(r * .85)}" '
+                   f'transform="rotate({num(a)} {num(x)} {num(y)})"/>')
+    return f'<g fill="{color}">' + "".join(out) + "</g>"
+
+
+def strays(color, n, seed, box=(-16, 30, -66, 16), r=(1.2, 2), opacity=0.45):
+    """Loose points around the cloud, like scan noise. box = (x0, x1, y0, y1)."""
+    rnd = random.Random(seed)
+    pts = [(rnd.uniform(box[0], box[1]), rnd.uniform(box[2], box[3])) for _ in range(n)]
+    return f'<g fill="{color}" fill-opacity="{opacity}">' + "".join(
+        f'<circle cx="{num(x)}" cy="{num(y)}" r="{num(rnd.uniform(*r))}"/>' for x, y in pts) + "</g>"
+
+
+STRAY_BOX = (-17, -68, 0, 18)
+
+
+def per_letter(G, params, fn):
+    return "".join(fn(g, *prm, i) for i, (g, prm) in enumerate(zip(G, params)))
+
+
+def cloud_word(ctx, deep_svg, extra_box=None, small_colors=None):
+    """Point-cloud 'deep' plus solid 'splat'; at 20 px it falls back to solid two-tone."""
+    t = ctx.t
+    G = word()
+    bx = ink(G)
+    if ctx.small:
+        a, b = small_colors or (t["blue"], t["ink"])
+        return two_tone(G, a, b), bx
+    body = deep_svg(G[:4], t) + paths(G[4:], t["ink"])
+    return body, union(bx, extra_box) if extra_box else bx
+
+
+def c21(ctx):
+    def deep(G, t):
+        prm = [(46, 1.95), (41, 2.3), (37, 2.65), (33, 3.0)]
+        return (per_letter(G, prm, lambda g, sp, r, i: dots(grid_pts(g, sp, seed=i + 21), r, t["blue"]))
+                + strays(t["blue"], 12, 21, box=(-22, 26, -66, 16), r=(1, 1.8), opacity=0.4))
+    return cloud_word(ctx, deep, (-24, -68, 0, 18))
+
+
+def c22(ctx):
+    def deep(G, t):
+        prm = [(40, 1.3), (40, 1.9), (40, 2.5), (40, 3.1)]
+        return per_letter(G, prm, lambda g, sp, r, i: dots(grid_pts(g, sp, jitter=0), r, t["blue"]))
+    return cloud_word(ctx, deep)
+
+
+def c23(ctx):
+    def deep(G, t):
+        a, b = G[0]["b"][0], G[3]["b"][2]
+        r = lambda x, y: lerp(1.1, 3.5, ramp(x, a, b))
+        return (dots([p for i, g in enumerate(G) for p in grid_pts(g, 36, jitter=.25, seed=i + 23)], r, t["blue"])
+                + strays(t["blue"], 8, 23, r=(0.9, 1.4), opacity=0.35))
+    return cloud_word(ctx, deep, STRAY_BOX)
+
+
+def c24(ctx):
+    def deep(G, t):
+        prm = [(54, 2.5), (48, 2.85), (43, 3.15), (38, 3.45)]
+        return (per_letter(G, prm, lambda g, sp, r, i: dots(grid_pts(g, sp, seed=i + 7), r, t["ink"]))
+                + strays(t["ink"], 7, 3))
+    return cloud_word(ctx, deep, STRAY_BOX, small_colors=(ctx.t["ink2"], ctx.t["ink"]))
+
+
+def c25(ctx):
+    def deep(G, t):
+        prm = [(62, 1.9), (54, 2.25), (47, 2.6), (41, 2.95)]
+        return per_letter(G, prm, lambda g, sp, r, i: splats(grid_pts(g, sp, seed=i + 25), r, t["blue"], seed=i))
+    return cloud_word(ctx, deep)
+
+
+RAMP = dict(light=("#A9BEF5", "#2453D4"), dark=("#3E5FB8", "#7EA2FF"))
+
+
+def c26(ctx):
+    def deep(G, t):
+        c0, c1 = RAMP[t["name"]]
+        a, b = G[0]["b"][0], G[3]["b"][2]
+        col = lambda x, y: mix(c0, c1, ramp(x, a, b))
+        prm = [(54, 2.5), (48, 2.85), (43, 3.15), (38, 3.45)]
+        return per_letter(G, prm, lambda g, sp, r, i: dots(grid_pts(g, sp, seed=i + 7), r, col))
+    return cloud_word(ctx, deep)
+
+
+def c27(ctx):
+    def deep(G, t):
+        prm = [(4.2, 2.1), (6.5, 2.3), (9.5, 2.5), (14, 2.7)]
+        return (per_letter(G, prm, lambda g, d, r, i: dots(random_pts(g, d, seed=i + 27), r, t["blue"]))
+                + strays(t["blue"], 9, 27, r=(1, 1.7), opacity=0.4))
+    return cloud_word(ctx, deep, STRAY_BOX)
+
+
+def c28(ctx):
+    def deep(G, t):
+        prm = [(74, 30, 1.8), (64, 27, 2.1), (55, 24, 2.4), (46, 21, 2.75)]
+        return per_letter(G, prm, lambda g, rg, st, r, i: dots(row_pts(g, rg, st, seed=i + 28), r, t["blue"]))
+    return cloud_word(ctx, deep)
+
+
+def c29(ctx):
+    t = ctx.t
+    G = word()
+    bx = ink(G)
+    if ctx.small:
+        return two_tone(G, t["ink"], t["blue"]), bx
+    prm = [(36, 3.45), (40, 3.15), (45, 2.85), (50, 2.5), (56, 2.2)]
+    body = (paths(G[:4], t["ink"])
+            + per_letter(G[4:], prm, lambda g, sp, r, i: dots(grid_pts(g, sp, seed=i + 29), r, t["blue"]))
+            + strays(t["blue"], 7, 29, box=(bx[2] - 4, bx[2] + 18, -80, 8)))
+    return body, union(bx, (bx[2], -82, bx[2] + 20, 10))
+
+
+def c30(ctx):
+    t = ctx.t
+    G = word()
+    bx = ink(G)
+    if ctx.small:
+        return two_tone(G, t["blue"], t["ink"]), bx
+    a, b = G[0]["b"][0], G[-1]["b"][2] - 30
+    r = lambda x, y: lerp(1.15, 3.7, ramp(x, a, b))
+    deep = [p for i, g in enumerate(G[:4]) for p in grid_pts(g, 36, jitter=.25, seed=i + 30)]
+    splat = [p for i, g in enumerate(G[4:]) for p in grid_pts(g, 36, jitter=.25, seed=i + 34)]
+    return (dots(deep, r, t["blue"]) + dots(splat, r, t["ink"])
+            + strays(t["blue"], 6, 30, r=(0.9, 1.3), opacity=0.35)), union(bx, STRAY_BOX)
+
+
+def icon_glyph(ch="d", size=64, cx=32, cy=32):
+    return runs([("sg700", ch)], size, cx, cy)[0][0]
+
+
+def i21(ctx):
+    g = icon_glyph()
+    return (tile("card") + dots(grid_pts(g, 64, jitter=.25, seed=3), 1.75, ICON["blue"])
+            + strays(ICON["blue"], 4, 5, box=(6, 16, 8, 22), r=(0.8, 1.2), opacity=0.5))
+
+
+def i22(ctx):
+    g = icon_glyph()
+    y0, y1 = g["b"][1], g["b"][3]
+    return tile("card") + dots(grid_pts(g, 62, jitter=0), lambda x, y: lerp(1.0, 2.5, ramp(y, y0, y1)), ICON["blue"])
+
+
+def i23(ctx):
+    g = icon_glyph()
+    x0, x1 = g["b"][0], g["b"][2]
+    return tile("navy") + dots(grid_pts(g, 56, jitter=.2, seed=2), lambda x, y: lerp(0.8, 2.4, ramp(x, x0, x1)), ICON["paper"])
+
+
+def i24(ctx):
+    return tile("card") + dots(grid_pts(icon_glyph(), 64, jitter=.25, seed=3), 1.75, ICON["ink"])
+
+
+def i25(ctx):
+    return tile("blue") + splats(grid_pts(icon_glyph(), 70, jitter=.22, seed=4), 1.45, ICON["card"], seed=2)
+
+
+def i26(ctx):
+    g = icon_glyph()
+    y0, y1 = g["b"][1], g["b"][3]
+    c0, c1 = RAMP["light"]
+    return tile("card") + dots(grid_pts(g, 60, jitter=.25, seed=3), 1.8, lambda x, y: mix(c0, c1, ramp(y, y0, y1)))
+
+
+def i27(ctx):
+    return tile("navy") + dots(random_pts(icon_glyph(), 4.2, seed=8), 1.5, ICON["paper"])
+
+
+def i28(ctx):
+    return tile("card") + dots(row_pts(icon_glyph(), 78, 34, seed=3), 1.6, ICON["blue"])
+
+
+def i29(ctx):
+    d, s_ = runs([("sg700", "ds")], 44, 32, 32)[0]
+    return tile("card") + paths([d], ICON["ink"]) + dots(grid_pts(s_, 56, jitter=.22, seed=1), 1.25, ICON["blue"])
+
+
+def i30(ctx):
+    d, s_ = runs([("sg700", "ds")], 44, 32, 32)[0]
+    x0, x1 = d["b"][0], s_["b"][2]
+    r = lambda x, y: lerp(0.8, 1.7, ramp(x, x0, x1))
+    return (tile("card") + dots(grid_pts(d, 56, jitter=.2, seed=1), r, ICON["blue"])
+            + dots(grid_pts(s_, 56, jitter=.2, seed=2), r, ICON["ink"]))
+
+
+CONCEPTS_3 = [
+    (21, "Finer cloud", "05 with smaller, denser points and a few loose ones drifting off the d, like real scan noise.", "Pure type", c21, i21),
+    (22, "Halftone", "An ordered grid: only the point size grows from d to p, like a print halftone.", "Pure type", c22, i22),
+    (23, "Smooth ramp", "Point size grows continuously across deep instead of letter by letter, so p melts into splat.", "Pure type", c23, i23),
+    (24, "Monochrome", "05 in ink only. The cloud alone carries the idea, colour stays free for the product.", "Pure type", c24, i24),
+    (25, "Splat cloud", "deep is built from tiny tilted ellipses, the actual Gaussian splats, instead of round points.", "Pure type", c25, i25),
+    (26, "Colour ramp", "The points also darken from light to full blue as they get denser.", "Pure type", c26, i26),
+    (27, "Organic scatter", "Random points instead of a grid, closer to a raw LiDAR or photogrammetry cloud.", "Pure type", c27, i27),
+    (28, "Scan rows", "Points sit on horizontal sweep lines that tighten from d to p, like a LiDAR pass.", "Pure type", c28, i28),
+    (29, "Dissolving splat", "Reversed: deep is solid ink and splat dissolves into blue points towards the t.", "Pure type", c29, i29),
+    (30, "One ramp", "The whole word is points, sparse at the d and solid by the t; deep blue, splat ink.", "Pure type", c30, i30),
+]
+
 
 SMALL_NOTES = {
     5: "Below about 32 px the point cloud gives way to a solid two-tone version.",
@@ -529,6 +1009,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--body)
 h1{font:700 44px/1.08 var(--display);letter-spacing:-.025em;margin:0 0 14px}
 .lede{color:var(--ink-2);max-width:720px;margin:0}
 .lede code,.mono{font-family:var(--mono);font-size:.92em}
+.ov-label{margin:40px 0 -24px}
 .overview{margin:40px 0 56px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .ov-panel{border-radius:var(--r-card);padding:22px 24px;display:grid;grid-template-columns:repeat(2,1fr);gap:18px 28px;align-items:center}
 .ov-panel.light{background:var(--card);border:1px solid var(--line)}
@@ -537,6 +1018,8 @@ h1{font:700 44px/1.08 var(--display);letter-spacing:-.025em;margin:0 0 14px}
 .ov-item .n{font:500 11px/1 var(--mono);color:var(--muted);width:18px;flex:none}
 .ov-panel.dark .n{color:var(--vp-muted)}
 .ov-item svg{height:30px;width:auto;max-width:100%}
+.overview.big .ov-item svg{height:52px}
+.overview.big .ov-panel{grid-template-columns:1fr}
 .concept{background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);padding:28px;margin:0 0 20px;scroll-margin-top:24px}
 .concept.picked{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft)}
 .c-head{display:flex;gap:20px;align-items:flex-start;margin-bottom:22px}
@@ -601,7 +1084,7 @@ footer{color:var(--muted);font-size:13px;margin-top:40px}
 """
 
 JS = """
-const KEY='deepsplat-logo-picks';
+const KEY='deepsplat-logo-picks:'+location.pathname;
 let picks=[];try{picks=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
 function sync(){
   document.querySelectorAll('.concept').forEach(c=>{
@@ -664,12 +1147,22 @@ def concept_card(n, name, why, kind, fn, ifn):
 </section>"""
 
 
-def page():
-    ov_l = "".join(f'<a class="ov-item" href="#c{n}"><span class="n">{n:02d}</span>{render(fn, LIGHT, small=True)}</a>'
-                   for n, _, _, _, fn, _ in CONCEPTS)
-    ov_d = "".join(f'<a class="ov-item" href="#c{n}"><span class="n">{n:02d}</span>{render(fn, DARK, small=True)}</a>'
-                   for n, _, _, _, fn, _ in CONCEPTS)
-    cards = "".join(concept_card(*c) for c in CONCEPTS)
+def overview(items, href="", small=True):
+    def panel(theme):
+        return "".join(f'<a class="ov-item" href="{href}#c{n}"><span class="n">{n:02d}</span>{render(fn, theme, small=small)}</a>'
+                       for n, fn in items)
+    cls = "overview" if small else "overview big"
+    return f'<div class="{cls}"><div class="ov-panel light">{panel(LIGHT)}</div><div class="ov-panel dark">{panel(DARK)}</div></div>'
+
+
+def page(title, lede, concepts, refs=(), label="Round 2", small=True):
+    ref_block = ""
+    if refs:
+        ref_block = ('<p class="eyebrow ov-label">Your picks from round 1</p>'
+                     + overview([(n, fn) for n, _, _, _, fn, _ in CONCEPTS if n in refs], href="logo-ideas.html", small=small)
+                     + f'<p class="eyebrow ov-label">{label}</p>')
+    ov = overview([(c[0], c[4]) for c in concepts], small=small)
+    cards = "".join(concept_card(*c) for c in concepts)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -685,14 +1178,9 @@ def page():
 <div class="picks"><div class="wrap"><b>Your picks</b><span id="picklist">none yet</span><button id="clear" type="button">Clear</button></div></div>
 <main class="wrap">
   <p class="eyebrow">Brand · logo ideas</p>
-  <h1>Ten directions for deepsplat</h1>
-  <p class="lede">Every wordmark is lowercase Space Grotesk, outlined to vector paths, so any of these can be exported straight to
-  <code>design/brand/logos/</code>. Each concept shows paper and viewport backgrounds, an app icon at 64, 32 and 16 px,
-  and the lockup at 20 px inside a header bar. Tell me the numbers you like, for example “3 and 7”.</p>
-  <div class="overview">
-    <div class="ov-panel light">{ov_l}</div>
-    <div class="ov-panel dark">{ov_d}</div>
-  </div>
+  <h1>{title}</h1>
+  <p class="lede">{lede}</p>
+  {ref_block}{ov}
   {cards}
   <footer>Generated by <span class="mono">design/brand/tools/build_logo_ideas.py</span> · Space Grotesk and IBM Plex are licensed under the SIL Open Font License.</footer>
 </main>
@@ -700,6 +1188,25 @@ def page():
 </body>
 </html>
 """
+
+
+INTRO = ("Every wordmark is lowercase Space Grotesk, outlined to vector paths, so any of these can be exported straight to "
+         "<code>design/brand/logos/</code>. Each concept shows paper and viewport backgrounds, an app icon at 64, 32 and 16 px, "
+         "and the lockup at 20 px inside a header bar.")
+
+
+def PAGES():
+    return {
+        "logo-ideas.html": page("Ten directions for deepsplat", INTRO + " Tell me the numbers you like, for example “3 and 7”.",
+                                CONCEPTS),
+        "logo-ideas-2.html": page("Round 2: two-tone, located, scanned",
+                                  "Builds on the round 1 picks: 04 located d, 08 scan pass and the small two-tone version of 05. "
+                                  + INTRO, CONCEPTS_2, refs=(4, 5, 8)),
+        "logo-ideas-3.html": page("Round 3: point cloud variants",
+                                  "Variations of 05 from round 1: deep as a point cloud that becomes a solid splat. "
+                                  "Points cannot be resolved at 20 px, so every variant switches to a solid version in the "
+                                  "header bar row. " + INTRO, CONCEPTS_3, refs=(5,), label="Round 3", small=False),
+    }
 
 
 def ensure_fonts(d):
@@ -714,11 +1221,13 @@ def ensure_fonts(d):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--fonts", type=pathlib.Path, default=HERE / ".fonts")
-    ap.add_argument("--out", type=pathlib.Path, default=HERE.parent / "logo-ideas.html")
+    ap.add_argument("--out-dir", type=pathlib.Path, default=HERE.parent)
     a = ap.parse_args()
     ensure_fonts(a.fonts)
-    a.out.write_text(page(), encoding="utf-8")
-    print(f"wrote {a.out}")
+    for name, html_text in PAGES().items():
+        out = a.out_dir / name
+        out.write_text(html_text, encoding="utf-8")
+        print(f"wrote {out}")
 
 
 if __name__ == "__main__":
