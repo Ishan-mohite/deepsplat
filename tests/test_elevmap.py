@@ -74,3 +74,22 @@ def test_floor_map_classes_and_pixel_frame():
     assert px(1.4, 1.4)[:3].sum() < px(5, 4.5)[:3].sum()                          # table darker than platform
     assert px(3, 6.0)[:3].sum() < 300                                             # wall: ink
     assert img[0, 0, 3] == 0                                                       # margin transparent
+
+
+def test_floor_map_is_cropped_to_the_scan():
+    """No empty frame and no far-away floaters around the plan; meta is plain JSON."""
+    import io
+    import json
+
+    from PIL import Image
+
+    from elevmap import floormap
+
+    rng = np.random.default_rng(3)
+    floor = np.c_[rng.uniform(0, 5, (80_000, 2)), rng.normal(0, 0.003, 80_000)]
+    floater = np.c_[rng.uniform(9, 9.4, (400, 2)), rng.normal(0, 0.003, 400)]   # 0.16 m², 4 m away
+    png, meta = floormap.make(np.r_[floor, floater], None, pad_cells=2)
+    json.dumps(meta)
+    a = np.asarray(Image.open(io.BytesIO(png)))[..., 3] > 0
+    assert a[:7].any() and a[-7:].any() and a[:, :7].any() and a[:, -7:].any()   # tight on every side
+    assert meta["width"] * meta["m_per_px"] < 5.6                                 # floater dropped

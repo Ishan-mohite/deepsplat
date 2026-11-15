@@ -83,8 +83,13 @@ def classify(g: dict, tall: np.ndarray | None = None, *, wall_min_m: float = 1.3
     edge = has & (np.nan_to_num(g["step"]) > edge_step_m) & ~wall & ~ndi.binary_dilation(furniture, iterations=2)
     edge = _drop_small(edge, 0.03 / cell)
 
-    # drop floaters (small islands), fill small holes (unseen spots under chairs, reflections)
-    region = _drop_small(has | wall, min_blob_m2 / cell)
+    # drop floaters (islands smaller than min_blob_m2 or 1 % of the largest piece: they would only widen the
+    # map's frame), fill small holes (unseen spots under chairs, reflections)
+    region = has | wall
+    lab, k = ndi.label(region)
+    if k:
+        size = ndi.sum(region, lab, np.arange(1, k + 1))
+        region = np.isin(lab, 1 + np.flatnonzero(size >= max(min_blob_m2 / cell, 0.01 * size.max())))
     holes = ndi.binary_fill_holes(region) & ~region
     filled = holes & ~_drop_small(holes, max_hole_m2 / cell)
     region |= filled
@@ -109,8 +114,24 @@ def _lerp(a, b, t):
     return np.asarray(a, np.float32) * (1 - t) + np.asarray(b, np.float32) * t
 
 
-def render(g: dict, *, px_per_cell: int = 3, supersample: int = 2) -> tuple[bytes, dict]:
+def _crop(g: dict, pad: int) -> dict:
+    """The masks cut to the mapped area (+ pad cells), so the image has no empty frame."""
+    rows, cols = np.flatnonzero(g["region"].any(1)), np.flatnonzero(g["region"].any(0))
+    if not len(rows):
+        return g
+    H, W = g["shape"]
+    r0, r1 = max(rows[0] - pad, 0), min(rows[-1] + 1 + pad, H)
+    c0, c1 = max(cols[0] - pad, 0), min(cols[-1] + 1 + pad, W)
+    out = {k: g[k][r0:r1, c0:c1] for k in ("region", "raised", "height", "edge", "furniture", "obstacle_h", "wall")}
+    ox, oy = (float(v) for v in g["origin_xy"])
+    # origin_xy is the lower-left corner: rows below r1 are cut off, columns left of c0
+    return {**out, "shape": (int(r1 - r0), int(c1 - c0)), "res": float(g["res"]),
+            "origin_xy": (ox + int(c0) * g["res"], oy + int(H - r1) * g["res"])}
+
+
+def render(g: dict, *, px_per_cell: int = 3, supersample: int = 2, pad_cells: int = 3) -> tuple[bytes, dict]:
     """PNG (RGBA, transparent where nothing was seen) + meta for the layers of `layers()`."""
+    g = _crop(g, pad_cells)
     k = px_per_cell * supersample
     H, W = g["shape"]
     region = _smooth(g["region"], k)
@@ -154,7 +175,7 @@ def render(g: dict, *, px_per_cell: int = 3, supersample: int = 2) -> tuple[byte
 
 def make(p: np.ndarray, n: np.ndarray | None = None, **kw) -> tuple[bytes, dict]:
     """z-up points (floor at 0) [+ normals] -> (PNG bytes, meta)."""
-    rk = {key: kw.pop(key) for key in ("px_per_cell", "supersample") if key in kw}
+    rk = {key: kw.pop(key) for key in ("px_per_cell", "supersample", "pad_cells") if key in kw}
     return render(layers(p, n, **kw), **rk)
 
 
