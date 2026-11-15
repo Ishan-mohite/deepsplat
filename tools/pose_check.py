@@ -56,6 +56,8 @@ def main():
     ap.add_argument("--out", default="data/pose_check", type=Path)
     ap.add_argument("--width", type=int, default=420)
     ap.add_argument("--frames", type=int, default=3)
+    ap.add_argument("--vps-frames", action="store_true",
+                    help="also render every VPS-localized frame from ITS OWN VPS pose, tagged agree/OUTLIER")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     with Session(engine) as s:
@@ -67,6 +69,15 @@ def main():
         for k, f in enumerate(cap.frames[: a.frames]):
             if f.get("c2w") is not None and loc.get("method") == "vps_frames":
                 cams.append((f"frame{k}", storage.local_path(f["image_key"]), T @ np.asarray(f["c2w"]), f["K"]))
+        if a.vps_frames:
+            al = loc.get("alignment") or {}
+            agree = set(al.get("inlier_frames") or [])
+            by_name = {f["name"]: f for f in cap.frames}
+            for k, vf in enumerate(loc.get("frames") or []):
+                if vf.get("c2w") is not None and vf["name"] in by_name:
+                    tag = "agree" if k in agree else "OUTLIER"
+                    cams.append((f"vps_{vf['name']}_{tag}", storage.local_path(by_name[vf["name"]]["image_key"]),
+                                 np.asarray(vf["c2w"]), by_name[vf["name"]]["K"]))
     d = source.load_splat(a.splat, min_opacity=0.2, log=lambda m: None)
     P, rgb, sm = d["xyz"], d["rgb"], d["scale"].max(1)
     print(f"{len(P):,} gaussians; capture {a.capture_id[:8]} method {loc.get('method')} confidence {loc.get('confidence')}")
