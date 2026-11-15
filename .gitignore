@@ -1,0 +1,7 @@
+.sam-cache/
+.sam-env/
+.yolo-cache/
+.yolo-deps/
+__pycache__/
+runs/
+IMG_2132.MOV

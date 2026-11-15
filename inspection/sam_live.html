@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSplat live inspection</title>
+<style>
+  body { font: 1rem system-ui; color: #eef2f6; background: #161b22; margin: 1.5rem; }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 1rem; }
+  video, img { width: 100%; max-height: 75vh; object-fit: contain; background: #0b0e12; }
+  textarea { display: block; width: min(100%, 24rem); margin: .5rem 0 1rem; font: inherit; }
+  button { padding: .65rem 1rem; font: inherit; }
+</style>
+<h1>Live inspection</h1>
+<label for="prompts">Defect prompts (one per line)</label>
+<textarea id="prompts" rows="3">hole in wall
+peeling paint
+crack in wall</textarea>
+<button id="start">Start camera</button>
+<button id="stop" disabled>Stop camera</button>
+<p id="status" role="status">Start the camera to see labeled segmentation masks.</p>
+<main>
+  <section><h2>Camera</h2><video id="camera" autoplay muted playsinline></video></section>
+  <section><h2>Latest detection frame</h2><img id="output" alt="Waiting for a processed frame"></section>
+</main>
+<script>
+const camera = document.querySelector("#camera");
+const output = document.querySelector("#output");
+const status = document.querySelector("#status");
+const start = document.querySelector("#start");
+const stop = document.querySelector("#stop");
+const canvas = document.createElement("canvas");
+const context = canvas.getContext("2d");
+let stream, timer, request, imageUrl;
+let generation = 0;
+let streamId;
+
+function show(blob) {
+  if (imageUrl) URL.revokeObjectURL(imageUrl);
+  imageUrl = URL.createObjectURL(blob);
+  output.src = imageUrl;
+}
+
+async function sample(run) {
+  if (run !== generation || !stream) return;
+  const started = performance.now();
+  try {
+    if (!camera.videoWidth) {
+      timer = setTimeout(() => sample(run), 100);
+      return;
+    }
+      const scale = Math.min(1, 1920 / Math.max(camera.videoWidth, camera.videoHeight));
+      canvas.width = Math.round(camera.videoWidth * scale);
+      canvas.height = Math.round(camera.videoHeight * scale);
+      context.drawImage(camera, 0, 0, canvas.width, canvas.height);
+      const jpeg = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", .9));
+      if (run !== generation) return;
+      const prompts = document.querySelector("#prompts").value.split("\n").map(value => value.trim()).filter(Boolean);
+      if (!prompts.length) throw new Error("Enter at least one defect prompt.");
+      const query = new URLSearchParams({stream: streamId});
+      prompts.forEach(prompt => query.append("prompt", prompt));
+      request = new AbortController();
+      const response = await fetch("/inspect?" + query, { method: "POST", body: jpeg, signal: request.signal });
+      if (!response.ok) throw new Error(response.status === 400 ? await response.text() : "Inspection returned " + response.status);
+      const result = await response.blob();
+      if (run !== generation) return;
+      show(result);
+      status.textContent = "Frame processed in " + Math.round(performance.now() - started) + " ms";
+  } catch (error) {
+    if (run === generation) status.textContent = error.message;
+    if (run === generation) timer = setTimeout(() => sample(run), 1000);
+    return;
+  }
+  if (run === generation) timer = setTimeout(() => sample(run), 0);
+}
+
+function stopCamera() {
+  generation++;
+  clearTimeout(timer);
+  request?.abort();
+  stream?.getTracks().forEach(track => track.stop());
+  stream = undefined;
+  camera.srcObject = null;
+  start.disabled = false;
+  stop.disabled = true;
+}
+
+start.onclick = async () => {
+  start.disabled = true;
+  try {
+    if (!navigator.mediaDevices) throw new Error("Open the page over trusted HTTPS to use the camera.");
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    camera.srcObject = stream;
+    await camera.play();
+    stop.disabled = false;
+    streamId = crypto.randomUUID();
+    sample(++generation);
+  } catch (error) {
+    stopCamera();
+    status.textContent = error.message;
+  }
+};
+stop.onclick = () => { stopCamera(); status.textContent = "Camera stopped."; };
+window.addEventListener("pagehide", stopCamera);
+
+async function watch() {
+  try {
+    if (!stream) {
+      const response = await fetch("/latest", { cache: "no-store" });
+      if (response.ok && response.status !== 204) {
+        const blob = await response.blob();
+        if (!stream) show(blob);
+      }
+    }
+  } finally {
+    setTimeout(watch, 1000);
+  }
+}
+watch().catch(console.error);
+</script>
+</html>

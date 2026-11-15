@@ -214,3 +214,60 @@ deepsplat/
 ├── clients/        # mobile / glasses / robot capture clients
 └── data/           # sample scans and test images (not committed if large)
 ```
+
+## SAM 3 video replay
+
+Set up the [SAM 3 CUDA environment](https://github.com/facebookresearch/sam3#installation)
+and authenticate for the checkpoint with `hf auth login`, or pass `--checkpoint`
+with a local SAM 3 image checkpoint. Install the replay dependencies in that
+environment with `python -m pip install opencv-python numpy pillow`.
+
+```powershell
+python -m inspection.sam_replay wall.mp4 --output runs/pass1 --preview --realtime
+```
+
+The output directory must be new. Each sampled frame gets an overlay, and
+each detection gets a full-frame mask and a record in `observations.jsonl`.
+The default sampling rate is 2 fps. Replay can fall behind if inference is
+slower than the sampling interval. Use `--crop X Y WIDTH HEIGHT` to retain
+more detail for a wall region, and `--prompt` to try other crack descriptions.
+Timing uses decoded frame index and the nominal video frame rate.
+
+For optional placement, supply `--geometry wall.json`. The file must contain
+a 3 by 3 `intrinsics` matrix for the decoded full-resolution image, a `plane`
+array `[nx, ny, nz, d]` describing `n dot p + d = 0` in metric map coordinates,
+and a `poses` object keyed by zero-based decoded frame index. Each pose is a
+4 by 4 camera-to-map matrix with OpenCV camera axes (right, down, forward).
+ARKit poses need a camera axis conversion before export. Frames without a pose
+still produce 2D masks. The pin represents the intersection with the supplied
+wall plane. Use geometry aligned to the splat if displaying pins there.
+
+For another pass, supply its own geometry in the same map coordinate system
+and add `--previous runs/pass1/observations.jsonl`. Nearby 3D detections reuse
+issue IDs within the configurable `--match-radius` (default 0.15 m).
+
+## Live webcam inspection
+
+Install Flask in the SAM 3 environment with `python -m pip install flask`.
+
+```powershell
+python -m inspection.sam_live --checkpoint .sam-cache/sam3.pt --mixed-precision
+```
+
+Open http://127.0.0.1:8443/ on the laptop, edit the prompts (one per line),
+and start the camera. The page sends the newest frame when the previous result returns.
+
+### SAM 3 streaming backend
+
+Install `transformers==5.23.0` and `accelerate` in the CUDA environment,
+then authenticate to Hugging Face with access to `facebook/sam3`.
+
+```powershell
+python -m inspection.sam_live --model sam3-stream --port 8445
+```
+
+Open http://127.0.0.1:8445/ and start the webcam. This backend loads the
+Transformers-format weights. Use `--stream-resolution 1008` to test the
+native resolution. The default is 560 to reduce compute. Tracker state
+resets when the camera or prompts change, after an idle gap, or every
+300 processed frames to bound session history.
