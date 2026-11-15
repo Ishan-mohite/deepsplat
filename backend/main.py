@@ -55,6 +55,7 @@ async def lifespan(app: FastAPI):
     sync = StorageIndexSync(storage) if settings.storage == "gcs" else None
     vps_mod.configure(settings.vps, settings.data_dir / "vps", sync)
     retry = asyncio.create_task(_retry_pending_detections_forever())
+    lods = asyncio.create_task(asyncio.to_thread(pipeline.ensure_viewer_lods))   # maps from before detail levels
     yield
     retry.cancel()
 

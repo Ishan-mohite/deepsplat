@@ -61,3 +61,46 @@ def viewer_copy(src: Path, dst: Path, min_opacity: float = 0.05) -> dict:
     write_vertices(dst, out)
     return {"n_in": int(len(v)), "n_out": int(keep.sum()), "bytes": Path(dst).stat().st_size,
             "dropped_fields": [k for k in v.dtype.names if k not in VIEWER_FIELDS]}
+
+
+# Detail levels for the browser (largest first). The viewer picks one per device.
+LOD_TARGETS = {"medium": 1_000_000, "low": 400_000, "minimal": 150_000}
+
+
+def thin(v: np.ndarray, n: int, seed: int = 0) -> np.ndarray:
+    """Keep `n` of the gaussians in `v` (VIEWER_FIELDS layout).
+
+    Weighted sampling without replacement (Efraimidis-Spirakis keys), weight = opacity, so opaque
+    gaussians that carry the look of the surface are kept preferentially. The 1 % largest gaussians
+    (floaters, long streaks) are left out. The kept ones grow slightly, by (N/n)^0.15, to close the
+    gaps, but never beyond the 95th percentile of the scales (growing everything by (N/n)^0.25 turned
+    the 150k level of the project splat into large blurry blobs; compared visually)."""
+    if n >= len(v):
+        return v.copy()
+    op = 1 / (1 + np.exp(-v["opacity"].astype(np.float64)))
+    scales = np.stack([v["scale_0"], v["scale_1"], v["scale_2"]], axis=1).astype(np.float64)
+    smax = scales.max(axis=1)
+    w = np.where(smax <= np.percentile(smax, 99), op, 0.0) + 1e-12
+    u = np.random.default_rng(seed).random(len(v))
+    keys = np.log(u) / w                                     # larger is better
+    keep = np.argpartition(keys, len(v) - n)[len(v) - n:]
+    out = v[np.sort(keep)].copy()
+    grow = 0.15 * np.log(len(v) / n)
+    cap = np.percentile(scales, 95)
+    for k in ("scale_0", "scale_1", "scale_2"):
+        out[k] = np.minimum(out[k] + grow, np.maximum(out[k], cap))
+    return out
+
+
+def lod_copies(viewer_ply: Path, out_dir: Path, stem: str = "splat_viewer") -> list[dict]:
+    """Write the lower detail levels next to the viewer copy. Returns [{name, path, gaussians, bytes}]
+    for the levels that are actually smaller than the input."""
+    v = read_vertices(viewer_ply)
+    out = []
+    for name, n in LOD_TARGETS.items():
+        if n >= len(v) * 0.8:
+            continue
+        path = Path(out_dir) / f"{stem}_{name}.ply"
+        write_vertices(path, thin(v, n))
+        out.append({"name": name, "path": path, "gaussians": n, "bytes": path.stat().st_size})
+    return out

@@ -411,10 +411,11 @@ def process_map(map_id: str) -> None:
             try:
                 tmp = settings.data_dir / "tmp" / f"{m.id}_viewer.ply"
                 tmp.parent.mkdir(parents=True, exist_ok=True)
-                m.stats = {**m.stats, "viewer_splat": splatfile.viewer_copy(storage.local_path(m.splat_key), tmp)}
+                vs = splatfile.viewer_copy(storage.local_path(m.splat_key), tmp)
                 m.viewer_splat_key = f"maps/{m.id}/splat_viewer.ply"
                 with open(tmp, "rb") as fh:
                     storage.put_file(m.viewer_splat_key, fh, "application/octet-stream")
+                m.stats = {**m.stats, "viewer_splat": vs, "viewer_lods": _write_lods(m.id, tmp, vs["n_out"])}
                 tmp.unlink()
             except ValueError as e:      # plain point cloud: the viewer uses the original
                 log.info("no viewer splat for %s: %s", map_id, e)
@@ -436,6 +437,43 @@ def process_map(map_id: str) -> None:
         build = m.status == MapStatus.ready and m.views_key and get_vps() is not None
     if build:
         build_vps_index(map_id)
+
+
+def _write_lods(map_id: str, viewer_ply, n_full: int) -> list[dict]:
+    """Detail levels for the browser: the viewer copy itself ("high") plus thinned copies."""
+    lods = [{"name": "high", "key": f"maps/{map_id}/splat_viewer.ply", "gaussians": int(n_full),
+             "bytes": viewer_ply.stat().st_size}]
+    for lod in splatfile.lod_copies(viewer_ply, viewer_ply.parent, stem=f"{map_id}_lod"):
+        key = f"maps/{map_id}/splat_viewer_{lod['name']}.ply"
+        with open(lod["path"], "rb") as fh:
+            storage.put_file(key, fh, "application/octet-stream")
+        lod["path"].unlink()
+        lods.append({"name": lod["name"], "key": key, "gaussians": lod["gaussians"], "bytes": lod["bytes"]})
+    return lods
+
+
+def ensure_viewer_lods() -> int:
+    """Add detail levels to maps processed before they existed (runs once at startup)."""
+    with Session(engine) as s:
+        ids = [m.id for m in s.exec(select(Map).where(Map.status == MapStatus.ready)).all()
+               if m.viewer_splat_key and "viewer_lods" not in (m.stats or {})]
+    for mid in ids:
+        try:
+            with Session(engine) as s:
+                m = s.get(Map, mid)
+                src = storage.local_path(m.viewer_splat_key)
+                tmp = settings.data_dir / "tmp" / f"{mid}_viewer.ply"
+                tmp.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src, tmp)
+                n_full = (m.stats.get("viewer_splat") or {}).get("n_out") or len(splatfile.read_vertices(tmp))
+                m.stats = {**m.stats, "viewer_lods": _write_lods(mid, tmp, n_full)}
+                tmp.unlink()
+                s.add(m)
+                s.commit()
+                log.info("added %d viewer detail levels to map %s", len(m.stats["viewer_lods"]), mid)
+        except Exception:
+            log.exception("could not add viewer detail levels to map %s", mid)
+    return len(ids)
 
 
 def build_vps_index(map_id: str) -> None:

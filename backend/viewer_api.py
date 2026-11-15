@@ -203,6 +203,9 @@ def get_site(map_id: str, s: Session = Depends(get_session)):
         "status": m.status, "vps_status": m.vps_status,
         "splat_url": storage.url(m.splat_key), "splat_to_viewer": splat_to_viewer.tolist(),
         "viewer_splat_url": storage.url(m.viewer_splat_key) if m.viewer_splat_key else None,
+        # detail levels, largest first; the viewer picks one for the device (see viewer: splat quality)
+        "splat_lods": [{"name": l["name"], "url": storage.url(l["key"]), "gaussians": l["gaussians"],
+                        "mb": round(l["bytes"] / 1e6, 1)} for l in (m.stats or {}).get("viewer_lods", [])],
         "floor_plan_url": storage.url(m.floor_plan_key) if m.floor_plan_key else None, "floor_plan": m.floor_plan,
         "rooms": m.rooms, "gaussians": m.stats.get("n_gaussians"),
         "camera": {"dir": [0.0, 0.707, 0.707], "center": center,

@@ -64,6 +64,13 @@ registered maps and refreshes every few seconds: a capture from the app appears 
 moves through the steps and ends as a pin in the 3D twin. `viewer/index.html?mock` or opening the
 page without a backend shows the sample data.
 
+**Splat detail per device.** The backend serves the scan in four detail levels (all opaque gaussians,
+1 M, 400 k, 150 k; thinned by opacity, floaters left out). The viewer's **Detail** picker in the 3D
+twin defaults to *Auto*: it picks a level from the device (phone or not, GPU, memory, cores; software
+rendering → the smallest), lowers the render resolution on weaker devices, and steps down once more
+if the first seconds render below 18 fps. A chosen level is remembered in the browser; `?quality=low`
+forces one. Maps registered before this get their levels when the backend starts.
+
 ### 4. Record with the app
 
 Build and install as described in [clients/ios/README.md](clients/ios/README.md). In the app's
