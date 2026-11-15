@@ -7,7 +7,7 @@ struct BackendClient {
     var transport: URLSession = .shared
     static func baseURL(_ text: String) -> URL? {
         guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
-              url.scheme == "https", url.host != nil, url.user == nil, url.password == nil,
+              isAllowedBackendScheme(url), url.host != nil, url.user == nil, url.password == nil,
               url.query == nil, url.fragment == nil else { return nil }
         return url
     }

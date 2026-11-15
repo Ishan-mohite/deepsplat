@@ -28,7 +28,7 @@ from inspection.severity import max_severity, severity
 from localization.alignment import alignment_from_frame_poses
 from localization.cameras import Frame, Intrinsics, c2w_to_tq
 from localization.frames import select_frames
-from localization.vps import get_vps
+from localization.vps import get_vps, multi_frame_confidence
 
 from .config import settings
 from .db import engine
@@ -179,7 +179,7 @@ def _localize(m: Map | None, photo: Frame, frames: list[Frame], map_pose, map_po
         ok = [(f, r) for f, r in zip(frames, res) if r is not None]
         if ok:
             al = alignment_from_frame_poses([f.c2w for f, _ in ok], [r.c2w for _, r in ok])
-            conf = al["confidence"] * float(np.mean([r.confidence for _, r in ok]))
+            conf = multi_frame_confidence(al["confidence"], [r.num_inliers for _, r in ok])
             T = np.asarray(al["matrix"])
             return {"method": "vps_frames", "confidence": round(conf, 3),
                     "camera": photo.camera_dict(T @ photo.c2w), "alignment": al,

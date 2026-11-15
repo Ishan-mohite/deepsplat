@@ -97,3 +97,21 @@ def get_vps() -> VPS | None:
 
 def confidence_from_inliers(num_inliers: int, full: int = 150) -> float:
     return round(min(1.0, num_inliers / full), 3)
+
+
+# A single photo has nothing to cross-check it, so its score stays inlier-based (above).
+# A multi-frame capture IS cross-checked: independent frames must agree with the device's own tracking
+# (localization/alignment.py). Held-out benchmark on the scan (tools/eval_vps.py): every returned pose
+# was correct even at 15+ inliers, while phone frames match the scan with ~40-140 inliers, so requiring
+# 150 per frame rejected consistent, correct captures. The agreement is the strong signal; inliers only
+# need to clear a modest floor.
+MULTI_FRAME_INLIERS_FULL = 40
+
+
+def multi_frame_confidence(agreement: float, inlier_counts: list[int]) -> float:
+    """agreement (0..1, share of frames consistent with the consensus, 0 if < 3 agree) x inlier floor."""
+    if not inlier_counts:
+        return 0.0
+    med = sorted(inlier_counts)[len(inlier_counts) // 2] if len(inlier_counts) % 2 else \
+        (sorted(inlier_counts)[len(inlier_counts) // 2 - 1] + sorted(inlier_counts)[len(inlier_counts) // 2]) / 2
+    return round(agreement * min(1.0, med / MULTI_FRAME_INLIERS_FULL), 3)

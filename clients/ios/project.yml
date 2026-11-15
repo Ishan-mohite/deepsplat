@@ -36,6 +36,9 @@ targets:
         NSCameraUsageDescription: Camera is used to record inspection videos and photos.
         NSLocationWhenInUseUsageDescription: Location is used as a hint to find the right map.
         NSMotionUsageDescription: Motion measurements are recorded alongside inspection frames.
+        NSLocalNetworkUsageDescription: Used to reach a backend on your local network during testing.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UIRequiredDeviceCapabilities: [arkit]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIFileSharingEnabled: true

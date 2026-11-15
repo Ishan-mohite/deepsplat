@@ -144,6 +144,14 @@ final class CoreTests: XCTestCase {
         let valid = try JSONDecoder().decode(UploadTicket.self, from: Data(#"{"upload_url":"https://storage.googleapis.com/bucket/key?signature=abc","expires_at":"2026-11-14T23:00:00Z"}"#.utf8))
         XCTAssertNoThrow(try valid.validate())
     }
+    func testPlainHTTPOnlyForPrivateNetworkHosts() throws {
+        for url in ["http://192.168.1.20:8000", "http://172.24.1.28:8000", "http://10.0.0.5", "http://mac.local:8000", "https://example.com"] {
+            XCTAssertTrue(isAllowedBackendScheme(URL(string: url)!), url)
+        }
+        for url in ["http://example.com", "http://8.8.8.8", "http://172.32.0.1", "http://192.169.0.1", "ftp://192.168.1.1"] {
+            XCTAssertFalse(isAllowedBackendScheme(URL(string: url)!), url)
+        }
+    }
     func testQueueOrderingPersistenceAndConfirmationRecovery() throws {
         let id = UUID()
         var old = UploadRecord(id: id, mapID: "room", createdUnix: 1)
