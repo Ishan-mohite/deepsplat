@@ -8,6 +8,22 @@ from typing import BinaryIO, Protocol
 from .config import settings
 
 
+def _delete_key(key: str) -> str:
+    """Deletion always targets one relative object or directory, never the store root."""
+    if not key or key.startswith("/") or "\\" in key or any(p in ("", ".", "..") for p in key.split("/")):
+        raise ValueError(f"invalid deletion key {key!r}")
+    return key
+
+
+def _delete_path(root: Path, key: str) -> Path:
+    path = root.resolve()
+    for part in _delete_key(key).split("/"):
+        path = path / part
+        if path.is_symlink():
+            raise ValueError(f"refusing to delete through a symlink: {key!r}")
+    return path
+
+
 class Storage(Protocol):
     def put_bytes(self, key: str, data: bytes, content_type: str | None = None) -> None: ...
     def put_file(self, key: str, fileobj: BinaryIO, content_type: str | None = None) -> int: ...
@@ -16,6 +32,8 @@ class Storage(Protocol):
     def url(self, key: str) -> str: ...                  # GET URL for clients
     def upload_url(self, key: str, content_type: str) -> tuple[str, datetime]: ...   # PUT URL
     def list_keys(self, prefix: str) -> list[str]: ...
+    def delete(self, key: str) -> bool: ...  # True if deleted, False if already missing
+    def delete_prefix(self, prefix: str) -> int: ...  # directory boundary; count deleted objects
 
 
 class LocalStorage:
@@ -60,6 +78,24 @@ class LocalStorage:
     def upload_url(self, key, content_type):
         # served by PUT /v1/uploads/{key} (local development stand-in for a GCS signed URL)
         return f"{self.base_url}/v1/uploads/{key}", datetime.now(UTC) + timedelta(hours=1)
+
+    def delete(self, key):
+        path = _delete_path(self.root, key)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        return True
+
+    def delete_prefix(self, prefix):
+        base = _delete_path(self.root, prefix.removesuffix("/"))
+        if not base.exists():
+            return 0
+        if not base.is_dir():
+            return 0
+        count = sum(p.is_file() for p in base.rglob("*"))
+        shutil.rmtree(base)
+        return count
 
 
 class GCSStorage:
@@ -114,6 +150,29 @@ class GCSStorage:
     def upload_url(self, key, content_type):
         expires = timedelta(hours=1)
         return self._sign(key, "PUT", expires, content_type), datetime.now(UTC) + expires
+
+    def delete(self, key):
+        from google.api_core.exceptions import NotFound
+
+        key = _delete_key(key)
+        cache_path = _delete_path(self.cache, key)
+        try:
+            self.bucket.blob(key).delete()
+            deleted = True
+        except NotFound:
+            deleted = False
+        cache_path.unlink(missing_ok=True)
+        return deleted
+
+    def delete_prefix(self, prefix):
+        key = _delete_key(prefix.removesuffix("/"))
+        # Always include the slash: captures/abc must never match captures/abcd.
+        cache_path = _delete_path(self.cache, key)
+        count = sum(self.delete(k) for k in self.list_keys(f"{key}/"))
+        # Remove stale cached files too, including objects already absent from GCS.
+        if cache_path.exists():
+            shutil.rmtree(cache_path)
+        return count
 
 
 class StorageIndexSync:

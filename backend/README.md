@@ -150,6 +150,10 @@ Synchronous; returns the processed capture with its observations.
 
 ## Outputs for the viewer
 
+* `DELETE /captures/{id}` (bearer token when configured) removes a finished capture's photo,
+  video frames, masks, overlays, uploaded ZIP and detection rows. Processing captures and captures
+  with evidence observations return 409. Missing captures return 404. Storage failures return 503;
+  the database record stays so deletion can be retried, even if some files were already removed.
 * `GET /maps/{id}` → `splat_url` and stats
 * `GET /maps/{id}/issues?type=&severity=high,critical&status=&source=robot&as_of=<date>` → issue pins with photo timelines (`as_of` = time slider)
 * `GET /issues/{issue_id}` → the record from README step 6:
