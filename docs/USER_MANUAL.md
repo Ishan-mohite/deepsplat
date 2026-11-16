@@ -4,7 +4,23 @@ How to use deepsplat, from scanning a space to working with the damage records. 
 `main` branch on 16 November 2026. How the system works inside is in the
 [technical documentation](TECHNICAL.md).
 
+```mermaid
+flowchart LR
+  A[Scan the space] --> B[Train the splat<br/>in Brush]
+  B --> C[Start the backend,<br/>register the map]
+  C --> D[Record a defect<br/>with the iPhone]
+  D --> E[Upload]
+  E --> F[Backend locates the photo,<br/>finds the damage,<br/>files a record]
+  F --> G[Look at it in the viewer:<br/>dashboard, 3D twin,<br/>issues, captures]
+```
+
+The first three steps are done once per space. Recording and looking at the results repeat for
+every inspection.
+
 Open the part that matches what you are doing. Each part stands on its own.
+
+The screenshots show the viewer with the project's auditorium scan and two test records. The
+animation in the recording part is a drawn illustration, not a recording of the app.
 
 | You are… | Open |
 |---|---|
@@ -214,6 +230,10 @@ find devices on the local network; allow it.
 <details>
 <summary><strong>Record a defect</strong></summary>
 
+![Animated top view: the phone starts a few metres from the wall, moves slowly towards the damage while frames are saved, takes the crack photo, then stops](img/recording-sweep.gif)
+
+*Illustration of one capture, seen from above.*
+
 1. On the home screen tap **Record defect**. Allow camera access when asked.
 2. Wait until the pill at the top says **Tracking ready**.
 3. Stand a few metres away from the damage and tap **Start recording**.
@@ -314,6 +334,8 @@ are UTC.
 <details>
 <summary><strong>Follow a capture after upload (Captures tab)</strong></summary>
 
+![Captures tab with three captures, each with its five steps and its result](img/viewer-captures.png)
+
 Every upload appears here within a few seconds, newest first, and moves through five steps:
 
 **Uploaded → Localized (VPS) → Segmented (SAM 3) → Placed in 3D → Matched to issues**
@@ -330,6 +352,8 @@ How it can end:
 | Stopped … · image quality: blurry / too_dark | Photo held back | Retake |
 | Stopped … with another message | Processing failed, for example the detection service did not answer | Upload again, or ask the operator |
 
+![Details of one capture: the damage photo, the switch to the SAM 3 detections and the list of detections](img/viewer-capture-details.png)
+
 Click a capture for its details: the photo with the detections drawn in, each video frame, how it
 was located, image sharpness and brightness, and the upload's checksum.
 
@@ -342,6 +366,8 @@ evidence log.
 <details>
 <summary><strong>Overview (Dashboard tab)</strong></summary>
 
+![Dashboard: floor map of the auditorium with two issue pins, the four figures, records per month, issues by status and latest records](img/viewer-dashboard.png)
+
 * **Floor map** of the scan with a pin for every issue: rust = open, blue = repaired. Click a
   labelled pin to open the issue in 3D.
 * **Open issues**, **Repaired this year**, **Days to repair, avg.**, **Records at this site**.
@@ -352,6 +378,8 @@ evidence log.
 
 <details>
 <summary><strong>Look at an issue in 3D (3D twin tab)</strong></summary>
+
+![3D twin: the scan with the pin of ISS-0007, the layer panel on the left, the issue panel on the right and the time slider at the bottom](img/viewer-3d-twin.png)
 
 **Moving:** drag to orbit, right-drag to pan, scroll to zoom. **Reset view** shows the whole scan,
 **Top view** looks straight down. Esc clears the selection.
@@ -386,6 +414,8 @@ severity colour. Click a pin to open the issue on the right.
 
 <details>
 <summary><strong>Find an issue (Issues tab)</strong></summary>
+
+![Issues tab: table with two cracks, their severity, status, size and last record](img/viewer-issues.png)
 
 A table of all issues: ID, type, severity, status, latest size, number of records, last seen.
 
