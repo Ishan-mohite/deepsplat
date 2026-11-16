@@ -4,14 +4,16 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.BackoffPolicy
-import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
@@ -51,19 +53,41 @@ class Uploads(private val context: Context, private val settings: SettingsReposi
             it.copy(queued = true, backendUrl = if (it.hasUploadedBytes && it.backendUrl.isNotEmpty()) it.backendUrl else backend,
                 wifiOnly = s.wifiOnly, error = null, status = if (it.status == UploadStatus.FAILED) UploadStatus.SAVED else it.status)
         }
-        schedule(id, s.wifiOnly)
+        schedule(id, ExistingWorkPolicy.KEEP)
         return null
     }
 
-    private fun schedule(id: String, wifiOnly: Boolean) {
+    private fun schedule(id: String, policy: ExistingWorkPolicy) {
+        // No network constraint: JobScheduler only counts networks with verified internet, so uploads to a
+        // backend on an offline Wi-Fi would never start. The worker retries on its own instead.
         val request = OneTimeWorkRequestBuilder<UploadWorker>()
             .setInputData(workDataOf("id" to id))
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED).build())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .addTag(TAG)
             .build()
-        work.enqueueUniqueWork("upload-$id", ExistingWorkPolicy.KEEP, request)
+        work.enqueueUniqueWork("upload-$id", policy, request)
+    }
+
+    /** Waiting or failed uploads start again now (backend came back, Wi-Fi joined) instead of after their back-off. */
+    fun retryNow() {
+        for (r in store.records.value) {
+            if (r.queued && r.status != UploadStatus.UPLOADED && r.status != UploadStatus.UPLOADING) schedule(r.id, ExistingWorkPolicy.REPLACE)
+        }
+    }
+
+    private fun watchNetworks() {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
+        val request = NetworkRequest.Builder()
+            .removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+            .build()
+        runCatching {
+            cm.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = retryNow()
+            })
+        }
     }
 
     fun cancel(id: String) {
@@ -76,8 +100,9 @@ class Uploads(private val context: Context, private val settings: SettingsReposi
     fun restore() {
         store.recoverFromDisk()
         for (r in store.records.value) {
-            if (r.queued && r.status != UploadStatus.UPLOADED) schedule(r.id, r.wifiOnly)
+            if (r.queued && r.status != UploadStatus.UPLOADED) schedule(r.id, ExistingWorkPolicy.KEEP)
         }
+        watchNetworks()
     }
 
     /** Polls processing status while [scope] is alive (the app is on screen). */
@@ -137,6 +162,10 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val record = store[id] ?: return@withContext Result.success()
         if (record.status == UploadStatus.UPLOADED || !record.queued) return@withContext Result.success()
+        if (record.wifiOnly && !LocalNetwork.hasWifi()) {
+            store.update(id) { it.copy(status = UploadStatus.SAVED, stage = UploadStage.WAITING) }
+            return@withContext Result.retry()
+        }
         val token = graph.settings.token(record.backendUrl)
         store.update(id) { it.copy(status = UploadStatus.UPLOADING, stage = UploadStage.PREPARING, error = null, attempts = it.attempts + 1) }
         try {

@@ -49,6 +49,11 @@ release APK to about 3 MB. Bump `versionCode` / `versionName` in `app/build.grad
 3. Choose the **site**. The list comes from `GET /maps`. "Placement ready" means the map has a localization
    index (views.zip); without one, captures upload but cannot be placed.
 
+Works without internet: the phone only talks to the backend on the local network. Requests to a local
+backend are bound to the Wi-Fi even when Android prefers mobile data on a Wi-Fi without internet, and uploads
+do not wait for Android's internet check. ARCore ("Google Play Services for AR") has to be installed once;
+tracking itself runs on the phone.
+
 Plain `http://` is only accepted for private-network hosts (10.x, 172.16–31.x, 192.168.x, 169.254.x,
 127.x, localhost, *.local), the same rule as the iPhone app. Everything else needs `https://`.
 

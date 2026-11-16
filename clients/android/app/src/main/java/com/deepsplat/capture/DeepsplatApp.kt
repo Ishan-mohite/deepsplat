@@ -19,6 +19,7 @@ class DeepsplatApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.deepsplat.capture.data.LocalNetwork.context = applicationContext
         graph = AppGraph(this)
         graph.uploads.restore()
     }

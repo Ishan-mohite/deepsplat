@@ -67,8 +67,11 @@ private data class CaptureOut(
 data class CaptureResult(val findings: List<Finding>, val overlayUrl: String?)
 
 /** The /v1 capture contract (clients/ios/BACKEND.md) plus the read-only endpoints the app shows. */
-class BackendClient(baseUrl: String, private val token: String, private val http: OkHttpClient = defaultHttp) {
+class BackendClient(baseUrl: String, private val token: String, network: android.net.Network? = LocalNetwork.forUrl(baseUrl)) {
     private val base: HttpUrl = baseUrl.toHttpUrlOrNull() ?: throw BackendException("Invalid backend address.")
+    // Bound to the local Wi-Fi when the backend is on it, so requests work on networks without internet.
+    private val http: OkHttpClient = network?.let { defaultHttp.bindTo(it) } ?: defaultHttp
+    private val uploadClient: OkHttpClient = network?.let { uploadHttp.bindTo(it) } ?: uploadHttp
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     private val jsonType = "application/json".toMediaType()
 
@@ -133,7 +136,7 @@ class BackendClient(baseUrl: String, private val token: String, private val http
     /** PUT the zip to the signed URL. The bearer token is never sent to storage. */
     fun upload(url: String, zip: File, onProgress: (Float) -> Unit) {
         val request = Request.Builder().url(url).put(ProgressBody(zip, "application/zip".toMediaType(), onProgress)).build()
-        uploadHttp.newCall(request).execute().use { r ->
+        uploadClient.newCall(request).execute().use { r ->
             if (!r.isSuccessful) throw BackendException("Storage upload failed (HTTP ${r.code}). A fresh upload address will be requested.", r.code)
         }
     }
@@ -160,6 +163,9 @@ class BackendClient(baseUrl: String, private val token: String, private val http
     }
 
     companion object {
+        private fun OkHttpClient.bindTo(n: android.net.Network): OkHttpClient =
+            newBuilder().socketFactory(n.socketFactory).dns(object : okhttp3.Dns { override fun lookup(hostname: String) = n.getAllByName(hostname).toList() }).build()
+
         val defaultHttp: OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(30, TimeUnit.SECONDS)
             .followRedirects(false).followSslRedirects(false)

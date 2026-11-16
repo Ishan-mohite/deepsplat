@@ -105,6 +105,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit) {
                 }
             }
             maps = withContext(Dispatchers.IO) { runCatching { c.maps() }.getOrNull() }
+            if (conn == Conn.OK) graph.uploads.retryNow()
         }
     }
 

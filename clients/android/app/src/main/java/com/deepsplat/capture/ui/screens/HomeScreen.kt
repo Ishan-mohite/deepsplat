@@ -92,7 +92,9 @@ fun HomeScreen(graph: AppGraph, onRecord: () -> Unit, onOpen: (String) -> Unit, 
     LaunchedEffect(settings.backendUrl, tick) {
         val url = normalizeBackendUrl(settings.backendUrl) ?: run { online = null; return@LaunchedEffect }
         while (true) {
+            val was = online
             online = withContext(Dispatchers.IO) { runCatching { BackendClient(url, "").health().ok }.getOrDefault(false) }
+            if (online == true && was != true) graph.uploads.retryNow() // backend back: don't wait for the back-off
             delay(20_000)
         }
     }
