@@ -23,8 +23,8 @@ data class FrameRecord(
     val file: String,
     /** Seconds on the capture's time base (see [CaptureManifest.timeBase]). */
     val t: Double,
-    /** Camera to world, row-major 4x4, OpenGL camera axes (+X right, +Y up, looking along -Z). */
-    @SerialName("camera_to_world") val cameraToWorld: List<Float>,
+    /** Camera to world, row-major 4x4, OpenGL camera axes (+X right, +Y up, looking along -Z). Null for imported videos. */
+    @SerialName("camera_to_world") val cameraToWorld: List<Float>?,
     val intrinsics: Intrinsics,
     @SerialName("interface_orientation") val interfaceOrientation: String = "portrait",
     @SerialName("tracking_state") val trackingState: String,
@@ -66,7 +66,11 @@ data class CaptureManifest(
     @SerialName("created_unix") val createdUnix: Double,
     val device: String,
     val platform: String = "android",
-    @SerialName("os_version") val osVersion: String,
+    /** "arcore" for recorded captures, "video_import" for test videos from the gallery (no tracking, estimated intrinsics). */
+    val source: String = "arcore",
+    @SerialName("os_version") val osVersion: String = "",
+    /** Set in captures from the iPhone app (imported zips). */
+    @SerialName("ios_version") val iosVersion: String? = null,
     @SerialName("app_version") val appVersion: String,
     @SerialName("time_base") val timeBase: String = TIME_BASE,
     @SerialName("uptime_to_unix_offset") val uptimeToUnixOffset: Double,
@@ -83,7 +87,8 @@ data class CaptureManifest(
             video.durationS < 0 || !createdUnix.isFinite() || !uptimeToUnixOffset.isFinite()
         ) fail("Capture is missing its map, frames or time base.")
         for (frame in video.frames + photo) {
-            Pose.requireValid(frame.cameraToWorld)
+            val pose = frame.cameraToWorld
+            if (pose != null) Pose.requireValid(pose) else if (source == "arcore") fail("Recorded frames need a pose.")
             val k = frame.intrinsics
             if (!frame.t.isFinite() || k.width <= 0 || k.height <= 0 || k.fx <= 0f || k.fy <= 0f ||
                 !k.cx.isFinite() || !k.cy.isFinite() || frame.interfaceOrientation != "portrait"

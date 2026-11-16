@@ -7,3 +7,6 @@ keystore.properties
 .idea/
 *.iml
 captures/
+
+# The repo root ignores data/ (runtime data); this is source code.
+!app/src/main/java/com/deepsplat/capture/data/

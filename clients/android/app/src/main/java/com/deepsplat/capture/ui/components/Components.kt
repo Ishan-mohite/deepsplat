@@ -130,19 +130,6 @@ fun DsCard(
 }
 
 /** Panel over the dark viewport: --vp-2 with a --vp-line border. */
-@Composable
-fun VpPanel(modifier: Modifier = Modifier, shape: androidx.compose.ui.graphics.Shape = Ds.rCard, padding: PaddingValues = PaddingValues(Ds.s5), content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier.clip(shape).background(Ds.vp2.copy(alpha = 0.94f)).border(1.dp, Ds.vpLine, shape).padding(padding),
-        content = content,
-    )
-}
-
-@Composable
-fun Eyebrow(text: String, modifier: Modifier = Modifier, color: Color = Ds.blue) {
-    Text(text.uppercase(), modifier, style = DsType.eyebrow, color = color)
-}
-
 enum class Tone { LIVE, INFO, SELECTED, WARN, ATTENTION, NEUTRAL }
 
 /** ds-chip / ds-status: glyph plus label on a soft pill. Never colour alone. */
@@ -188,29 +175,7 @@ fun PulseDot(color: Color, size: Dp = 7.dp) {
     Box(Modifier.size(size).alpha(a).clip(CircleShape).background(color))
 }
 
-@Composable
-fun Kpi(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color = Ds.ink, onDark: Boolean = false) {
-    Column(modifier) {
-        Text(label, style = DsType.label, color = if (onDark) Ds.vpMuted else Ds.ink2)
-        Spacer(Modifier.height(6.dp))
-        Text(value, style = DsType.kpi.copy(fontSize = DsType.kpi.fontSize * 0.8f), color = valueColor)
-    }
-}
-
 /** ds-nav: segmented pills, the current item ink with white text. */
-@Composable
-fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.clip(Ds.rPill).background(Ds.paper2).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        options.forEachIndexed { i, o ->
-            val on = i == selected
-            Box(
-                Modifier.clip(Ds.rPill).background(if (on) Ds.ink else Color.Transparent)
-                    .clickable(role = Role.Tab) { onSelect(i) }.padding(horizontal = 14.dp, vertical = 8.dp),
-            ) { Text(o, style = DsType.label, color = if (on) Color.White else Ds.ink2) }
-        }
-    }
-}
-
 /** Pick reticle: 2 dp ring, four short ticks, centre dot. */
 @Composable
 fun Reticle(modifier: Modifier = Modifier, color: Color = Ds.pick, active: Boolean = false) {
@@ -276,9 +241,9 @@ fun DsTextField(
 
 @Composable
 fun SettingSwitch(title: String, detail: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(role = Role.Switch) { onChange(!checked) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(role = Role.Switch) { onChange(!checked) }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = DsType.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), color = Ds.ink)
+            Text(title, style = DsType.body, color = Ds.ink)
             if (detail != null) Text(detail, style = DsType.bodyS, color = Ds.ink2)
         }
         Spacer(Modifier.width(12.dp))
@@ -295,15 +260,6 @@ fun SettingSwitch(title: String, detail: String?, checked: Boolean, onChange: (B
 @Composable
 fun Divider(modifier: Modifier = Modifier, color: Color = Ds.line) {
     Box(modifier.fillMaxWidth().height(1.dp).background(color))
-}
-
-@Composable
-fun DetailRow(title: String, value: String, mono: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
-        Text(title, style = DsType.bodyS, color = Ds.ink2, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(16.dp))
-        Text(value, style = if (mono) DsType.mono.copy(fontSize = DsType.bodyS.fontSize) else DsType.bodyS, color = Ds.ink)
-    }
 }
 
 @Composable

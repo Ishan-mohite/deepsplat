@@ -55,4 +55,4 @@ fun CapturePhoto(file: File, modifier: Modifier = Modifier, maxSide: Int = 240, 
 }
 
 @Composable
-fun Thumb(file: File, modifier: Modifier = Modifier) = CapturePhoto(file, modifier.size(64.dp).clip(Ds.rSm))
+fun Thumb(file: File, modifier: Modifier = Modifier) = CapturePhoto(file, modifier.clip(Ds.rSm), maxSide = 160)

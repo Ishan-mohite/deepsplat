@@ -20,6 +20,7 @@ echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 ./gradlew assembleDebug                 # app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ./gradlew testDebugUnitTest lintDebug   # contract, geometry, zip and HTTP tests
+./gradlew testDebugUnitTest -Pscreens   # UI screenshots without a phone: app/build/screens
 ```
 
 The phone needs ARCore support ("Google Play Services for AR"; the app asks to install it on first start).
@@ -64,6 +65,17 @@ Plain `http://` is only accepted for private-network hosts (10.x, 172.16–31.x,
    backend's detection overlay.
 
 At 20 s (configurable) the app takes the photo automatically if there is none yet and stops.
+
+## Test imports
+
+The import button on the home screen (next to Settings) adds captures that were not recorded on this phone.
+They upload to the site chosen in Settings like any other capture.
+
+- **Capture zip**: a zip in the iPhone app's format, with or without the `<capture_id>/` folder. The files stay
+  byte for byte as recorded (frames, poses, IMU, photo), so the backend gets exactly what the iPhone sent.
+- **Video** from the gallery: frames at the recording frame rate, the sharpest frame becomes the photo. A plain
+  video has no tracking, so frames carry no pose (`camera_to_world: null`, `source: "video_import"`) and the
+  backend localizes the photo on its own (`vps_photo`). Intrinsics are estimated (fx = 0.76 × long side).
 
 ## Data contract (same as iOS)
 
