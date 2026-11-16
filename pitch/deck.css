@@ -178,12 +178,20 @@ h3 { margin: 0; font: 600 36px/1.15 var(--font-display); letter-spacing: -.015em
 .t-cap { position: absolute; right: 120px; top: 962px; margin: 0; font-size: 20px; color: var(--muted); }
 
 /* 2 · Problem ---------------------------------------------------------------------- */
-.qs { position: absolute; left: 120px; top: 470px; margin: 0; padding: 0; list-style: none; }
-.qs li { display: flex; align-items: center; gap: 28px; margin: 0 0 34px; font: 600 62px/1 var(--font-display); letter-spacing: -.02em; }
-.qs li i { flex: none; width: 64px; height: 64px; border-radius: 50%; background: var(--rust); color: #fff; font: 600 38px/64px var(--font-display); text-align: center; font-style: normal; }
-.nogps { position: absolute; left: 120px; top: 858px; margin: 0; font: 400 34px/1.3 var(--font-body); color: var(--ink-2); }
+.qs { position: absolute; left: 120px; top: 410px; margin: 0; padding: 0; list-style: none; }
+.qs li { display: flex; align-items: center; gap: 26px; margin: 0 0 26px; font: 600 56px/1 var(--font-display); letter-spacing: -.02em; }
+.qs li i { flex: none; width: 58px; height: 58px; border-radius: 50%; background: var(--rust); color: #fff; font: 600 34px/58px var(--font-display); text-align: center; font-style: normal; }
+.nogps { position: absolute; left: 120px; top: 674px; margin: 0; font: 400 34px/1.3 var(--font-body); color: var(--ink-2); }
 .nogps b { color: var(--ink); font-weight: 600; }
-.fan { position: absolute; left: 980px; top: 150px; width: 840px; height: 820px; }
+.fan { position: absolute; left: 980px; top: 120px; width: 840px; height: 820px; transform: scale(.76); transform-origin: 100% 0; }
+/* Why it matters: the three reasons, highlighted across the bottom */
+.why { position: absolute; left: 120px; top: 812px; width: 1680px; }
+.why .eyebrow { color: var(--rust); margin-bottom: 14px; }
+.why__row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.why__card { display: grid; grid-template-columns: 72px 1fr; gap: 22px; align-items: center; height: 130px; padding: 0 32px;
+  background: var(--rust-soft); border: 2px solid var(--rust); border-radius: 22px; }
+.why__card svg { width: 72px; height: 72px; fill: none; stroke: var(--rust); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.why__card h3 { font-size: 52px; line-height: 1; color: var(--rust); }
 .ph {
   position: absolute; margin: 0; width: 520px; padding: 14px 14px 0; background: var(--card); border: 1px solid var(--line);
   border-radius: 22px; box-shadow: 0 18px 40px rgba(23, 32, 51, .13);
@@ -286,6 +294,7 @@ h3 { margin: 0; font: 600 36px/1.15 var(--font-display); letter-spacing: -.015em
 .team h3 { display: inline-flex; align-items: center; gap: 12px; font-size: 36px; }
 .team .flag { height: 26px; width: auto; border-radius: 4px; box-shadow: 0 0 0 1px var(--line-2); }
 .team p { margin: 8px 0 0; font: 400 19px/1.2 var(--font-mono); color: var(--muted); }
+.team p.deg { margin-top: 10px; font: 600 22px/1.2 var(--font-body); color: var(--blue); }
 .tagline { position: absolute; left: 120px; top: 792px; margin: 0; font: 600 62px/1.1 var(--font-display); letter-spacing: -.025em; }
 .close-logo { position: absolute; right: 112px; top: 812px; width: 470px; }
 .close-logo svg { display: block; width: 100%; height: auto; }
@@ -294,3 +303,24 @@ h3 { margin: 0; font: 600 36px/1.15 var(--font-display); letter-spacing: -.015em
 html.export, html.export body, html.export #stage { background: transparent !important; }
 html.export #hint, html.export #timer, html.export #notes { display: none !important; }
 html.export .pin3d .halo, html.export .bot3d::before { display: none; }
+
+/* Drones: the simulation clip pops out of the chip */
+.chip--drone { transition: background-color .4s ease, color .4s ease, border-color .4s ease; }
+#next[data-at="2"] .chip--drone { background: var(--blue); border-color: var(--blue); color: #fff; }
+.vpop {
+  position: absolute; left: 700px; top: 384px; width: 1000px; margin: 0; z-index: 2; padding: 14px 14px 0; background: var(--card);
+  border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 24px 60px rgba(23, 32, 51, .28);
+  opacity: 0; transform: translate(var(--fx, -600px), var(--fy, 300px)) scale(.08); transform-origin: 50% 50%;
+  transition: opacity .35s ease, transform .75s var(--ease-out);
+}
+.vpop.on { opacity: 1; transform: none; }
+#next .legend { transition: opacity .4s ease, transform .95s var(--ease-out) var(--d, 0s); }
+#next[data-at="2"] .legend.on { opacity: 0; }
+.vpop.closed { opacity: 0; transform: translate(var(--fx, -600px), var(--fy, 300px)) scale(.08); transition: opacity .5s ease .15s, transform .6s var(--ease); }
+.vpop video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; background: #111; }
+.vpop figcaption { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px 6px 16px; font: 400 23px/1.2 var(--font-body); color: var(--ink-2); }
+.vpop figcaption b { color: var(--blue); font-weight: 600; }
+.vpop figcaption .mono { font-size: 19px; color: var(--muted); white-space: nowrap; }
+html.export .vpop video { visibility: hidden; }
+html.export #next[data-at="2"] .chip--drone { background: var(--card); border-color: var(--line-2); color: var(--ink); }
+html.export #next[data-at="2"] .legend.on { opacity: 1; }

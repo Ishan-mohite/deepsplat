@@ -20,6 +20,19 @@ The demo video on slide 4 starts by itself and moves on to slide 5 when it ends.
 
 Chrome is the tested browser. Without WebGL the point cloud is drawn on a plain canvas instead.
 
+## PowerPoint version
+
+`2026_11_16__deepsplat_jury_pitch_v9.pptx` has the same slides, click steps and animations, both videos
+embedded (the demo starts by itself, the drone clip plays on its click) and the script in the notes. It is built
+from this page, so slide text in it is a picture. After changing `index.html`, build it again:
+
+```bash
+python3 pitch/tools/build_pptx.py pitch/2026_11_16__deepsplat_jury_pitch_v9.pptx
+```
+
+It needs `google-chrome`, `ffmpeg` and Pillow. It has not been opened in PowerPoint here, so open it once on the
+laptop that will present it. Unlike the browser, the drone popup stays open after the clip ends.
+
 ## Change the video
 
 `assets/pipeline.mp4` is the Drift export (`~/Videos/Drift/deepsplat/deepsplat-pipeline.mp4`) cut at 57.9 s and

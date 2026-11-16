@@ -40,7 +40,7 @@
   </section>
 
   <!-- 2 · Problem -->
-  <section class="slide" id="problem" data-steps="2">
+  <section class="slide" id="problem" data-steps="3">
     <header class="head">
       <p class="eyebrow" data-a="rise" data-layer="eyebrow">The problem</p>
       <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">Today, a crack<br>is just a photo.</h1>
@@ -67,6 +67,23 @@
       <span class="stamp st1" data-a="pop" data-step="2" data-layer="st1" data-pa="zoom">No GPS</span>
       <span class="stamp st2" data-a="pop" data-step="2" style="--d:.15s" data-layer="st2" data-pa="zoom">No GPS</span>
       <span class="stamp st3" data-a="pop" data-step="2" style="--d:.3s" data-layer="st3" data-pa="zoom">No GPS</span>
+    </div>
+    <div class="why">
+      <p class="eyebrow eyebrow--sm" data-a="rise" data-step="3" data-layer="why-eyebrow">Why it matters</p>
+      <div class="why__row">
+        <article class="why__card" data-a="rise" data-step="3" style="--d:.1s" data-layer="why1">
+          <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.4-3 8.2-7 9.5-4-1.3-7-5.1-7-9.5V6z"/><path d="M12 8l-1.5 3.5 2.5 1-1.5 3.5"/></svg>
+          <h3>Safety</h3>
+        </article>
+        <article class="why__card" data-a="rise" data-step="3" style="--d:.3s" data-layer="why2">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M14.8 9.2c-.6-.8-1.6-1.2-2.8-1.2-1.6 0-2.8.8-2.8 2s1.2 1.7 2.8 2 2.8.8 2.8 2-1.2 2-2.8 2c-1.2 0-2.3-.5-2.9-1.3M12 6.5V8M12 16v1.5"/></svg>
+          <h3>Cost</h3>
+        </article>
+        <article class="why__card" data-a="rise" data-step="3" style="--d:.5s" data-layer="why3">
+          <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 14l2 2 3.5-4"/></svg>
+          <h3>Proof</h3>
+        </article>
+      </div>
     </div>
   </section>
 
@@ -163,7 +180,7 @@
   </section>
 
   <!-- 7 · Next -->
-  <section class="slide" id="next" data-steps="1">
+  <section class="slide" id="next" data-steps="2">
     <div class="scene" id="sc-next">
       <canvas data-layer="cloud" data-pa="fade" data-pd="0.4"></canvas>
       <svg class="ov" id="route" data-a="fade" style="--d:.9s" data-layer="route" data-step="1" data-pa="fade" data-pd="0.9"><path class="route" id="route-path"/></svg>
@@ -184,7 +201,7 @@
       </div>
       <div class="grp" data-a="rise" data-step="1" style="--d:.5s" data-layer="g3">
         <p class="eyebrow eyebrow--sm">More robots</p>
-        <div class="chips"><span class="chip">Drones</span><span class="chip">Humanoids</span><span class="chip">Robot dogs</span><span class="chip">Wheeled robots</span></div>
+        <div class="chips"><span class="chip chip--drone" id="chip-drone">Drones</span><span class="chip">Humanoids</span><span class="chip">Robot dogs</span><span class="chip">Wheeled robots</span></div>
       </div>
       <div class="grp" data-a="rise" data-step="1" style="--d:.8s" data-layer="g4">
         <p class="eyebrow eyebrow--sm">More uses of the twin</p>
@@ -192,6 +209,10 @@
       </div>
     </div>
     <p class="legend" data-a="rise" data-step="1" style="--d:1.2s" data-layer="legend"><i></i>Robot-ready map <b>·</b> <span class="mono">39.8 m² drivable</span></p>
+    <figure class="vpop" id="vpop" data-step="2" data-layer="vpop" data-pa="zoom">
+      <video id="vid-drone" src="assets/drone-sim.mp4" muted playsinline preload="auto"></video>
+      <figcaption><span><b>Drones</b> · a landing task in our scan, in simulation</span><span class="mono">Isaac Sim · 10 s</span></figcaption>
+    </figure>
   </section>
 
   <!-- 8 · Team + close -->
@@ -201,12 +222,12 @@
       <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">Six people, six nationalities,<br>one map.</h1>
     </header>
     <ul class="team">
-      <li data-a="rise" style="--d:.55s" data-layer="m1"><img class="face" src="assets/img/team-ishan.png" alt=""><h3>Ishan <img class="flag" src="assets/img/flag-in.png" alt="India"></h3><p>TUHH Hamburg</p></li>
-      <li data-a="rise" style="--d:.65s" data-layer="m2"><img class="face" src="assets/img/team-pia.png" alt=""><h3>Pia <img class="flag" src="assets/img/flag-ph.png" alt="Philippines"></h3><p>ETH Zürich</p></li>
-      <li data-a="rise" style="--d:.75s" data-layer="m3"><img class="face" src="assets/img/team-fabian.png" alt=""><h3>Fabian <img class="flag" src="assets/img/flag-de.png" alt="Germany"></h3><p>TU Bergakademie Freiberg</p></li>
-      <li data-a="rise" style="--d:.85s" data-layer="m4"><img class="face" src="assets/img/team-han.png" alt=""><h3>Han <img class="flag" src="assets/img/flag-cn.png" alt="China"></h3><p>ETH Zürich</p></li>
-      <li data-a="rise" style="--d:.95s" data-layer="m5"><img class="face" src="assets/img/team-marc.png" alt=""><h3>Marc <img class="flag" src="assets/img/flag-ch.png" alt="Switzerland"></h3><p>ETH Zürich</p></li>
-      <li data-a="rise" style="--d:1.05s" data-layer="m6"><img class="face" src="assets/img/team-sep.png" alt=""><h3>Sep <img class="flag" src="assets/img/flag-it.png" alt="Italy"></h3><p>USI Lugano</p></li>
+      <li data-a="rise" style="--d:.55s" data-layer="m1"><img class="face" src="assets/img/team-ishan.png" alt=""><h3>Ishan <img class="flag" src="assets/img/flag-in.png" alt="India"></h3><p class="deg">MSc Mechatronics</p><p>TUHH Hamburg</p></li>
+      <li data-a="rise" style="--d:.65s" data-layer="m2"><img class="face" src="assets/img/team-pia.png" alt=""><h3>Pia <img class="flag" src="assets/img/flag-ph.png" alt="Philippines"></h3><p class="deg">MSc AI</p><p>ETH Zürich</p></li>
+      <li data-a="rise" style="--d:.75s" data-layer="m3"><img class="face" src="assets/img/team-fabian.png" alt=""><h3>Fabian <img class="flag" src="assets/img/flag-de.png" alt="Germany"></h3><p class="deg">MSc Robotics</p><p>TU Bergakademie Freiberg</p></li>
+      <li data-a="rise" style="--d:.85s" data-layer="m4"><img class="face" src="assets/img/team-han.png" alt=""><h3>Han <img class="flag" src="assets/img/flag-cn.png" alt="China"></h3><p class="deg">MSc AI &amp; Robotics</p><p>ETH Zürich</p></li>
+      <li data-a="rise" style="--d:.95s" data-layer="m5"><img class="face" src="assets/img/team-marc.png" alt=""><h3>Marc <img class="flag" src="assets/img/flag-ch.png" alt="Switzerland"></h3><p class="deg">MSc Electrical Engineering</p><p>ETH Zürich</p></li>
+      <li data-a="rise" style="--d:1.05s" data-layer="m6"><img class="face" src="assets/img/team-sep.png" alt=""><h3>Sep <img class="flag" src="assets/img/flag-it.png" alt="Italy"></h3><p class="deg">MSc AI</p><p>USI Lugano</p></li>
     </ul>
     <p class="tagline reveal" data-step="1" data-layer="tagline" data-pa="rise">One map. Every damage record<br>in its exact place.</p>
     <div class="close-logo" data-wordmark data-a="rise" data-step="1" style="--d:.6s" data-layer="logo" data-pa="fade"></div>

@@ -25,22 +25,22 @@
 
   /* Speaker notes: "▸" marks a click. Times are targets for a 4-minute pitch. */
   const NOTES = {
-    title: { name: 'Title', time: '0:00 – 0:12',
+    title: { name: 'Title', time: '0:00 – 0:10',
       say: 'Hi, we are deepsplat. This weekend we built a 3D damage map: scan a site once, and it flags what has changed.' },
-    problem: { name: 'Problem', time: '0:12 – 0:42',
-      say: 'Cracks are the early warning of structural damage. But today a crack is just a photo on someone’s phone. ▸ A month later nobody can say where exactly it was, whether it is new, or whether it is growing. ▸ And inside buildings, tunnels and car parks there is no GPS to help.' },
-    idea: { name: 'Idea', time: '0:42 – 1:08',
+    problem: { name: 'Problem', time: '0:10 – 0:50',
+      say: 'Today a crack is just a photo on someone’s phone. ▸ A month later nobody can say where exactly it was, whether it is new, or whether it is growing. ▸ And inside buildings, tunnels and car parks there is no GPS to help. ▸ Why it matters: safety, because cracks are the early sign of structural damage. Cost, because fixed early a crack is a small repair, not a failure. And proof: owners, insurers and authorities need records they can compare over time.' },
+    idea: { name: 'Idea', time: '0:50 – 1:12',
       say: 'Our idea: scan the site once into a photoreal 3D twin. ▸ From then on any camera, a phone today and a robot tomorrow, finds its own position inside that twin, without GPS. ▸ We detect the damage, pin it to its exact spot, measure it, and compare it with every earlier record of that spot.' },
-    demo: { name: 'Demo video (58 s, moves on by itself)', time: '1:08 – 2:06',
+    demo: { name: 'Demo video (58 s, moves on by itself)', time: '1:12 – 2:10',
       say: 'This is the real pipeline, recorded in the conference hall here in Leukerbad. One: a handheld scan becomes a Gaussian splat of the room. Two: an inspector spots damage. We taped paper cracks to the walls. Three: a ten-second sweep and one photo in our iPhone app. Four: upload. — Then it lands in the dashboard: two open issues on the floor map. In the 3D twin the crack sits exactly where it was photographed. SAM 3 found it, our own visual positioning placed it, and it measures 55 centimetres.' },
-    change: { name: 'Flag what has changed', time: '2:06 – 2:36',
+    change: { name: 'Flag what has changed', time: '2:10 – 2:36',
       say: 'And this is the challenge: flag what has changed. ▸ The next photo of this spot is matched to the same crack, within fifteen centimetres. If it is twenty percent longer, it is flagged as worsening. If it is gone, the map suggests repaired and a person confirms. A time slider shows the site on any date, and every issue goes into a PDF report.' },
-    proof: { name: 'Proof', time: '2:36 – 3:00',
+    proof: { name: 'Proof', time: '2:36 – 2:54',
       say: 'Everything you saw runs end to end: an iPhone app, a backend with our own visual positioning and SAM 3, a 3D viewer and reports. On held-out views of the scan, positioning is accurate to six millimetres, with zero wrong poses.' },
-    next: { name: 'What’s next', time: '3:00 – 3:28',
-      say: 'Next: more damage types and more sites: tunnels, car parks, bridges. ▸ And robots: drones, robot dogs, humanoids. From the same scan we already export a map a ground robot can navigate with. So the same twin serves inspection today, navigation next, and later training robot policies. Robots patrol, the map updates itself, people only confirm.' },
-    team: { name: 'Team and close', time: '3:28 – 3:50',
-      say: 'We are six people from six countries. ▸ deepsplat: one map, every damage record in its exact place. Thank you.' },
+    next: { name: 'What’s next (drone clip 10 s)', time: '2:54 – 3:36',
+      say: 'Next: more damage types and more sites: tunnels, car parks, bridges. ▸ And robots: drones, robot dogs, humanoids. From the same scan we export a map a ground robot can navigate with. ▸ Here a drone lands inside our scan, in simulation: the elevation map gives it its reward and a safe altitude. So the same twin serves inspection today, navigation and training robot policies next. Robots patrol, the map updates itself, people only confirm.' },
+    team: { name: 'Team and close', time: '3:36 – 3:55',
+      say: 'We are six people from six countries, studying robotics, AI, mechatronics and electrical engineering at ETH, TUHH, Freiberg and USI. ▸ deepsplat: one map, every damage record in its exact place. Thank you.' },
   };
 
   /* ------------------------------------------------------------------ helpers */
@@ -395,11 +395,53 @@
       s.assemble = 0; s.mix = 0; s.start();
       tween(s, 'assemble', 1, 2200, null, () => s.redraw());
       s.redraw();
+      dronePopup.reset();
     },
-    step(k, instant) { if (k === 1) tween(scenes['sc-next'], 'mix', 1, instant ? 0 : 1400, easeInOut, () => scenes['sc-next'].redraw()); },
-    back(st) { if (st < 1 && scenes['sc-next']) tween(scenes['sc-next'], 'mix', 0, 600, easeInOut); },
-    leave() { stopScene('sc-next'); },
+    step(k, instant) {
+      if (k === 1) tween(scenes['sc-next'], 'mix', 1, instant ? 0 : 1400, easeInOut, () => scenes['sc-next'].redraw());
+      if (k === 2) dronePopup.open();
+    },
+    back(st) {
+      if (st < 1 && scenes['sc-next']) tween(scenes['sc-next'], 'mix', 0, 600, easeInOut);
+      if (st < 2) dronePopup.reset();
+    },
+    leave() { stopScene('sc-next'); dronePopup.reset(); },
   };
+
+  /* Drones: the simulation clip pops out of the chip, plays once and goes back into it. */
+  const dronePopup = {
+    vid: $('#vid-drone'), box: $('#vpop'), timer: 0,
+    stage(el) {                                         // an element's box in stage pixels (the stage is scaled to the window)
+      const k = window.__k || 1, st = $('#stage').getBoundingClientRect(), r = el.getBoundingClientRect();
+      return { x: (r.left - st.left) / k, y: (r.top - st.top) / k, w: r.width / k, h: r.height / k };
+    },
+    layout() {
+      const chip = this.stage($('#chip-drone')), box = { x: 700, y: 384, w: 1000, h: 0 };
+      box.h = this.box.offsetHeight || 620;
+      const cx = chip.x + chip.w / 2, cy = chip.y + chip.h / 2;
+      this.box.style.setProperty('--fx', (cx - (box.x + box.w / 2)).toFixed(0) + 'px');
+      this.box.style.setProperty('--fy', (cy - (box.y + box.h / 2)).toFixed(0) + 'px');
+    },
+    open() {
+      clearTimeout(this.timer);
+      this.layout();
+      this.box.classList.remove('closed');
+      void this.box.offsetWidth;
+      this.box.classList.add('on');
+      if (INSTANT) return;
+      try { this.vid.currentTime = 0; } catch (e) { /* not loaded yet */ }
+      this.timer = setTimeout(() => { const p = this.vid.play(); if (p && p.catch) p.catch(() => {}); }, 450);
+    },
+    close() {
+      this.box.classList.add('closed');
+    },
+    reset() {
+      clearTimeout(this.timer);
+      this.vid.pause();
+      this.box.classList.remove('on', 'closed');
+    },
+  };
+  dronePopup.vid.addEventListener('ended', () => { if (slides[cur].id === 'next' && step === 2) dronePopup.timer = setTimeout(() => dronePopup.close(), 500); });
 
   /* ------------------------------------------------------------------ setup */
   function splitWords(el) {
@@ -447,6 +489,13 @@
         layers: $$('[data-layer]', s).map((el) => ({
           id: el.dataset.layer, step: stepOf(el), anim: el.dataset.pa || el.dataset.a || 'fade',
           delay: el.dataset.pd != null ? +el.dataset.pd : parseFloat(el.style.getPropertyValue('--d')) || 0,
+          clip: (() => {                                // a video inside the layer: its file and its box in stage pixels
+            const v = $('video', el);
+            if (!v) return null;
+            let x = 0, y = 0, n = v;
+            while (n && n !== s) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+            return { src: v.getAttribute('src'), box: [x, y, v.offsetWidth, v.offsetHeight] };
+          })(),
           text: el.tagName === 'CANVAS' ? 'Point cloud of the scanned conference hall'
             : (el.textContent || '').replace(/\s+/g, ' ').trim() || el.getAttribute('alt') || ($('img', el) || { alt: '' }).alt || '',
         })),
