@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>deepsplat · Jury pitch</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  /* Still-image modes (?instant, ?export, ?manifest) must be known before the first paint. */
+  (function () { var q = location.search, c = document.documentElement.classList; if (/[?&](instant|export|manifest)\b/.test(q)) c.add('instant'); if (/[?&]export\b/.test(q)) c.add('export'); })();
+</script>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+<!--
+  deepsplat jury pitch · 4 minutes · Track 2, Resilient & Safe City
+  Keys: → / Space / PageDown next · ← / PageUp back · F fullscreen · S speaker notes · T timer · B black screen · 1-8 jump
+-->
+<div id="stage">
+
+  <!-- 1 · Title -->
+  <section class="slide" id="title" data-steps="0" data-chrome="nobrand">
+    <div class="scene" id="sc-title">
+      <canvas data-layer="cloud" data-pa="fade" data-pd="0.2"></canvas>
+      <div class="pin3d" id="pin-title" data-layer="pin" data-pa="zoom" data-pd="2.4">
+        <div class="pin3d__in" data-a="pop" style="--d:2.7s">
+          <i class="halo"></i><i class="lead"></i><i class="dot"></i>
+          <span class="pill">Crack <b>·</b> 0.55 m <b>·</b> new</span>
+        </div>
+      </div>
+    </div>
+    <div class="t-word wm" data-wordmark data-a="none" data-layer="wordmark" data-pa="fade" data-pd="0"></div>
+    <h1 class="t-h1 reveal" style="--d:1s" data-layer="h1" data-pa="rise" data-pd="0.8">The 3D<br>damage map</h1>
+    <p class="t-sub" data-a="rise" style="--d:1.6s" data-layer="sub">Scan a site once. <b>Flag what has changed.</b></p>
+    <div class="t-meta" data-a="rise" style="--d:2s" data-layer="meta">
+      <span class="chip chip--info">Track 2 · Resilient &amp; Safe City</span>
+      <span class="mono">Leukerbad Robotics Carnival Hack 2026</span>
+    </div>
+    <p class="t-cap mono" data-a="rise" style="--d:3s" data-layer="cap" data-pa="fade">Our scan of the conference hall, Leukerbad · 15 Nov 2026</p>
+  </section>
+
+  <!-- 2 · Problem -->
+  <section class="slide" id="problem" data-steps="2">
+    <header class="head">
+      <p class="eyebrow" data-a="rise" data-layer="eyebrow">The problem</p>
+      <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">Today, a crack<br>is just a photo.</h1>
+    </header>
+    <ul class="qs">
+      <li data-a="left" data-step="1" data-layer="q1"><i>?</i>Where exactly?</li>
+      <li data-a="left" data-step="1" style="--d:.45s" data-layer="q2"><i>?</i>Is it new?</li>
+      <li data-a="left" data-step="1" style="--d:.9s" data-layer="q3"><i>?</i>Is it growing?</li>
+    </ul>
+    <p class="nogps" data-a="rise" data-step="2" style="--d:.55s" data-layer="nogps">No GPS inside <b>buildings</b>, <b>tunnels</b> or <b>car parks</b>.</p>
+    <div class="fan">
+      <figure class="ph ph1" data-a="drop" style="--d:.55s" data-layer="ph1" data-pa="rise">
+        <img src="assets/img/site-building.png" alt="Corridor with a crack in the wall">
+        <figcaption><span>IMG_4821.JPG</span><span class="where">where?</span></figcaption>
+      </figure>
+      <figure class="ph ph2" data-a="drop" style="--d:.75s" data-layer="ph2" data-pa="rise">
+        <img src="assets/img/site-tunnel.png" alt="Tunnel with a crack in the lining">
+        <figcaption><span>IMG_4907.JPG</span><span class="where">where?</span></figcaption>
+      </figure>
+      <figure class="ph ph3" data-a="drop" style="--d:.95s" data-layer="ph3" data-pa="rise">
+        <img src="assets/img/site-carpark.png" alt="Car park with a crack in a column">
+        <figcaption><span>IMG_5013.JPG</span><span class="where">where?</span></figcaption>
+      </figure>
+      <span class="stamp st1" data-a="pop" data-step="2" data-layer="st1" data-pa="zoom">No GPS</span>
+      <span class="stamp st2" data-a="pop" data-step="2" style="--d:.15s" data-layer="st2" data-pa="zoom">No GPS</span>
+      <span class="stamp st3" data-a="pop" data-step="2" style="--d:.3s" data-layer="st3" data-pa="zoom">No GPS</span>
+    </div>
+  </section>
+
+  <!-- 3 · Idea -->
+  <section class="slide" id="idea" data-steps="2">
+    <div class="scene" id="sc-idea">
+      <canvas data-layer="cloud" data-pa="fade" data-pd="0.4"></canvas>
+      <svg class="ov fru" id="fru" data-a="fade" data-layer="frustum" data-step="1" data-pa="fade" data-pd="0.2">
+        <polygon class="face" id="fru-f1"/><polygon class="face" id="fru-f2"/><polygon class="face" id="fru-f3"/><polygon class="face" id="fru-f4"/>
+        <path class="ray" id="fru-rays"/>
+        <polygon class="plane" id="fru-plane"/>
+      </svg>
+      <div class="cam3d" id="cam-idea" data-a="fade" data-layer="camera" data-step="1" data-pa="zoom"><i></i></div>
+      <div class="pin3d" id="pin-idea" data-layer="pin" data-step="2" data-pa="zoom" data-pd="0.2">
+        <div class="pin3d__in" data-a="pop" data-step="2" style="--d:.15s">
+          <i class="halo"></i><i class="lead"></i><i class="dot"></i>
+          <span class="pill">Crack <b>·</b> 0.55 m <b>·</b> new</span>
+        </div>
+      </div>
+    </div>
+    <header class="head">
+      <p class="eyebrow" data-a="rise" data-layer="eyebrow">Our idea</p>
+      <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">Scan once. Every photo<br>finds its place.</h1>
+    </header>
+    <ol class="steps3">
+      <li data-a="rise" style="--d:.7s" data-layer="st1"><span class="num">01</span><div><h3>Scan</h3><p>A photoreal 3D twin of the site</p></div></li>
+      <li data-a="rise" data-step="1" data-layer="st2"><span class="num">02</span><div><h3>Locate</h3><p>Any camera, placed without GPS</p></div></li>
+      <li data-a="rise" data-step="2" data-layer="st3"><span class="num">03</span><div><h3>Flag</h3><p>New, worsening or repaired</p></div></li>
+    </ol>
+  </section>
+
+  <!-- 4 · Demo video (plays by itself, then moves on) -->
+  <section class="slide" id="demo" data-steps="0" data-chrome="none">
+    <video id="vid" src="assets/pipeline.mp4" muted playsinline preload="auto" data-layer="video"></video>
+    <div class="vbar"><b></b></div>
+    <div class="vplay" id="vplay" hidden>Click to play the demo</div>
+  </section>
+
+  <!-- 5 · Flag what has changed -->
+  <section class="slide" id="change" data-steps="1">
+    <header class="head">
+      <p class="eyebrow" data-a="rise" data-layer="eyebrow">Flag what has changed</p>
+      <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">Same spot, new photo.<br>The change gets <em>flagged.</em></h1>
+    </header>
+    <svg class="wires" viewBox="0 0 1920 1080" data-layer="wires" data-step="1" data-pa="wipe" data-pd="0.2">
+      <path class="draw" data-step="1" style="--d:.1s" d="M592 658 H736"/>
+      <path class="draw w-rust" data-step="1" style="--d:1s" d="M1114 658 C1196 658 1196 474 1278 474"/>
+      <path class="draw w-grey" data-step="1" style="--d:1.2s" d="M1114 658 C1196 658 1196 620 1278 620"/>
+      <path class="draw w-green" data-step="1" style="--d:1.4s" d="M1114 658 C1196 658 1196 766 1278 766"/>
+    </svg>
+    <article class="rec" data-a="rise" style="--d:.7s" data-layer="rec">
+      <p class="tag">Real record · ISS-0007</p>
+      <img src="assets/img/record-iss-0007.jpg" alt="Crack found by SAM 3, pinned in the 3D twin">
+      <div class="rec__row"><h3>Crack · floor</h3><span class="status" data-status="new">New</span></div>
+      <div class="rec__row"><span class="big">0.55 m</span><span class="mono">15 Nov 2026, 20:29<br>from a phone</span></div>
+    </article>
+    <article class="nextp" data-a="zoom" data-step="1" style="--d:.5s" data-layer="nextp">
+      <svg viewBox="0 0 48 48" fill="none" stroke="#2453D4" stroke-width="2.6" stroke-linecap="round"><circle cx="24" cy="24" r="13"/><circle cx="24" cy="24" r="2.6" fill="#2453D4" stroke="none"/><path d="M24 4v8M24 36v8M4 24h8M36 24h8"/></svg>
+      <h3>Next photo<br>of this spot</h3>
+      <span class="mono">matched within 15 cm</span>
+    </article>
+    <ul class="outs">
+      <li data-a="left" data-step="1" style="--d:1.5s" data-layer="o1"><span class="status status--xl" data-status="worsening">Worsening</span><span class="mono">20 % longer, at least +2 cm</span></li>
+      <li data-a="left" data-step="1" style="--d:1.7s" data-layer="o2"><span class="status status--xl" data-status="stable">Stable</span><span class="mono">no growth</span></li>
+      <li data-a="left" data-step="1" style="--d:1.9s" data-layer="o3"><span class="status status--xl" data-status="repaired">Repaired</span><span class="mono">crack gone · a person confirms</span></li>
+    </ul>
+    <ul class="feats">
+      <li data-a="rise" data-step="1" style="--d:2.4s" data-layer="f1"><svg viewBox="0 0 24 24"><path d="M3 12h18"/><circle cx="15" cy="12" r="3.2" fill="#FBFAF7"/></svg>Time slider: the site on any date</li>
+      <li data-a="rise" data-step="1" style="--d:2.55s" data-layer="f2"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M12 3v18"/></svg>Before / after swipe</li>
+      <li data-a="rise" data-step="1" style="--d:2.7s" data-layer="f3"><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 13h5M10 17h5"/></svg>PDF report · hash-chained records</li>
+    </ul>
+  </section>
+
+  <!-- 6 · Proof -->
+  <section class="slide" id="proof" data-steps="0">
+    <header class="head">
+      <p class="eyebrow" data-a="rise" data-layer="eyebrow">Built this weekend</p>
+      <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">It runs end to end,<br>on real data.</h1>
+    </header>
+    <div class="kpis">
+      <div class="kpi" data-a="rise" style="--d:.6s" data-layer="k1"><span class="kpi__v" data-count="3">3<small>M</small></span><span class="kpi__l">Gaussians in the 3D twin</span><span class="kpi__q">conference hall · 15 Nov</span></div>
+      <div class="kpi" data-a="rise" style="--d:.75s" data-layer="k2"><span class="kpi__v" data-count="6">6<small>mm</small></span><span class="kpi__l">median positioning error</span><span class="kpi__q">held-out views · 0 wrong</span></div>
+      <div class="kpi" data-a="rise" style="--d:.9s" data-layer="k3"><span class="kpi__v kpi__v--time" data-count="10">10<small>s</small></span><span class="kpi__l">sweep + photo per record</span><span class="kpi__q">iPhone app · no GPS</span></div>
+      <div class="kpi" data-a="rise" style="--d:1.05s" data-layer="k4"><span class="kpi__v" data-count="51">51</span><span class="kpi__l">automated tests passing</span><span class="kpi__q">backend · VPS · maps</span></div>
+    </div>
+    <div class="pipe" data-layer="pipe" data-pa="wipe" data-pd="1.5">
+      <svg viewBox="0 0 1680 170"><line class="draw" style="--d:1.5s;--len:1344" x1="168" y1="38" x2="1512" y2="38"/></svg>
+      <p class="node" style="left:0;--d:1.5s" data-a="pop"><i><svg viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></i><b>iPhone app</b><span>sweep + photo</span></p>
+      <p class="node" style="left:336px;--d:1.75s" data-a="pop"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="#2453D4" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></i><b>Visual positioning</b><span>our own · no GPS</span></p>
+      <p class="node" style="left:672px;--d:2s" data-a="pop"><i><svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M9 8l2.5 3-2 2 3.5 3"/></svg></i><b>SAM 3</b><span>finds the crack</span></p>
+      <p class="node" style="left:1008px;--d:2.25s" data-a="pop"><i><svg viewBox="0 0 24 24"><path d="M12 21s6.5-5.8 6.5-11A6.5 6.5 0 0 0 5.5 10c0 5.2 6.5 11 6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg></i><b>3D pin + size</b><span>length in metres</span></p>
+      <p class="node" style="left:1344px;--d:2.5s" data-a="pop"><i><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 13h5M10 17h5"/></svg></i><b>Issue log + PDF</b><span>hash-chained</span></p>
+    </div>
+  </section>
+
+  <!-- 7 · Next -->
+  <section class="slide" id="next" data-steps="1">
+    <div class="scene" id="sc-next">
+      <canvas data-layer="cloud" data-pa="fade" data-pd="0.4"></canvas>
+      <svg class="ov" id="route" data-a="fade" style="--d:.9s" data-layer="route" data-step="1" data-pa="fade" data-pd="0.9"><path class="route" id="route-path"/></svg>
+      <div class="bot3d" id="bot" data-a="fade" style="--d:1.1s" data-layer="bot" data-step="1" data-pa="zoom" data-pd="1.1"><i></i></div>
+    </div>
+    <header class="head">
+      <p class="eyebrow" data-a="rise" data-layer="eyebrow">What's next</p>
+      <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">From one hall to every site.<br>From phones to <em class="blue">robots.</em></h1>
+    </header>
+    <div class="grow">
+      <div class="grp" data-a="rise" style="--d:.7s" data-layer="g1">
+        <p class="eyebrow eyebrow--sm">More damage</p>
+        <div class="chips"><span class="chip chip--now">Cracks <small>today</small></span><span class="chip">Corrosion</span><span class="chip">Leaks</span><span class="chip">Spalling</span></div>
+      </div>
+      <div class="grp" data-a="rise" style="--d:.9s" data-layer="g2">
+        <p class="eyebrow eyebrow--sm">More sites</p>
+        <div class="chips"><span class="chip chip--now">Buildings <small>today</small></span><span class="chip">Tunnels</span><span class="chip">Car parks</span><span class="chip">Bridges</span></div>
+      </div>
+      <div class="grp" data-a="rise" data-step="1" style="--d:.5s" data-layer="g3">
+        <p class="eyebrow eyebrow--sm">More robots</p>
+        <div class="chips"><span class="chip">Drones</span><span class="chip">Humanoids</span><span class="chip">Robot dogs</span><span class="chip">Wheeled robots</span></div>
+      </div>
+      <div class="grp" data-a="rise" data-step="1" style="--d:.8s" data-layer="g4">
+        <p class="eyebrow eyebrow--sm">More uses of the twin</p>
+        <div class="chips"><span class="chip chip--now">Inspection <small>today</small></span><span class="chip">Navigation</span><span class="chip">Training policies</span></div>
+      </div>
+    </div>
+    <p class="legend" data-a="rise" data-step="1" style="--d:1.2s" data-layer="legend"><i></i>Robot-ready map <b>·</b> <span class="mono">39.8 m² drivable</span></p>
+  </section>
+
+  <!-- 8 · Team + close -->
+  <section class="slide" id="team" data-steps="1" data-chrome="nobrand">
+    <header class="head">
+      <p class="eyebrow" data-a="rise" data-layer="eyebrow">The team</p>
+      <h1 class="reveal" style="--d:.15s" data-layer="h1" data-pa="rise" data-pd="0.15">Six people, six nationalities,<br>one map.</h1>
+    </header>
+    <ul class="team">
+      <li data-a="rise" style="--d:.55s" data-layer="m1"><img class="face" src="assets/img/team-ishan.png" alt=""><h3>Ishan <img class="flag" src="assets/img/flag-in.png" alt="India"></h3><p>TUHH Hamburg</p></li>
+      <li data-a="rise" style="--d:.65s" data-layer="m2"><img class="face" src="assets/img/team-pia.png" alt=""><h3>Pia <img class="flag" src="assets/img/flag-ph.png" alt="Philippines"></h3><p>ETH Zürich</p></li>
+      <li data-a="rise" style="--d:.75s" data-layer="m3"><img class="face" src="assets/img/team-fabian.png" alt=""><h3>Fabian <img class="flag" src="assets/img/flag-de.png" alt="Germany"></h3><p>TU Bergakademie Freiberg</p></li>
+      <li data-a="rise" style="--d:.85s" data-layer="m4"><img class="face" src="assets/img/team-han.png" alt=""><h3>Han <img class="flag" src="assets/img/flag-cn.png" alt="China"></h3><p>ETH Zürich</p></li>
+      <li data-a="rise" style="--d:.95s" data-layer="m5"><img class="face" src="assets/img/team-marc.png" alt=""><h3>Marc <img class="flag" src="assets/img/flag-ch.png" alt="Switzerland"></h3><p>ETH Zürich</p></li>
+      <li data-a="rise" style="--d:1.05s" data-layer="m6"><img class="face" src="assets/img/team-sep.png" alt=""><h3>Sep <img class="flag" src="assets/img/flag-it.png" alt="Italy"></h3><p>USI Lugano</p></li>
+    </ul>
+    <p class="tagline reveal" data-step="1" data-layer="tagline" data-pa="rise">One map. Every damage record<br>in its exact place.</p>
+    <div class="close-logo" data-wordmark data-a="rise" data-step="1" style="--d:.6s" data-layer="logo" data-pa="fade"></div>
+  </section>
+
+  <!-- Chrome -->
+  <div id="chrome" data-mode="full">
+    <div id="brand" data-wordmark data-layer-global="brand"></div>
+    <div id="pager"><b id="pg">01</b> / <span id="pgn">08</span></div>
+    <div id="track"><b></b></div>
+  </div>
+  <div id="timer" hidden>0:00 / 4:00</div>
+  <aside id="notes" hidden><div class="n-top"><span id="n-title"></span><span id="n-time"></span></div><p id="n-say"></p></aside>
+  <div id="hint"><kbd>→</kbd> next &nbsp; <kbd>←</kbd> back &nbsp; <kbd>F</kbd> fullscreen &nbsp; <kbd>S</kbd> notes &nbsp; <kbd>T</kbd> timer</div>
+</div>
+<div id="black" hidden></div>
+
+<script src="assets/logos.js"></script>
+<script src="assets/cloud-data.js"></script>
+<script src="deck.js"></script>
+</body>
+</html>
