@@ -40,7 +40,7 @@
     next: { name: 'What’s next (drone clip 10 s)', time: '2:54 – 3:36',
       say: 'Next: more damage types and more sites: tunnels, car parks, bridges. ▸ And robots: drones, robot dogs, humanoids. From the same scan we export a map a ground robot can navigate with. ▸ Here a drone lands inside our scan, in simulation: the elevation map gives it its reward and a safe altitude. So the same twin serves inspection today, navigation and training robot policies next. Robots patrol, the map updates itself, people only confirm.' },
     team: { name: 'Team and close', time: '3:36 – 3:55',
-      say: 'We are six people from six countries, studying robotics, AI, mechatronics and electrical engineering at ETH, TUHH, Freiberg and USI. ▸ deepsplat: one map, every damage record in its exact place. Thank you.' },
+      say: 'We are six people from six countries, studying robotics, AI, mechatronics and electrical engineering at ETH, TUHH, Freiberg and USI. ▸ deepsplat: the version control system for infrastructure. Thank you.' },
   };
 
   /* ------------------------------------------------------------------ helpers */
